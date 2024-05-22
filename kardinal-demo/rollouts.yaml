@@ -588,12 +588,22 @@ metadata:
     app: frontend
 spec:
   replicas: 1
+  # strategy:
+  #   blueGreen:
+  #     activeService: frontend
+  #     previewService: frontend-preview
+  #     autoPromotionEnabled: true
+  #     scaleDownDelaySeconds: 30
   strategy:
-    blueGreen:
-      activeService: frontend
-      previewService: frontend-preview
-      autoPromotionEnabled: true
-      scaleDownDelaySeconds: 30
+    canary:
+      canaryService: frontend-preview
+      stableService: frontend
+      trafficRouting:
+        nginx:
+          stableIngress: kardinal-demo-stable
+      steps:
+        - setWeight: 5
+        - pause: {}
   selector:
     matchLabels:
       app: frontend
