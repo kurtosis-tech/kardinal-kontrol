@@ -9,10 +9,15 @@ Before running an example:
 
 ```bash
 nix develop
-minikube start --driver=docker --cpus=8 --memory 8192 --disk-size 32g
 kubectl config set-context minikube
-# You can also start the minikube dashboard in a separate terminal
+minikube start --driver=docker --cpus=10 --memory 8192 --disk-size 32g
+minikube addons enable ingress
+minikube addons enable metrics-server
 minikube dashboard
+```
+
+```bash
+minikube tunnel
 ```
 
 2. Kardinal demo
@@ -22,6 +27,13 @@ kubectl create namespace kardinal-demo
 kubectl apply -n kardinal-demo -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
 kubectl apply -n kardinal-demo -f kardinal-demo
 kubectl port-forward -n kardinal-demo service/frontend 8080:80
+```
+
+Start to rollout changes to the frontend service:
+
+```bash
+kubectl argo rollouts -n kardinal-demo set image frontend "*=lostbean/microservice-frontend:banner1"
+kubectl argo rollouts -n kardinal-demo set image frontend "*=lostbean/microservice-frontend:banner2"
 ```
 
 3. Google microservices demo (optional)
