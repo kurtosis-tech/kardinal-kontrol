@@ -71,6 +71,9 @@ For rollouts, trigger an update by setting the image of a new color to run:
 kubectl argo rollouts -n argo-demo set image bluegreen-demo "*=argoproj/rollouts-demo:yellow"
 ```
 
+### Argo Rollouts Dashboard
+
 ```bash
-kubectl argo rollouts -n argo-demo dashboard
+kubectl apply -n <namespace> -f rbac-rollout-dashboard.yaml
+kubectl port-forward -n <namespace> services/argo-rollouts-dashboard 3100:3100
 ```
