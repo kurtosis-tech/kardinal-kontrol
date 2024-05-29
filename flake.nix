@@ -1,12 +1,19 @@
 {
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-23.11";
     flake-utils.url = "github:numtide/flake-utils";
+    unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+    gomod2nix.url = "github:nix-community/gomod2nix";
+    gomod2nix.inputs.nixpkgs.follows = "nixpkgs";
+    gomod2nix.inputs.flake-utils.follows = "flake-utils";
   };
   outputs = {
     self,
     nixpkgs,
     flake-utils,
+    unstable,
+    gomod2nix,
+    ...
   }:
     flake-utils.lib.eachDefaultSystem
     (
@@ -14,16 +21,11 @@
         pkgs = import nixpkgs {
           inherit system;
         };
-      in
-        with pkgs; {
-          devShells.default = mkShell {
-            buildInputs = [k3d kubectl kustomize argo-rollouts kubernetes-helm minikube];
-            shellHook = ''
-              source <(kubectl completion bash)
-              source <(kubectl-argo-rollouts completion bash)
-              source <(minikube completion bash)
-            '';
-          };
-        }
+      in {
+        devShells.default = pkgs.callPackage ./shell.nix {
+          inherit pkgs;
+          inherit (gomod2nix.legacyPackages.${system}) mkGoEnv gomod2nix;
+        };
+      }
     );
 }
