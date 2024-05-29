@@ -1,5 +1,14 @@
 # Kardinal
 
+## Deploying Kontrol to local cluster
+
+```bash
+# First set the docker context to minikube
+eval $(minikube docker-env)
+docker load < $(nix build ./#containers.aarch64-darwin.kardinal-manager.arm64 --no-link --print-out-paths)
+
+```
+
 ## Demos
 
 This repo contains the [Argo Rollouts](https://github.com/argoproj/argo-rollouts) demo application source code and examples. It demonstrates the
