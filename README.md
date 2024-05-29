@@ -1,4 +1,6 @@
-# Kardinal Progressive Delivery Demo
+# Kardinal
+
+## Demos
 
 This repo contains the [Argo Rollouts](https://github.com/argoproj/argo-rollouts) demo application source code and examples. It demonstrates the
 various deployment strategies and progressive delivery features of Argo Rollouts.
@@ -16,13 +18,24 @@ minikube addons enable metrics-server
 minikube dashboard
 ```
 
+On another terminal, start the tunnel:
+
 ```bash
 minikube tunnel
 ```
 
-2. Kardinal demo
+And if using the Argo Rollout, start the dashboard (optional):
 
 ```bash
+kubectl apply -n <namespace> -f rbac-rollout-dashboard.yaml
+kubectl port-forward -n <namespace> services/argo-rollouts-dashboard 3100:3100
+```
+
+<details>
+  <summary>Kardinal demo</summary>
+
+```bash
+cd demos
 kubectl create namespace kardinal-demo
 kubectl apply -n kardinal-demo -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
 kubectl apply -n kardinal-demo -f kardinal-demo
@@ -36,7 +49,10 @@ kubectl argo rollouts -n kardinal-demo set image frontend "*=lostbean/microservi
 kubectl argo rollouts -n kardinal-demo set image frontend "*=lostbean/microservice-frontend:banner2"
 ```
 
-3. Google microservices demo (optional)
+</details>
+
+<details>
+  <summary>Google microservices demo (optional)</summary>
 
 ```bash
 kubectl create namespace ms-demo
@@ -46,7 +62,10 @@ kubectl apply -n ms-demo -f microservices-demo
 kubectl port-forward -n ms-demo deployment/frontend 8080:8080
 ```
 
-4.  Argo B/G Demo (Optional)
+</details>
+
+<details>
+  <summary>Argo B/G Demo (Optional)</summary>
 
 ```bash
 kubectl create namespace argo-demo
@@ -71,9 +90,4 @@ For rollouts, trigger an update by setting the image of a new color to run:
 kubectl argo rollouts -n argo-demo set image bluegreen-demo "*=argoproj/rollouts-demo:yellow"
 ```
 
-### Argo Rollouts Dashboard
-
-```bash
-kubectl apply -n <namespace> -f rbac-rollout-dashboard.yaml
-kubectl port-forward -n <namespace> services/argo-rollouts-dashboard 3100:3100
-```
+</details>
