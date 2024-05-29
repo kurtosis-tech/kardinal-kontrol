@@ -6,7 +6,7 @@
 # First set the docker context to minikube
 eval $(minikube docker-env)
 docker load < $(nix build ./#containers.aarch64-darwin.kardinal-manager.arm64 --no-link --print-out-paths)
-
+kubectl apply -f kontrol-service/deployment
 ```
 
 ## Demos
