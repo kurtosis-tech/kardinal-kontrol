@@ -11,6 +11,7 @@
       paths = builtins.concatLists (map (s: s.paths or []) shells);
     };
   kontrol_shell = pkgs.callPackage ./kontrol-service/shell.nix {inherit pkgs mkGoEnv gomod2nix;};
+  frontend_shell = pkgs.callPackage ./kontrol-frontend/shell.nix {inherit pkgs;};
   kardinal_shell = with pkgs;
     pkgs.mkShell {
       buildInputs = [k3d kubectl kustomize argo-rollouts kubernetes-helm minikube];
@@ -59,4 +60,4 @@
       '';
     };
 in
-  mergeShells [kontrol_shell kardinal_shell]
+  mergeShells [kontrol_shell frontend_shell kardinal_shell]
