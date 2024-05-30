@@ -33,9 +33,14 @@
           inherit (gomod2nix.legacyPackages.${system}) buildGoApplication;
         };
 
+        packages.redis-proxy-overlay = pkgs.callPackage ./redis-overlay-service/default.nix {
+          inherit pkgs;
+          inherit (gomod2nix.legacyPackages.${system}) buildGoApplication;
+        };
+
         containers = let
           architectures = ["amd64" "arm64"];
-          service_names = ["kardinal-manager"];
+          service_names = ["kardinal-manager" "redis-proxy-overlay"];
           os = "linux";
           all = pkgs.lib.lists.crossLists (arch: service_name: {
             "${service_name}" = {

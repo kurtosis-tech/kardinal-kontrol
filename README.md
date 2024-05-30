@@ -1,5 +1,23 @@
 # Kardinal
 
+## Developing instructions
+
+1. Enter the dev shell and start the local cluster:
+
+```bash
+nix develop
+```
+
+2. You're also likely to use a local k8s, in this case minikube is available to use:
+
+```bash
+kubectl config set-context minikube
+minikube start --driver=docker --cpus=10 --memory 8192 --disk-size 32g
+minikube addons enable ingress
+minikube addons enable metrics-server
+minikube dashboard
+```
+
 ## Deploying Kontrol to local cluster
 
 ```bash
@@ -9,23 +27,29 @@ docker load < $(nix build ./#containers.aarch64-darwin.kardinal-manager.arm64 --
 kubectl apply -f kontrol-service/deployment
 ```
 
+## Deploying Redis Overlay Service to local cluster
+
+Building and loading image into minikube:
+
+```bash
+# First set the docker context to minikube
+eval $(minikube docker-env)
+docker load < $(nix build ./#containers.aarch64-darwin.redis-proxy-overlay.arm64 --no-link --print-out-paths)
+```
+
+To build and run the service directly:
+
+```bash
+nix run ./#redis-proxy-overlay
+
+```
+
 ## Demos
 
 This repo contains the [Argo Rollouts](https://github.com/argoproj/argo-rollouts) demo application source code and examples. It demonstrates the
 various deployment strategies and progressive delivery features of Argo Rollouts.
 
 Before running an example:
-
-1. Enter the dev shell and start the local cluster:
-
-```bash
-nix develop
-kubectl config set-context minikube
-minikube start --driver=docker --cpus=10 --memory 8192 --disk-size 32g
-minikube addons enable ingress
-minikube addons enable metrics-server
-minikube dashboard
-```
 
 On another terminal, start the tunnel:
 

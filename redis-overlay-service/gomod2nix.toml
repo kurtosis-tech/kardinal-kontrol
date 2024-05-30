@@ -1,0 +1,12 @@
+schema = 3
+
+[mod]
+  [mod."github.com/tidwall/btree"]
+    version = "v1.1.0"
+    hash = "sha256-a215i089WwW8TM+ltd9zw92uVCqWWFHOzzBO1nSlkYM="
+  [mod."github.com/tidwall/match"]
+    version = "v1.1.1"
+    hash = "sha256-M2klhPId3Q3T3VGkSbOkYl/2nLHnsG+yMbXkPkyrRdg="
+  [mod."github.com/tidwall/redcon"]
+    version = "v1.6.2"
+    hash = "sha256-EhMOHoYAucg7ahRc9ALiEOluvJCAVd9nwy7BKfDt6bc="
