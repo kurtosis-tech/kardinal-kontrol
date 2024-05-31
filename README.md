@@ -20,6 +20,14 @@ minikube dashboard
 
 ## Deploying Kontrol to local cluster
 
+You can use tilt deploy and keeping the image hot-reloading:
+
+```bash
+tilt up
+```
+
+Or manually build it:
+
 ```bash
 # First set the docker context to minikube
 eval $(minikube docker-env)

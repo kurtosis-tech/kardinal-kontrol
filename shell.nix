@@ -13,7 +13,7 @@
   kontrol_shell = pkgs.callPackage ./kontrol-service/shell.nix {inherit pkgs mkGoEnv gomod2nix;};
   kardinal_shell = with pkgs;
     pkgs.mkShell {
-      buildInputs = [k3d kubectl kustomize argo-rollouts kubernetes-helm minikube];
+      buildInputs = [k3d kubectl kustomize argo-rollouts kubernetes-helm minikube tilt];
       shellHook = ''
         source <(kubectl completion bash)
         source <(kubectl-argo-rollouts completion bash)
