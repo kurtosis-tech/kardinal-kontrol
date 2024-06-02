@@ -44,7 +44,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/currencyservice:v0.10.0
+          image: lostbean/currencyservice:latest
           ports:
             - name: grpc
               containerPort: 7000
@@ -134,7 +134,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/loadgenerator:v0.10.0
+          image: lostbean/loadgenerator:latest
           env:
             - name: FRONTEND_ADDR
               value: "frontend:80"
@@ -180,7 +180,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/productcatalogservice:v0.10.0
+          image: lostbean/productcatalogservice:latest
           ports:
             - containerPort: 3550
           env:
@@ -233,7 +233,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/checkoutservice:v0.10.0
+          image: lostbean/checkoutservice:latest
           ports:
             - containerPort: 5050
           readinessProbe:
@@ -296,7 +296,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/shippingservice:v0.10.0
+          image: lostbean/shippingservice:latest
           ports:
             - containerPort: 50051
           env:
@@ -351,7 +351,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/cartservice:v0.10.0
+          image: lostbean/cartservice:latest
           ports:
             - containerPort: 7070
           env:
@@ -461,7 +461,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/emailservice:v0.10.0
+          image: lostbean/emailservice:latest
           ports:
             - containerPort: 8080
           env:
@@ -517,7 +517,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/paymentservice:v0.10.0
+          image: lostbean/paymentservice:latest
           ports:
             - containerPort: 50051
           env:
@@ -572,7 +572,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/frontend:v0.10.0
+          image: lostbean/frontend:latest
           ports:
             - containerPort: 8080
           readinessProbe:
@@ -665,7 +665,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/recommendationservice:v0.10.0
+          image: lostbean/recommendationservice:latest
           ports:
             - containerPort: 8080
           readinessProbe:
@@ -723,7 +723,7 @@ spec:
                 - ALL
             privileged: false
             readOnlyRootFilesystem: true
-          image: gcr.io/google-samples/microservices-demo/adservice:v0.10.0
+          image: lostbean/adservice:latest
           ports:
             - containerPort: 9555
           env:
