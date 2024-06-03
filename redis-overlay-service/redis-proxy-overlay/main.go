@@ -96,6 +96,12 @@ func main() {
 				} else {
 					conn.WriteInt(1)
 				}
+			case "echo":
+				if len(cmd.Args) != 2 {
+					conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")
+					return
+				}
+				conn.WriteString(string(cmd.Args[1]))
 			case "config":
 				// This simple (blank) response is only here to allow for the
 				// redis-benchmark command to work with this example.
