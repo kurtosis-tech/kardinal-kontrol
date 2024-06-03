@@ -38,6 +38,12 @@ docker load < $(nix build ./#containers.x86_64-darwin.kardinal-manager.amd64 --n
 kubectl apply -f kontrol-service/deployment
 ```
 
+## Removing Kontrol from local cluster
+
+```bash
+kubectl delete -f kontrol-service/deployment/k8s.yaml
+```
+
 ## Deploying Redis Overlay Service to local cluster
 
 Building and loading image into minikube:
