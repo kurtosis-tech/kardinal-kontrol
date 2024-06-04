@@ -21,10 +21,10 @@ func TestIstIoManager(t *testing.T) {
 }
 
 // This test is to demonstrate using the IstIoManager to accomplish certain workflows
-// assume
+// assumes
 // - default k8s namespace contains the services from the sample bookinfo application: https://istio.io/latest/docs/examples/bookinfo/
-// - a destination rule for reviews service has been preconfigured
-// - a virtual service for reviews service has been preconfigured
+// - a destination rule for reviews service has been preconfigured with one version of reviews
+// - a virtual service for reviews service has been preconfigured with one routing rule
 func TestIstioManagerWorkflows(t *testing.T) {
 	ctx := context.Background()
 	istioManager, err := getIstioManagerForTesting()
