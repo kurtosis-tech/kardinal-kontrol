@@ -3,7 +3,7 @@ package istio_manager
 import (
 	"context"
 	"github.com/kurtosis-tech/stacktrace"
-	istionetworking "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	istio_networking "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	"istio.io/client-go/pkg/clientset/versioned"
 	"istio.io/client-go/pkg/clientset/versioned/typed/networking/v1alpha3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,7 +57,7 @@ func CreateIstIoManager(k8sConfig *rest.Config) (*IstIoManager, error) {
 	}, nil
 }
 
-func (iom *IstIoManager) GetVirtualServices(ctx context.Context) ([]*istionetworking.VirtualService, error) {
+func (iom *IstIoManager) GetVirtualServices(ctx context.Context) ([]*istio_networking.VirtualService, error) {
 	virtualServiceList, err := iom.virtualServicesClient.List(ctx, metav1.ListOptions{
 		TypeMeta:             metav1.TypeMeta{},
 		LabelSelector:        "",
@@ -77,7 +77,7 @@ func (iom *IstIoManager) GetVirtualServices(ctx context.Context) ([]*istionetwor
 	return virtualServiceList.Items, nil
 }
 
-func (iom *IstIoManager) GetVirtualService(ctx context.Context, name string) (*istionetworking.VirtualService, error) {
+func (iom *IstIoManager) GetVirtualService(ctx context.Context, name string) (*istio_networking.VirtualService, error) {
 	virtualService, err := iom.virtualServicesClient.Get(ctx, name, metav1.GetOptions{
 		TypeMeta:        metav1.TypeMeta{},
 		ResourceVersion: "",
@@ -88,7 +88,7 @@ func (iom *IstIoManager) GetVirtualService(ctx context.Context, name string) (*i
 	return virtualService, nil
 }
 
-func (iom *IstIoManager) GetDestinationRules(ctx context.Context) ([]*istionetworking.DestinationRule, error) {
+func (iom *IstIoManager) GetDestinationRules(ctx context.Context) ([]*istio_networking.DestinationRule, error) {
 	destinationRules, err := iom.destinationRulesClient.List(ctx, metav1.ListOptions{
 		TypeMeta:             metav1.TypeMeta{},
 		LabelSelector:        "",
@@ -108,7 +108,7 @@ func (iom *IstIoManager) GetDestinationRules(ctx context.Context) ([]*istionetwo
 	return destinationRules.Items, nil
 }
 
-func (iom *IstIoManager) GetDestinationRule(ctx context.Context, rule string) (*istionetworking.DestinationRule, error) {
+func (iom *IstIoManager) GetDestinationRule(ctx context.Context, rule string) (*istio_networking.DestinationRule, error) {
 	destinationRule, err := iom.destinationRulesClient.Get(ctx, rule, metav1.GetOptions{
 		TypeMeta:        metav1.TypeMeta{},
 		ResourceVersion: "",
@@ -119,11 +119,29 @@ func (iom *IstIoManager) GetDestinationRule(ctx context.Context, rule string) (*
 	return destinationRule, nil
 }
 
-func (iom *IstIoManager) CreateVirtualService() error {
+func (iom *IstIoManager) CreateVirtualService(ctx context.Context, vs *istio_networking.VirtualService) error {
+	_, err := iom.virtualServicesClient.Create(ctx, vs, metav1.CreateOptions{
+		TypeMeta:        metav1.TypeMeta{},
+		DryRun:          nil,
+		FieldManager:    "",
+		FieldValidation: "",
+	})
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred creating virtual service: %s", vs.Name)
+	}
 	return nil
 }
 
-func (iom *IstIoManager) CreateDestinationRule() error {
+func (iom *IstIoManager) CreateDestinationRule(ctx context.Context, dr *istio_networking.DestinationRule) error {
+	_, err := iom.destinationRulesClient.Create(ctx, dr, metav1.CreateOptions{
+		TypeMeta:        metav1.TypeMeta{},
+		DryRun:          nil,
+		FieldManager:    "",
+		FieldValidation: "",
+	})
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred creating virtual service: %s", dr.Name)
+	}
 	return nil
 }
 
