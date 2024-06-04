@@ -2,7 +2,12 @@ import { Box, Link, VStack } from "@chakra-ui/react";
 
 const Sidebar = () => {
   return (
-    <Box height="100vh" backgroundColor="gray.50" padding="20px" boxShadow="md">
+    <Box
+      height="100vh"
+      backgroundColor="gray.50"
+      padding="20px"
+      boxShadow="2xl"
+    >
       <VStack spacing="10px" align="flex-start">
         <Link href="#dashboard" _hover={{ textDecoration: "underline" }}>
           Dashboard
