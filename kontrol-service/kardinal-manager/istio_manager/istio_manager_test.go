@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestIstIoManager(t *testing.T) {
+func TestIstioManager(t *testing.T) {
 	ctx := context.Background()
 	istioManager, err := getIstioManagerForTesting()
 	require.NoError(t, err)
@@ -20,7 +20,7 @@ func TestIstIoManager(t *testing.T) {
 	require.NotEmpty(t, virtualServices)
 }
 
-// This test is to demonstrate using the IstIoManager to accomplish certain workflows
+// This test is to demonstrate using the IstioManager to accomplish certain workflows
 // assumes
 // - default k8s namespace contains the services from the sample bookinfo application: https://istio.io/latest/docs/examples/bookinfo/
 // - a destination rule for reviews service has been preconfigured with one version of reviews
@@ -82,7 +82,7 @@ func TestIstioManagerWorkflows(t *testing.T) {
 	err = istioManager.AddRoutingRule(ctx, "reviews", splitTraffic5050Rule)
 }
 
-func getIstioManagerForTesting() (*IstIoManager, error) {
+func getIstioManagerForTesting() (*IstioManager, error) {
 	// for now pick up local k8s config and err if it doesn't exist
 	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
 	k8sConfig, err := clientcmd.BuildConfigFromFlags("", kubeconfig)

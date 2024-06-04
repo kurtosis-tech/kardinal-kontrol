@@ -35,7 +35,7 @@ import (
 // - ability to add new versions of a service
 //   - updating destination rules
 
-type IstIoManager struct {
+type IstioManager struct {
 	istioClient *versioned.Clientset
 
 	virtualServicesClient v1alpha3.VirtualServiceInterface
@@ -43,7 +43,7 @@ type IstIoManager struct {
 	destinationRulesClient v1alpha3.DestinationRuleInterface
 }
 
-func CreateIstIoManager(k8sConfig *rest.Config) (*IstIoManager, error) {
+func CreateIstIoManager(k8sConfig *rest.Config) (*IstioManager, error) {
 	ic, err := versioned.NewForConfig(k8sConfig)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred creating IstIo client from k8s config: %v", k8sConfig)
@@ -51,14 +51,14 @@ func CreateIstIoManager(k8sConfig *rest.Config) (*IstIoManager, error) {
 	namespace := "default"
 	vsClient := ic.NetworkingV1alpha3().VirtualServices(namespace)
 	drClient := ic.NetworkingV1alpha3().DestinationRules(namespace)
-	return &IstIoManager{
+	return &IstioManager{
 		istioClient:            ic,
 		virtualServicesClient:  vsClient,
 		destinationRulesClient: drClient,
 	}, nil
 }
 
-func (iom *IstIoManager) GetVirtualServices(ctx context.Context) ([]*istio_networking.VirtualService, error) {
+func (iom *IstioManager) GetVirtualServices(ctx context.Context) ([]*istio_networking.VirtualService, error) {
 	virtualServiceList, err := iom.virtualServicesClient.List(ctx, metav1.ListOptions{
 		TypeMeta:             metav1.TypeMeta{},
 		LabelSelector:        "",
@@ -78,7 +78,7 @@ func (iom *IstIoManager) GetVirtualServices(ctx context.Context) ([]*istio_netwo
 	return virtualServiceList.Items, nil
 }
 
-func (iom *IstIoManager) GetVirtualService(ctx context.Context, name string) (*istio_networking.VirtualService, error) {
+func (iom *IstioManager) GetVirtualService(ctx context.Context, name string) (*istio_networking.VirtualService, error) {
 	virtualService, err := iom.virtualServicesClient.Get(ctx, name, metav1.GetOptions{
 		TypeMeta:        metav1.TypeMeta{},
 		ResourceVersion: "",
@@ -89,7 +89,7 @@ func (iom *IstIoManager) GetVirtualService(ctx context.Context, name string) (*i
 	return virtualService, nil
 }
 
-func (iom *IstIoManager) GetDestinationRules(ctx context.Context) ([]*istio_networking.DestinationRule, error) {
+func (iom *IstioManager) GetDestinationRules(ctx context.Context) ([]*istio_networking.DestinationRule, error) {
 	destinationRules, err := iom.destinationRulesClient.List(ctx, metav1.ListOptions{
 		TypeMeta:             metav1.TypeMeta{},
 		LabelSelector:        "",
@@ -109,7 +109,7 @@ func (iom *IstIoManager) GetDestinationRules(ctx context.Context) ([]*istio_netw
 	return destinationRules.Items, nil
 }
 
-func (iom *IstIoManager) GetDestinationRule(ctx context.Context, rule string) (*istio_networking.DestinationRule, error) {
+func (iom *IstioManager) GetDestinationRule(ctx context.Context, rule string) (*istio_networking.DestinationRule, error) {
 	destinationRule, err := iom.destinationRulesClient.Get(ctx, rule, metav1.GetOptions{
 		TypeMeta:        metav1.TypeMeta{},
 		ResourceVersion: "",
@@ -120,7 +120,7 @@ func (iom *IstIoManager) GetDestinationRule(ctx context.Context, rule string) (*
 	return destinationRule, nil
 }
 
-func (iom *IstIoManager) CreateVirtualService(ctx context.Context, vs *istio_networking.VirtualService) error {
+func (iom *IstioManager) CreateVirtualService(ctx context.Context, vs *istio_networking.VirtualService) error {
 	_, err := iom.virtualServicesClient.Create(ctx, vs, metav1.CreateOptions{
 		TypeMeta:        metav1.TypeMeta{},
 		DryRun:          nil,
@@ -133,7 +133,7 @@ func (iom *IstIoManager) CreateVirtualService(ctx context.Context, vs *istio_net
 	return nil
 }
 
-func (iom *IstIoManager) CreateDestinationRule(ctx context.Context, dr *istio_networking.DestinationRule) error {
+func (iom *IstioManager) CreateDestinationRule(ctx context.Context, dr *istio_networking.DestinationRule) error {
 	_, err := iom.destinationRulesClient.Create(ctx, dr, metav1.CreateOptions{
 		TypeMeta:        metav1.TypeMeta{},
 		DryRun:          nil,
@@ -147,7 +147,7 @@ func (iom *IstIoManager) CreateDestinationRule(ctx context.Context, dr *istio_ne
 }
 
 // how to expose API to configure ordering of routing rule? https://istio.io/latest/docs/concepts/traffic-management/#routing-rule-precedence
-func (iom *IstIoManager) AddRoutingRule(ctx context.Context, vsName string, routingRule *istio.HTTPRoute) error {
+func (iom *IstioManager) AddRoutingRule(ctx context.Context, vsName string, routingRule *istio.HTTPRoute) error {
 	vs, err := iom.virtualServicesClient.Get(ctx, vsName, metav1.GetOptions{
 		TypeMeta:        metav1.TypeMeta{},
 		ResourceVersion: "",
@@ -164,7 +164,7 @@ func (iom *IstIoManager) AddRoutingRule(ctx context.Context, vsName string, rout
 	return nil
 }
 
-func (iom *IstIoManager) AddSubset(ctx context.Context, drName string, subset *istio.Subset) error {
+func (iom *IstioManager) AddSubset(ctx context.Context, drName string, subset *istio.Subset) error {
 	dr, err := iom.destinationRulesClient.Get(ctx, drName, metav1.GetOptions{
 		TypeMeta:        metav1.TypeMeta{},
 		ResourceVersion: "",
