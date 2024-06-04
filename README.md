@@ -31,8 +31,14 @@ Or manually build it:
 ```bash
 # First set the docker context to minikube
 eval $(minikube docker-env)
-docker load < $(nix build ./#containers.aarch64-darwin.kardinal-manager.arm64 --no-link --print-out-paths)
+docker load < $(nix build ./#kardinal-manager-container --no-link --print-out-paths)
 kubectl apply -f kontrol-service/deployment
+```
+
+## Removing Kontrol from local cluster
+
+```bash
+kubectl delete -f kontrol-service/deployment/k8s.yaml
 ```
 
 ## Deploying Redis Overlay Service to local cluster
@@ -42,7 +48,7 @@ Building and loading image into minikube:
 ```bash
 # First set the docker context to minikube
 eval $(minikube docker-env)
-docker load < $(nix build ./#containers.aarch64-darwin.redis-proxy-overlay.arm64 --no-link --print-out-paths)
+docker load < $(nix build ./#redis-proxy-overlay-container --no-link --print-out-paths)
 ```
 
 To build and run the service directly:
@@ -97,10 +103,35 @@ kubectl argo rollouts -n kardinal-demo set image frontend "*=lostbean/microservi
 
 ```bash
 kubectl create namespace ms-demo
+# Adding the label for injecting the Istio sidecars
+kubectl label namespace ms-demo istio-injection=enabled
 kubectl apply -n ms-demo -f microservices-demo
 # or directly from the Github repo
 # kubectl apply -n ms-demo -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/main/release/kubernetes-manifests.yaml
 kubectl port-forward -n ms-demo deployment/frontend 8080:8080
+```
+
+### Adding Istio and Kiali
+
+```bash
+# Download Istio in the host
+curl -L https://istio.io/downloadIstio | sh -
+
+# Go to the folder
+cd istio-1.22.0 #(or the version installed)
+
+# Add Istio Command line into the path
+export PATH=$PWD/bin:$PATH
+
+# Install Istio in the local cluster with the demo profile
+istioctl install --set profile=demo -y
+
+# Install Kiali and the other Addons
+kubectl apply -f samples/addons
+kubectl rollout status deployment/kiali -n istio-system
+
+# Access into the Kiali dashboard
+istioctl dashboard kiali
 ```
 
 </details>

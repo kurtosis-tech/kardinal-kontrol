@@ -1,8 +1,4 @@
-{
-  pkgs,
-  mkGoEnv,
-  gomod2nix,
-}: let
+{pkgs}: let
   mergeShells = shells:
     pkgs.mkShell {
       shellHook = builtins.concatStringsSep "\n" (map (s: s.shellHook or "") shells);
@@ -10,7 +6,7 @@
       nativeBuildInputs = builtins.concatLists (map (s: s.nativeBuildInputs or []) shells);
       paths = builtins.concatLists (map (s: s.paths or []) shells);
     };
-  kontrol_shell = pkgs.callPackage ./kontrol-service/shell.nix {inherit pkgs mkGoEnv gomod2nix;};
+  kontrol_shell = pkgs.callPackage ./kontrol-service/shell.nix {inherit pkgs;};
   frontend_shell = pkgs.callPackage ./kontrol-frontend/shell.nix {inherit pkgs;};
   kardinal_shell = with pkgs;
     pkgs.mkShell {

@@ -1,6 +1,5 @@
 {
   pkgs,
-  buildGoApplication,
   commit_hash ? "dirty",
 }: let
   pname = "redis-proxy-overlay";
@@ -9,7 +8,7 @@
     "-X github.com/kurtosis-tech/kurtosis/kardinal.Commit=${commit_hash}"
   ];
 in
-  buildGoApplication {
+  pkgs.buildGoApplication {
     # pname has to match the location (folder) where the main function is or use
     # subPackges to specify the file (e.g. subPackages = ["some/folder/main.go"];)
     inherit pname ldflags;
