@@ -22,6 +22,7 @@
           inherit system;
         };
         commit_hash = "${self.shortRev or self.dirtyShortRev or "dirty"}";
+        service_names = ["kardinal-manager" "redis-proxy-overlay"];
       in rec {
         devShells.default = pkgs.callPackage ./shell.nix {
           inherit pkgs;
@@ -40,7 +41,6 @@
 
         containers = let
           architectures = ["amd64" "arm64"];
-          service_names = ["kardinal-manager" "redis-proxy-overlay"];
           os = "linux";
           all = pkgs.lib.lists.crossLists (arch: service_name: {
             "${service_name}" = {
@@ -95,6 +95,17 @@
         in
           pkgs.lib.foldl' (set: acc: pkgs.lib.recursiveUpdate acc set) {}
           all;
+
+        packages.container = let
+          arch =
+            if builtins.match "aarch64-.*" system != null
+            then "arm64"
+            else if builtins.match "x86_64-.*" system != null
+            then "amd64"
+            else throw "Unsupported system type: ${system}";
+          mergeCurrentPackage = acc: service: pkgs.lib.recursiveUpdate acc {"${service}" = self.containers.${system}.${service}.${arch};};
+        in
+          pkgs.lib.foldl' mergeCurrentPackage {} service_names;
       }
     );
 }

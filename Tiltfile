@@ -28,7 +28,7 @@ def build_flake_image(ref, path = "", output = "", resultfile = "result", deps =
 
 image_name = "kurtosistech/kardinal-manager"
 
-build_flake_image(image_name , ".", "containers.aarch64-darwin.kardinal-manager.arm64", deps=["./kontrol-service"])
+build_flake_image(image_name , ".", "container.kardinal-manager", deps=["./kontrol-service"])
 
 yaml_dir = "./kontrol-service/deployment"
 k8s_yaml(yaml=(yaml_dir + "/k8s.yaml"))

@@ -31,7 +31,7 @@ Or manually build it:
 ```bash
 # First set the docker context to minikube
 eval $(minikube docker-env)
-docker load < $(nix build ./#containers.aarch64-darwin.kardinal-manager.arm64 --no-link --print-out-paths)
+docker load < $(nix build ./#container.kardinal-manager --no-link --print-out-paths)
 kubectl apply -f kontrol-service/deployment
 ```
 
@@ -42,7 +42,7 @@ Building and loading image into minikube:
 ```bash
 # First set the docker context to minikube
 eval $(minikube docker-env)
-docker load < $(nix build ./#containers.aarch64-darwin.redis-proxy-overlay.arm64 --no-link --print-out-paths)
+docker load < $(nix build ./#container.redis-proxy-overlay --no-link --print-out-paths)
 ```
 
 To build and run the service directly:
