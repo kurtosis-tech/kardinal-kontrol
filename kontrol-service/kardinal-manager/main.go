@@ -3,10 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
-	"path/filepath"
-	"time"
-
 	istio "istio.io/api/networking/v1alpha3"
 	istionetworking "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	istioclient "istio.io/client-go/pkg/clientset/versioned"
@@ -15,6 +11,8 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+	"log"
+	"path/filepath"
 )
 
 func main() {
@@ -86,35 +84,21 @@ func main() {
 		log.Printf("Index: %d DestinationRule Host: %+v\n", i, dr.Spec.GetHost())
 	}
 
-	// turn this command into a programmatic k8s api call:
-	// kubectl apply -f samples/bookinfo/networking/virtual-service-all-v1.yaml
-	// creates Virtual Services for each service that routes all traffic to one subset of that service
-	fmt.Printf("Attempting to apply routing rule ...\n")
-	newReviewsRoute := istio.HTTPRoute{
-		Match: []*istio.HTTPMatchRequest{
-			{
-				Uri: &istio.StringMatch{
-					MatchType: &istio.StringMatch_Prefix{
-						Prefix: "/reviews/0",
-					},
-				},
-			},
-		},
+	fmt.Printf("Migrate to v3...")
+	migrateToV3Route := istio.HTTPRoute{
 		Route: []*istio.HTTPRouteDestination{
 			{
 				Destination: &istio.Destination{
 					Host:   "reviews",
-					Subset: "v2",
+					Subset: "v3",
 				},
 			},
 		},
 	}
-	reviewsVirtualService.Spec.Http = append([]*istio.HTTPRoute{&newReviewsRoute}, reviewsVirtualService.Spec.Http...)
+	reviewsVirtualService.Spec.Http = []*istio.HTTPRoute{&migrateToV3Route}
 	reviewsVirtualService, err = vsClient.Update(ctx, reviewsVirtualService, metav1.UpdateOptions{})
 	if err != nil {
 		log.Fatalf("An error occurred updating reviews virtual service: %v\n", err.Error())
 	}
 	fmt.Println("Reviews virtual service configured successfully.")
-
-	time.Sleep(100000 * time.Minute)
 }
