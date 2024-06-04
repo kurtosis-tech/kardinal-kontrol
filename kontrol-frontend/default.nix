@@ -44,7 +44,7 @@ in
       mkdir -p ./bin
       makeBinaryWrapper ${bun}/bin/bun ./bin/${name} \
         --prefix PATH : ${lib.makeBinPath [bun]} \
-        --add-flags "build --prefer-offline --no-install --outdir out ./src/main.tsx"
+        --add-flags "run --no-install build"
 
       # Call wrapper to build the project
       ./bin/${name}
@@ -54,7 +54,7 @@ in
 
     installPhase = ''
       runHook preInstall
-      cp -R ./out $out
+      cp -R ./dist $out
       runHook postInstall
     '';
   }
