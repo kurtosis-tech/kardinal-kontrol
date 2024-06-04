@@ -172,7 +172,17 @@ func (iom *IstIoManager) AddSubset(ctx context.Context, drName string, subset *i
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred retrieving destination rule '%s'", drName)
 	}
-	dr.Spec.Subsets = append(dr.Spec.Subsets, subset)
+	// if there already exists a subset for the same , just update it
+	shouldAddNewSubset := true
+	for _, s := range dr.Spec.Subsets {
+		if s.Name == subset.Name {
+			s = subset
+			shouldAddNewSubset = false
+		}
+	}
+	if shouldAddNewSubset {
+		dr.Spec.Subsets = append(dr.Spec.Subsets, subset)
+	}
 	_, err = iom.destinationRulesClient.Update(ctx, dr, metav1.UpdateOptions{})
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred updating destination rule '%s' with subset: %v", drName, subset)
