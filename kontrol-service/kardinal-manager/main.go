@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"kardinal.kontrol/kardinal-manager/server"
 	"log"
 	"path/filepath"
 
@@ -16,6 +17,10 @@ import (
 )
 
 func main() {
+	server.Run()
+}
+
+func basicInteractionWithK8sAndIstio() error {
 	var config *rest.Config
 	var err error
 
@@ -77,4 +82,6 @@ func main() {
 		dr := drList.Items[i]
 		log.Printf("Index: %d DestinationRule Host: %+v\n", i, dr.Spec.GetHost())
 	}
+
+	return nil
 }
