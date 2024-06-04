@@ -10,8 +10,8 @@ kind: ClusterRole
 metadata:
   name: kardinal-manager-role
 rules:
-  - apiGroups: [""]
-    resources: ["pods", "services", "deployments"]
+  - apiGroups: ["*"]
+    resources: ["pods", "services", "deployments", "virtualservices", "workloadgroups", "workloadentries", "sidecars", "serviceentries", "gateways", "envoyfilters", "destinationrules"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
 
 ---
