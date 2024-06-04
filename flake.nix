@@ -6,7 +6,6 @@
     gomod2nix.url = "github:nix-community/gomod2nix";
     gomod2nix.inputs.nixpkgs.follows = "nixpkgs";
     gomod2nix.inputs.flake-utils.follows = "flake-utils";
-    nix-npm.url = "github:serokell/nix-npm-buildpackage";
   };
   outputs = {
     self,
@@ -14,7 +13,6 @@
     flake-utils,
     unstable,
     gomod2nix,
-    nix-npm,
     ...
   }:
     flake-utils.lib.eachDefaultSystem
@@ -23,8 +21,7 @@
         pkgs = import nixpkgs {
           inherit system;
           overlays = [
-            nix-npm.overlays.default
-            (self: super: {nodejs = super.nodejs-18_x;})
+            (import "${gomod2nix}/overlay.nix")
           ];
         };
         commit_hash = "${self.shortRev or self.dirtyShortRev or "dirty"}";
@@ -32,17 +29,14 @@
       in rec {
         devShells.default = pkgs.callPackage ./shell.nix {
           inherit pkgs;
-          inherit (gomod2nix.legacyPackages.${system}) mkGoEnv gomod2nix;
         };
 
         packages.kardinal-manager = pkgs.callPackage ./kontrol-service/default.nix {
           inherit pkgs;
-          inherit (gomod2nix.legacyPackages.${system}) buildGoApplication;
         };
 
         packages.redis-proxy-overlay = pkgs.callPackage ./redis-overlay-service/default.nix {
           inherit pkgs;
-          inherit (gomod2nix.legacyPackages.${system}) buildGoApplication;
         };
 
         packages.kontrol-frontend = pkgs.callPackage ./kontrol-frontend/default.nix {
