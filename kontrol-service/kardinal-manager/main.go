@@ -53,7 +53,6 @@ func main() {
 	}
 
 	// create ist io client
-
 	ic, err := istioclient.NewForConfig(config)
 	if err != nil {
 		log.Fatalf("Failed to create istio client: %s", err)
@@ -86,7 +85,7 @@ func main() {
 	// turn this command into a programmatic k8s api call:
 	// kubectl apply -f samples/bookinfo/networking/virtual-service-all-v1.yaml
 	// creates Virtual Services for each service that routes all traffic to one subset of that service
-	fmt.Printf("Attempting to apply routing rule ...")
+	fmt.Printf("Attempting to apply routing rule ...\n")
 	//apiVersion: networking.istio.io/v1alpha3
 	//kind: VirtualService
 	//metadata:
