@@ -18,6 +18,18 @@ minikube addons enable metrics-server
 minikube dashboard
 ```
 
+### Regenerate REST API Bindings
+
+You can either: 
+1. Press the green play button in `kontrol-service/kardinal-manager/api/http_rest/generate.go` in Goland
+   <img src="./readme-static-files/goland-generate-rest-bindings.png"/>
+2. Or execute the following go from the repository root
+```bash
+go generate ./kontrol-service/kardinal-manager/api/http_rest/generate.go
+```
+
+
+
 ## Deploying Kontrol to local cluster
 
 You can use tilt deploy and keeping the image hot-reloading:
