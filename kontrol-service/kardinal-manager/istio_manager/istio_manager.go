@@ -18,7 +18,7 @@ import (
 //   - destination rules
 //
 // - destination rules
-// 		- hosts
+// 		- host
 //		- traffic policy
 //		- subsets
 //
@@ -43,7 +43,6 @@ type IstIoManager struct {
 	destinationRulesClient v1alpha3.DestinationRuleInterface
 }
 
-// how to mock this k8sConfig?
 func CreateIstIoManager(k8sConfig *rest.Config) (*IstIoManager, error) {
 	ic, err := versioned.NewForConfig(k8sConfig)
 	if err != nil {
@@ -165,4 +164,18 @@ func (iom *IstIoManager) AddRoutingRule(ctx context.Context, vsName string, rout
 	return nil
 }
 
-//func (iom *IstIoManager) Ad
+func (iom *IstIoManager) AddSubset(ctx context.Context, drName string, subset *istio.Subset) error {
+	dr, err := iom.destinationRulesClient.Get(ctx, drName, metav1.GetOptions{
+		TypeMeta:        metav1.TypeMeta{},
+		ResourceVersion: "",
+	})
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred retrieving destination rule '%s'", drName)
+	}
+	dr.Spec.Subsets = append(dr.Spec.Subsets, subset)
+	_, err = iom.destinationRulesClient.Update(ctx, dr, metav1.UpdateOptions{})
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred updating destination rule '%s' with subset: %v", drName, subset)
+	}
+	return nil
+}
