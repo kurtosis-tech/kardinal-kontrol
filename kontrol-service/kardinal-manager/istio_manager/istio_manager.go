@@ -3,6 +3,7 @@ package istio_manager
 import (
 	"context"
 	"github.com/kurtosis-tech/stacktrace"
+	istio "istio.io/api/networking/v1alpha3"
 	istio_networking "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	"istio.io/client-go/pkg/clientset/versioned"
 	"istio.io/client-go/pkg/clientset/versioned/typed/networking/v1alpha3"
@@ -42,6 +43,7 @@ type IstIoManager struct {
 	destinationRulesClient v1alpha3.DestinationRuleInterface
 }
 
+// how to mock this k8sConfig?
 func CreateIstIoManager(k8sConfig *rest.Config) (*IstIoManager, error) {
 	ic, err := versioned.NewForConfig(k8sConfig)
 	if err != nil {
@@ -145,6 +147,20 @@ func (iom *IstIoManager) CreateDestinationRule(ctx context.Context, dr *istio_ne
 	return nil
 }
 
-func (iom *IstIoManager) AddRoutingRule() error {
+// how to expose API to configure ordering of routing rule? https://istio.io/latest/docs/concepts/traffic-management/#routing-rule-precedence
+func (iom *IstIoManager) AddRoutingRule(ctx context.Context, vsName string, routingRule *istio.HTTPRoute) error {
+	vs, err := iom.virtualServicesClient.Get(ctx, vsName, metav1.GetOptions{
+		TypeMeta:        metav1.TypeMeta{},
+		ResourceVersion: "",
+	})
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred retrieving virtual service '%s'", vsName)
+	}
+	// always prepend routing rules due to routing rule precedence
+	vs.Spec.Http = append([]*istio.HTTPRoute{routingRule}, vs.Spec.Http...)
+	_, err = iom.virtualServicesClient.Update(ctx, vs, metav1.UpdateOptions{})
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred updating virtual service '%s' with routing rule: %v", vsName, routingRule)
+	}
 	return nil
 }
