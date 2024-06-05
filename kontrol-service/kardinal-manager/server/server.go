@@ -1,33 +1,48 @@
 package server
 
 import (
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/sirupsen/logrus"
+	"context"
+	rest_api "kardinal.kontrol/kardinal-manager/api/http_rest/server"
+	rest_types "kardinal.kontrol/kardinal-manager/api/http_rest/types"
 )
 
-const (
-	pathToApiGroup = "/api"
-)
+type Server struct{}
 
-var (
-	defaultCORSOrigins = []string{"*"}
-	defaultCORSHeaders = []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept}
-)
+func NewServer() Server {
+	return Server{}
+}
 
-func Run() error {
-	logrus.Info("Running REST API server...")
+// List virtual services
+// (GET /virtual-services)
+func (Server) GetVirtualServices(ctx context.Context, object rest_api.GetVirtualServicesRequestObject) (rest_api.GetVirtualServicesResponseObject, error) {
+	response := map[string]rest_types.VirtualService{
+		"fake-virtual-service-01": {
+			Name: "fake-virtual-service-01",
+		},
+		"fake-virtual-service-02": {
+			Name: "fake-virtual-service-02",
+		},
+	}
 
-	// This is how you set up a basic Echo router
-	echoRouter := echo.New()
-	echoApiRouter := echoRouter.Group(pathToApiGroup)
-	echoApiRouter.Use(middleware.Logger())
+	return rest_api.GetVirtualServices200JSONResponse(response), nil
+}
 
-	// CORS configuration
-	echoApiRouter.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: defaultCORSOrigins,
-		AllowHeaders: defaultCORSHeaders,
-	}))
+// Create virtual service
+// (POST /virtual-services)
+func (Server) PostVirtualServices(ctx context.Context, object rest_api.PostVirtualServicesRequestObject) (rest_api.PostVirtualServicesResponseObject, error) {
+	response := rest_types.VirtualService{
+		Name: "fake-virtual-service-01",
+	}
 
-	return nil
+	return rest_api.PostVirtualServices200JSONResponse(response), nil
+}
+
+// Delete virtual service
+// (DELETE /virtual-services)
+func (Server) DeleteVirtualServices(ctx context.Context, object rest_api.DeleteVirtualServicesRequestObject) (rest_api.DeleteVirtualServicesResponseObject, error) {
+	response := rest_types.VirtualService{
+		Name: "fake-virtual-service-01",
+	}
+
+	return rest_api.DeleteVirtualServices200JSONResponse(response), nil
 }
