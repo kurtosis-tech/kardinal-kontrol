@@ -2,7 +2,7 @@ import json
 import yaml
 
 # Load JSON from a file (assuming you've saved the JSON data into a file called 'graph.json')
-with open('ms-demo_graph.json', 'r') as file:
+with open('graph.json', 'r') as file:
     data = json.load(file)
 
 # Extract relevant data
