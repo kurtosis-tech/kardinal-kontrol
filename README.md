@@ -121,16 +121,6 @@ kubectl argo rollouts -n kardinal-demo set image frontend "*=lostbean/microservi
 <details>
   <summary>Google microservices demo (optional)</summary>
 
-```bash
-kubectl create namespace ms-demo
-# Adding the label for injecting the Istio sidecars
-kubectl label namespace ms-demo istio-injection=enabled
-kubectl apply -n ms-demo -f microservices-demo
-# or directly from the Github repo
-# kubectl apply -n ms-demo -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/main/release/kubernetes-manifests.yaml
-kubectl port-forward -n ms-demo deployment/frontend 8080:8080
-```
-
 ### Adding Istio and Kiali
 
 ```bash
@@ -153,6 +143,19 @@ kubectl rollout status deployment/kiali -n istio-system
 # Access into the Kiali dashboard
 istioctl dashboard kiali
 ```
+
+### Deploy the microservices-demo with sidecars (make sure Istio is already installed if you need the sidecars)
+
+```bash
+kubectl create namespace ms-demo
+# Adding the label for injecting the Istio sidecars
+kubectl label namespace ms-demo istio-injection=enabled
+kubectl apply -n ms-demo -f microservices-demo
+# or directly from the Github repo
+# kubectl apply -n ms-demo -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/main/release/kubernetes-manifests.yaml
+kubectl port-forward -n ms-demo deployment/frontend 8080:8080
+```
+
 
 </details>
 
