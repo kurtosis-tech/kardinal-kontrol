@@ -20,9 +20,9 @@ setup_port_forwarding() {
 # Function to fetch the graph data
 fetch_graph_data() {
     echo "Fetching graph data for namespace $NAMESPACE..."
-    curl "http://localhost:20001/kiali/api/namespaces/graph?duration=60s&graphType=versionedApp&includeIdleEdges=false&injectServiceNodes=true&boxBy=cluster,namespace&appenders=deadNode,istio,serviceEntry,meshCheck,workloadEntry,health&rateGrpc=requests&rateHttp=requests&rateTcp=sent&namespaces=$NAMESPACE" -o "${NAMESPACE}_graph.json"
+    curl "http://localhost:20001/kiali/api/namespaces/graph?duration=60s&graphType=versionedApp&includeIdleEdges=false&injectServiceNodes=true&boxBy=cluster,namespace&appenders=deadNode,istio,serviceEntry,meshCheck,workloadEntry,health&rateGrpc=requests&rateHttp=requests&rateTcp=sent&namespaces=$NAMESPACE" -o "graph.json"
     if [ $? -eq 0 ]; then
-        echo "Graph data successfully fetched and saved to ${NAMESPACE}_graph.json"
+        echo "Graph data successfully fetched and saved to graph.json"
     else
         echo "Failed to fetch graph data"
     fi
