@@ -3,7 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
+	"github.com/sirupsen/logrus"
+	"kardinal.kontrol/kardinal-manager/server"
+	"os"
 	"path/filepath"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -15,7 +17,24 @@ import (
 	versionedclient "istio.io/client-go/pkg/clientset/versioned"
 )
 
+const (
+	successExitCode = 0
+)
+
 func main() {
+
+	if err := basicInteractionWithK8sAndIstio(); err != nil {
+		logrus.Fatalf("An error occurred while calling basicInteractionWithK8sAndIstio()!\nError was: %s", err)
+	}
+
+	if err := server.CreateAndStartRestAPIServer(); err != nil {
+		logrus.Fatalf("The REST API server is down, exiting!\nError was: %s", err)
+	}
+
+	os.Exit(successExitCode)
+}
+
+func basicInteractionWithK8sAndIstio() error {
 	var config *rest.Config
 	var err error
 
@@ -53,28 +72,30 @@ func main() {
 	// Istio Client
 	ic, err := versionedclient.NewForConfig(config)
 	if err != nil {
-		log.Fatalf("Failed to create istio client: %s", err)
+		logrus.Fatalf("Failed to create istio client: %s", err)
 	}
 
 	// Test VirtualServices
 	vsList, err := ic.NetworkingV1alpha3().VirtualServices("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Fatalf("Failed to get VirtualService in %s namespace: %s", "default", err)
+		logrus.Errorf("Failed to get VirtualService in %s namespace: %s", "default", err)
 	}
 
 	for i := range vsList.Items {
 		vs := vsList.Items[i]
-		log.Printf("Index: %d VirtualService Hosts: %+v\n", i, vs.Spec.GetHosts())
+		logrus.Printf("Index: %d VirtualService Hosts: %+v\n", i, vs.Spec.GetHosts())
 	}
 
 	// Test DestinationRules
 	drList, err := ic.NetworkingV1alpha3().DestinationRules("").List(context.TODO(), metav1.ListOptions{})
 	if err != nil {
-		log.Fatalf("Failed to get DestinationRule in %s namespace: %s", "", err)
+		logrus.Errorf("Failed to get DestinationRule in %s namespace: %s", "", err)
 	}
 
 	for i := range drList.Items {
 		dr := drList.Items[i]
-		log.Printf("Index: %d DestinationRule Host: %+v\n", i, dr.Spec.GetHost())
+		logrus.Printf("Index: %d DestinationRule Host: %+v\n", i, dr.Spec.GetHost())
 	}
+
+	return nil
 }
