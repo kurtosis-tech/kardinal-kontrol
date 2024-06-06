@@ -20,10 +20,12 @@ minikube dashboard
 
 ### Regenerate REST API Bindings
 
-You can either: 
+You can either:
+
 1. Press the green play button in `kontrol-service/kardinal-manager/api/http_rest/generate.go` in Goland
-   <img src="./readme-static-files/goland-generate-rest-bindings.png"/>
+   <img src="./.github/readme-static-files/goland-generate-rest-bindings.png"/>
 2. Or execute the following go from the repository root
+
 ```bash
 go generate ./kontrol-service/kardinal-manager/api/http_rest/generate.go
 ```
@@ -31,12 +33,12 @@ go generate ./kontrol-service/kardinal-manager/api/http_rest/generate.go
 ### Regenerate gomod2nix.toml
 
 You will need to do this every time the `go.mod` file is edited
+
 ```bash
 # inside the kontrol-service directory
 nix develop
 gomod2nix generate
 ```
-
 
 ## Deploying Kontrol to local cluster
 
@@ -155,7 +157,6 @@ kubectl apply -n ms-demo -f microservices-demo
 # kubectl apply -n ms-demo -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/main/release/kubernetes-manifests.yaml
 kubectl port-forward -n ms-demo deployment/frontend 8080:8080
 ```
-
 
 </details>
 
