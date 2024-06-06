@@ -97,7 +97,11 @@ func main() {
 					conn.WriteError("Incrby on a missing key")
 					return
 				}
-				valInt, _ := strconv.Atoi(string(val[:]))
+				valInt, err := strconv.Atoi(string(val[:]))
+				if err != nil {
+					conn.WriteError("Increment by a non integer")
+					return
+				}
 				items[string(cmd.Args[1])] = []byte(strconv.Itoa(valInt + incrby))
 				mu.Unlock()
 				conn.WriteInt(valInt + incrby)
