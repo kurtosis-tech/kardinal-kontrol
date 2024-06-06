@@ -7,13 +7,13 @@ pkgs.mkShell {
   ];
 
   shellHook = ''
-    echo "Setting up Python environment..."
     cd `git rev-parse --show-toplevel`/kardinal-cli
     if [ ! -d ".venv" ]; then
       python -m venv .venv
-      .venv/bin/pip install -r requirements.txt
     fi
     source .venv/bin/activate
+    .venv/bin/pip install -r requirements.txt
+
     export PYTHONPATH=.
     alias kardinal="python ./cli.py"
   '';
