@@ -8,12 +8,14 @@ Build the Redis proxy overlay and load it into Minikube.
 
 ```bash
 eval $(minikube docker-env)
-docker load < $(nix build ./#containers.aarch64-darwin.redis-proxy-overlay.arm64 --no-link --print-out-paths)
+docker load < $(nix build ./#redis-proxy-overlay-container --no-link --print-out-paths)
 ```
 
 Deploy the Azure voting app and Redis proxy overlay.
 
 ```bash
-kubectl apply -n <namespace> -f azure-vote-demo.yaml
-kubectl port-forward -n <namespace> deployment/azure-vote-front 8080:80
+kubectl create namespace az-demo
+kubectl label namespace az-demo istio-injection=enabled
+kubectl apply -n az-demo -f demos/azure-vote-demo/dev-in-prod-demo.yaml
+kubectl port-forward -n az-demo deployment/azure-vote-front 8080:80
 ```
