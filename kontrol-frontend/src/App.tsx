@@ -18,9 +18,9 @@ import { useEffect } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 
 const steps = [
-  { title: "Create", description: "New flow", path: "/" },
-  { title: "Review", description: "Created flow", path: "/review" },
-  { title: "Manage", description: "Deployed flow", path: "/manage" },
+  { title: "Create", description: "New deployment", path: "/" },
+  { title: "Review", description: "Created deployment", path: "/review" },
+  { title: "Manage", description: "Deployment", path: "/manage" },
 ];
 
 function App() {
@@ -42,7 +42,7 @@ function App() {
   }, [pathname, setActiveStep]);
 
   return (
-    <Flex height={"100%"} alignItems={"center"} justifyContent={"center"}>
+    <Flex height={"100%"} alignItems={"center"} justifyContent={"center"} p={8}>
       <Stack
         direction={"column"}
         height={"100vh"}
