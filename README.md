@@ -126,20 +126,12 @@ kubectl argo rollouts -n kardinal-demo set image frontend "*=lostbean/microservi
 ### Adding Istio and Kiali
 
 ```bash
-# Download Istio in the host
-curl -L https://istio.io/downloadIstio | sh -
-
-# Go to the folder
-cd istio-1.22.0 #(or the version installed)
-
-# Add Istio Command line into the path
-export PATH=$PWD/bin:$PATH
-
 # Install Istio in the local cluster with the demo profile
 istioctl install --set profile=demo -y
 
 # Install Kiali and the other Addons
-kubectl apply -f samples/addons
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.17/samples/addons/kiali.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.17/samples/addons/prometheus.yaml
 kubectl rollout status deployment/kiali -n istio-system
 
 # Access into the Kiali dashboard

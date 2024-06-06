@@ -10,7 +10,7 @@
   frontend_shell = pkgs.callPackage ./kontrol-frontend/shell.nix {inherit pkgs;};
   kardinal_shell = with pkgs;
     pkgs.mkShell {
-      buildInputs = [k3d kubectl kustomize argo-rollouts kubernetes-helm minikube tilt];
+      buildInputs = [k3d kubectl kustomize argo-rollouts kubernetes-helm minikube istioctl tilt];
       shellHook = ''
         source <(kubectl completion bash)
         source <(kubectl-argo-rollouts completion bash)
