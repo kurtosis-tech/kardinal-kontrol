@@ -1,8 +1,54 @@
-On branch gyani/snapshot
-Untracked files:
-  (use "git add <file>..." to include in what will be committed)
-	demo.yaml
-	graph.json
-	../istio-1.22.1/
+adservice:
+  talks_to: []
+  version: latest
+cartservice:
+  talks_to:
+  - redis-cart
+  version: latest
+checkoutservice:
+  talks_to:
+  - currencyservice
+  - emailservice
+  - cartservice
+  - paymentservice
+  - productcatalogservice
+  - shippingservice
+  version: latest
+currencyservice:
+  talks_to: []
+  version: latest
+emailservice:
+  talks_to: []
+  version: latest
+frontend:
+  talks_to:
+  - currencyservice
+  - cartservice
+  - checkoutservice
+  - recommendationservice
+  - productcatalogservice
+  - shippingservice
+  - adservice
+  version: latest
+loadgenerator:
+  talks_to:
+  - frontend
+  - frontend
+  version: latest
+paymentservice:
+  talks_to: []
+  version: latest
+productcatalogservice:
+  talks_to: []
+  version: latest
+recommendationservice:
+  talks_to:
+  - productcatalogservice
+  version: latest
+redis-cart:
+  talks_to: []
+  version: latest
+shippingservice:
+  talks_to: []
+  version: latest
 
-nothing added to commit but untracked files present (use "git add" to track)
