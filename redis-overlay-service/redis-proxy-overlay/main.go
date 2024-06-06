@@ -20,7 +20,7 @@ func main() {
 	addr := ":" + os.Getenv("PORT")
 
 	go log.Printf("started server at %s", addr)
-	
+
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     redisAddr,
 		Password: "", // no password set
