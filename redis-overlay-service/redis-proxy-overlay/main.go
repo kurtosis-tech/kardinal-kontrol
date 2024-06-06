@@ -1,23 +1,39 @@
 package main
 
 import (
+	"context"
 	"log"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 
+	"github.com/redis/go-redis/v9"
 	"github.com/tidwall/redcon"
 )
-
-var addr = ":6380"
 
 func main() {
 	var mu sync.RWMutex
 	items := make(map[string][]byte)
 	var ps redcon.PubSub
+	redisAddr := os.Getenv("REDIS_ADDR")
+	addr := ":" + os.Getenv("PORT")
+
 	go log.Printf("started server at %s", addr)
+	
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     redisAddr,
+		Password: "", // no password set
+		DB:       0,  // use default DB
+	})
 
 	err := redcon.ListenAndServe(addr,
 		func(conn redcon.Conn, cmd redcon.Command) {
+			argsIndex := 0
+			for argsIndex < len(cmd.Args) {
+				log.Printf("Command arg %d: '%s'", argsIndex, string(cmd.Args[argsIndex]))
+				argsIndex += 1
+			}
 			switch strings.ToLower(string(cmd.Args[0])) {
 			default:
 				conn.WriteError("ERR unknown command '" + string(cmd.Args[0]) + "'")
@@ -69,6 +85,22 @@ func main() {
 				items[string(cmd.Args[1])] = cmd.Args[2]
 				mu.Unlock()
 				conn.WriteString("OK")
+			case "incrby":
+				if len(cmd.Args) != 3 {
+					conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")
+					return
+				}
+				incrby, _ := strconv.Atoi(string(cmd.Args[2]))
+				mu.Lock()
+				val, ok := items[string(cmd.Args[1])]
+				if !ok {
+					conn.WriteError("Incrby on a missing key")
+					return
+				}
+				valInt, _ := strconv.Atoi(string(val[:]))
+				items[string(cmd.Args[1])] = []byte(strconv.Itoa(valInt + incrby))
+				mu.Unlock()
+				conn.WriteInt(valInt + incrby)
 			case "get":
 				if len(cmd.Args) != 2 {
 					conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")
@@ -78,7 +110,20 @@ func main() {
 				val, ok := items[string(cmd.Args[1])]
 				mu.RUnlock()
 				if !ok {
-					conn.WriteNull()
+					res, err := rdb.Get(context.Background(), string(cmd.Args[1])).Result()
+					if err == redis.Nil {
+						conn.WriteNull()
+						return
+					}
+					if err != nil {
+						log.Printf("Proxied get command failed: '%v'", err)
+						conn.WriteError("Proxied get command failed")
+						return
+					}
+					mu.Lock()
+					items[string(cmd.Args[1])] = []byte(res)
+					mu.Unlock()
+					conn.WriteString(res)
 				} else {
 					conn.WriteBulk(val)
 				}
@@ -101,13 +146,9 @@ func main() {
 					conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")
 					return
 				}
-				conn.WriteString(string(cmd.Args[1]))
-			case "config":
-				// This simple (blank) response is only here to allow for the
-				// redis-benchmark command to work with this example.
-				conn.WriteArray(2)
-				conn.WriteBulk(cmd.Args[2])
-				conn.WriteBulkString("")
+				conn.WriteBulk(cmd.Args[1])
+			case "client":
+				conn.WriteString("OK")
 			}
 		},
 		func(conn redcon.Conn) bool {
