@@ -15,6 +15,14 @@ setup_port_forwarding() {
     PF_PID=$!
     echo "Port forwarding established with PID: $PF_PID"
     sleep 5  # Wait for the port-forward to be established
+
+    # Check if the kubectl command succeeded
+    if ps -p $PF_PID > /dev/null; then
+        echo "Port forwarding established with PID: $PF_PID"
+    else
+        echo "Failed to establish port forwarding. Please check the kubectl command and try again."
+        exit 1
+    fi    
 }
 
 # Function to fetch the graph data
@@ -25,6 +33,7 @@ fetch_graph_data() {
         echo "Graph data successfully fetched and saved to graph.json"
     else
         echo "Failed to fetch graph data"
+        exit 1
     fi
 }
 
