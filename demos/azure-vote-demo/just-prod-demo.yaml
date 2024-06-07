@@ -1,0 +1,176 @@
+# Existing services and deployments
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis-prod-deployment
+  namespace: az-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis-prod
+  template:
+    metadata:
+      labels:
+        app: redis-prod
+    spec:
+      containers:
+        - name: redis-prod
+          image: bitnami/redis:6.0.8
+          env:
+            - name: ALLOW_EMPTY_PASSWORD
+              value: "yes"
+            - name: REDIS_PORT_NUMBER
+              value: "6380"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          ports:
+            - containerPort: 6380
+              name: redis
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-prod
+  namespace: az-demo
+spec:
+  ports:
+    - name: redis
+      protocol: TCP
+      port: 6380
+      targetPort: 6380
+  selector:
+    app: redis-prod
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: azure-vote-front-deployment
+  namespace: az-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: azure-vote-front
+      version: v1
+  template:
+    metadata:
+      labels:
+        app: azure-vote-front
+        version: v1
+    spec:
+      containers:
+        - name: azure-vote-front
+          image: mcr.microsoft.com/azuredocs/azure-vote-front:v1
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          ports:
+            - containerPort: 80
+          env:
+            - name: REDIS
+              value: "redis-prod"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: azure-vote-front
+  namespace: az-demo
+spec:
+  type: ClusterIP
+  selector:
+    app: azure-vote-front
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+
+# Adding Istio Gateway
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: Gateway
+metadata:
+  name: azure-vote-gateway
+  namespace: az-demo
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+    - port:
+        number: 80
+        name: http
+        protocol: HTTP
+      hosts:
+        - "*"
+
+# Adding Virtual Service for routing
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: azure-vote-vs
+  namespace: az-demo
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - azure-vote-gateway
+  http:
+    - route:
+        - destination:
+            host: azure-vote-front
+            port:
+              number: 80
+
+# Adding Virtual Service for routing
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: redis-prod-vs
+  namespace: az-demo
+spec:
+  hosts:
+    - redis-prod
+  http:
+    - route:
+        - destination:
+            host: redis-prod
+            port:
+              number: 6380
+
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: redis-prod-dest-rule
+  namespace: az-demo
+spec:
+  host: redis-prod
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN
+
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: azure-vote-front-dest-rule
+  namespace: az-demo
+spec:
+  host: azure-vote-front
+  trafficPolicy:
+    loadBalancer:
+      simple: ROUND_ROBIN

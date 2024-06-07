@@ -2,21 +2,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: azure-vote-back
+  name: redis-prod
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: azure-vote-back
+      app: redis-prod
   template:
     metadata:
       labels:
-        app: azure-vote-back
+        app: redis-prod
     spec:
-      nodeSelector:
-        "kubernetes.io/os": linux
       containers:
-        - name: azure-vote-back
+        - name: redis-prod
           image: bitnami/redis:6.0.8
           env:
             - name: ALLOW_EMPTY_PASSWORD
@@ -38,31 +36,30 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: azure-vote-back
+  name: redis-prod
 spec:
   ports:
     - port: 6380
   selector:
-    app: azure-vote-back
+    app: redis-prod
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: azure-vote-front
+  name: azure-vote-front-v1
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: azure-vote-front
+      version: v1
   template:
     metadata:
       labels:
         app: azure-vote-front
         version: v1
     spec:
-      nodeSelector:
-        "kubernetes.io/os": linux
       containers:
         - name: azure-vote-front
           image: mcr.microsoft.com/azuredocs/azure-vote-front:v1
@@ -77,26 +74,25 @@ spec:
             - containerPort: 80
           env:
             - name: REDIS
-              value: "azure-vote-back"
+              value: "redis-prod"
 
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: azure-vote-front
+  name: azure-vote-front-v2
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: azure-vote-front
+      version: v2
   template:
     metadata:
       labels:
         app: azure-vote-front
         version: v2
     spec:
-      nodeSelector:
-        "kubernetes.io/os": linux
       containers:
         - name: azure-vote-front-v2
           image: mcr.microsoft.com/azuredocs/azure-vote-front:v2
@@ -112,14 +108,11 @@ spec:
           env:
             - name: REDIS
               value: "redis-proxy-overlay"
-
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: azure-vote-front
-  labels:
-    app: azure-vote-front
 spec:
   type: ClusterIP
   selector:
@@ -153,7 +146,7 @@ spec:
             - containerPort: 6379
           env:
             - name: REDIS_ADDR
-              value: "azure-vote-back:6380"
+              value: "redis-prod:6380"
             - name: PORT
               value: "6379"
           readinessProbe:
@@ -219,7 +212,7 @@ metadata:
   name: azure-vote
 spec:
   hosts:
-    - azure-vote-front
+    - "*"
   gateways:
     - azure-vote-gateway
   http:
@@ -231,27 +224,18 @@ spec:
       mirror:
         host: azure-vote-front
         subset: v2
-      mirror_percent: 100
-
-# Adding Destination Rule
----
-apiVersion: networking.istio.io/v1alpha3
-kind: DestinationRule
-metadata:
-  name: azure-vote-destination
-spec:
-  host: azure-vote-front
-  trafficPolicy:
-    loadBalancer:
-      simple: ROUND_ROBIN
-
----
-apiVersion: networking.istio.io/v1alpha3
-kind: DestinationRule
-metadata:
-  name: azure-vote-front-v2-destination
-spec:
-  host: azure-vote-front-v2
-  trafficPolicy:
-    loadBalancer:
-      simple: ROUND_ROBIN
+      mirror_percent: 10
+# ---
+# apiVersion: networking.istio.io/v1beta1
+# kind: DestinationRule
+# metadata:
+#   name: azure-vote-destination
+# spec:
+#   host: azure-vote-front
+#   subsets:
+#     - name: v1
+#       labels:
+#         version: v1
+#     - name: v2
+#       labels:
+#         version: v2

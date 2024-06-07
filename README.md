@@ -130,8 +130,10 @@ kubectl argo rollouts -n kardinal-demo set image frontend "*=lostbean/microservi
 istioctl install --set profile=demo -y
 
 # Install Kiali and the other Addons
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.17/samples/addons/kiali.yaml
-kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.17/samples/addons/prometheus.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.10/samples/addons/prometheus.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.10/samples/addons/grafana.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.10/samples/addons/jaeger.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.10/samples/addons/kiali.yaml
 kubectl rollout status deployment/kiali -n istio-system
 
 # Access into the Kiali dashboard
