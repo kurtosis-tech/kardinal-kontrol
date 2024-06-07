@@ -43,12 +43,11 @@ type IstioManager struct {
 	destinationRulesClient v1alpha3.DestinationRuleInterface
 }
 
-func CreateIstIoManager(k8sConfig *rest.Config) (*IstioManager, error) {
+func CreateIstIoManager(k8sConfig *rest.Config, namespace string) (*IstioManager, error) {
 	ic, err := versioned.NewForConfig(k8sConfig)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred creating IstIo client from k8s config: %v", k8sConfig)
 	}
-	namespace := "default"
 	vsClient := ic.NetworkingV1alpha3().VirtualServices(namespace)
 	drClient := ic.NetworkingV1alpha3().DestinationRules(namespace)
 	return &IstioManager{
