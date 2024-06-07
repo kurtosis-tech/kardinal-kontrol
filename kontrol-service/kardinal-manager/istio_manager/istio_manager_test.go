@@ -82,6 +82,8 @@ func TestIstioManagerWorkflows(t *testing.T) {
 	err = istioManager.AddRoutingRule(ctx, "reviews", splitTraffic5050Rule)
 }
 
+// Note: test will only work if kubeconfig is available locally and a cluster is running
+// these code is meant for local iteration for now and less for unit testing
 func getIstioManagerForTesting() (*IstioManager, error) {
 	// for now pick up local k8s config and err if it doesn't exist
 	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
