@@ -172,7 +172,7 @@ func (iom *IstioManager) AddSubset(ctx context.Context, drName string, subset *i
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred retrieving destination rule '%s'", drName)
 	}
-	// if there already exists a subset for the same , just update it
+	// if there already exists a subset for the same, just update it
 	shouldAddNewSubset := true
 	for _, s := range dr.Spec.Subsets {
 		if s.Name == subset.Name {
