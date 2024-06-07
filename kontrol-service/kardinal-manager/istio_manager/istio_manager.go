@@ -141,7 +141,7 @@ func (iom *IstioManager) CreateDestinationRule(ctx context.Context, dr *istio_ne
 		FieldValidation: "",
 	})
 	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred creating virtual service: %s", dr.Name)
+		return stacktrace.Propagate(err, "An error occurred creating destination rule: %s", dr.Name)
 	}
 	return nil
 }
