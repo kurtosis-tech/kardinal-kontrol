@@ -14,8 +14,7 @@ docker load < $(nix build ./#redis-proxy-overlay-container --no-link --print-out
 Deploy the Azure voting app and Redis proxy overlay.
 
 ```bash
-kubectl create namespace az-demo
-kubectl label namespace az-demo istio-injection=enabled
-kubectl apply -n az-demo -f demos/azure-vote-demo/dev-in-prod-demo.yaml
-kubectl port-forward -n az-demo deployment/azure-vote-front 8080:80
+kubectl create namespace voting-app
+kubectl label namespace voting-app istio-injection=enabled
+kubectl apply -n voting-app -f demos/azure-vote-demo/prod-only-demo.yaml
 ```

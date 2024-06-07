@@ -1,18 +1,47 @@
-# Existing services and deployments
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: voting-app-backend
+    version: v1
+  name: voting-app-backend
+  namespace: voting-app
+spec:
+  ports:
+    - name: tcp-redis
+      port: 6379
+      protocol: TCP
+      targetPort: 6379
+  selector:
+    app: voting-app-backend
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: redis-prod-deployment
-  namespace: az-demo
+  labels:
+    app: voting-app-backend
+    version: v1
+  name: voting-app-backend-v1
+  namespace: voting-app
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: redis-prod
+      app: voting-app-backend
+      version: v1
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
   template:
     metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
       labels:
-        app: redis-prod
+        app: voting-app-backend
+        version: v1
     spec:
       containers:
         - name: redis-prod
@@ -21,7 +50,7 @@ spec:
             - name: ALLOW_EMPTY_PASSWORD
               value: "yes"
             - name: REDIS_PORT_NUMBER
-              value: "6380"
+              value: "6379"
           resources:
             requests:
               cpu: 100m
@@ -30,40 +59,52 @@ spec:
               cpu: 250m
               memory: 256Mi
           ports:
-            - containerPort: 6380
+            - containerPort: 6379
               name: redis
 
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: redis-prod
-  namespace: az-demo
+  labels:
+    app: voting-app-ui
+    version: v1
+  name: voting-app-ui
+  namespace: voting-app
 spec:
   ports:
-    - name: redis
+    - name: http
+      port: 80
       protocol: TCP
-      port: 6380
-      targetPort: 6380
+      targetPort: 80
   selector:
-    app: redis-prod
-
+    app: voting-app-ui
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: azure-vote-front-deployment
-  namespace: az-demo
+  labels:
+    app: voting-app-ui
+    version: v1
+  name: voting-app-ui-v1
+  namespace: voting-app
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: azure-vote-front
+      app: voting-app-ui
       version: v1
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
   template:
     metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
       labels:
-        app: azure-vote-front
+        app: voting-app-ui
         version: v1
     spec:
       containers:
@@ -80,30 +121,14 @@ spec:
             - containerPort: 80
           env:
             - name: REDIS
-              value: "redis-prod"
+              value: "voting-app-backend"
 
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: azure-vote-front
-  namespace: az-demo
-spec:
-  type: ClusterIP
-  selector:
-    app: azure-vote-front
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8080
-
-# Adding Istio Gateway
 ---
 apiVersion: networking.istio.io/v1alpha3
 kind: Gateway
 metadata:
-  name: azure-vote-gateway
-  namespace: az-demo
+  name: voting-app
+  namespace: voting-app
 spec:
   selector:
     istio: ingressgateway
@@ -114,63 +139,38 @@ spec:
         protocol: HTTP
       hosts:
         - "*"
-
-# Adding Virtual Service for routing
 ---
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
 metadata:
-  name: azure-vote-vs
-  namespace: az-demo
+  name: voting-app-ui
+  namespace: voting-app
 spec:
   hosts:
     - "*"
   gateways:
-    - azure-vote-gateway
+    - voting-app
   http:
     - route:
         - destination:
-            host: azure-vote-front
+            host: voting-app-ui
             port:
               number: 80
 
-# Adding Virtual Service for routing
----
-apiVersion: networking.istio.io/v1alpha3
-kind: VirtualService
-metadata:
-  name: redis-prod-vs
-  namespace: az-demo
-spec:
-  hosts:
-    - redis-prod
-  http:
-    - route:
-        - destination:
-            host: redis-prod
-            port:
-              number: 6380
-
----
-apiVersion: networking.istio.io/v1alpha3
-kind: DestinationRule
-metadata:
-  name: redis-prod-dest-rule
-  namespace: az-demo
-spec:
-  host: redis-prod
-  trafficPolicy:
-    loadBalancer:
-      simple: ROUND_ROBIN
-
 ---
 apiVersion: networking.istio.io/v1beta1
-kind: DestinationRule
+kind: VirtualService
 metadata:
-  name: azure-vote-front-dest-rule
-  namespace: az-demo
+  name: voting-app-backend
+  namespace: voting-app
 spec:
-  host: azure-vote-front
-  trafficPolicy:
-    loadBalancer:
-      simple: ROUND_ROBIN
+  hosts:
+    - voting-app-backend
+  tcp:
+    - match:
+        - port: 6379
+      route:
+        - destination:
+            host: voting-app-backend
+            port:
+              number: 6379
