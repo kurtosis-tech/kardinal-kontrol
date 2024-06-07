@@ -62,14 +62,20 @@
             all = pkgs.lib.lists.crossLists (arch: service_name: {
               "${service_name}" = {
                 "${toString arch}" = let
+                  nix_arch =
+                    builtins.replaceStrings
+                    ["arm64" "amd64"] ["aarch64" "x86_64"]
+                    arch;
+
+                  container_pkgs = import nixpkgs {
+                    system = "${nix_arch}-${os}";
+                  };
+
                   # if running from linux no cross-compilation is needed to palce the service in a container
                   needsCrossCompilation =
-                    "${arch}-${os}"
-                    != builtins.replaceStrings ["aarch64" "x86_64"] [
-                      "arm64"
-                      "amd64"
-                    ]
-                    system;
+                    "${nix_arch}-${os}"
+                    != system;
+
                   service =
                     if !needsCrossCompilation
                     then
@@ -95,9 +101,10 @@
                       name = "image-root";
                       paths = [
                         service
-                        pkgs.bashInteractive
-                        pkgs.nettools
-                        pkgs.gnugrep
+                        container_pkgs.bashInteractive
+                        container_pkgs.nettools
+                        container_pkgs.gnugrep
+                        container_pkgs.coreutils
                       ];
                       pathsToLink = ["/bin"];
                     };

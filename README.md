@@ -18,6 +18,26 @@ minikube addons enable metrics-server
 minikube dashboard
 ```
 
+### Regenerate REST API Bindings
+
+You can either: 
+1. Press the green play button in `kontrol-service/kardinal-manager/api/http_rest/generate.go` in Goland
+   <img src="./readme-static-files/goland-generate-rest-bindings.png"/>
+2. Or execute the following go from the repository root
+```bash
+go generate ./kontrol-service/kardinal-manager/api/http_rest/generate.go
+```
+
+### Regenerate gomod2nix.toml
+
+You will need to do this every time the `go.mod` file is edited
+```bash
+# inside the kontrol-service directory
+nix develop
+gomod2nix generate
+```
+
+
 ## Deploying Kontrol to local cluster
 
 You can use tilt deploy and keeping the image hot-reloading:
@@ -101,16 +121,6 @@ kubectl argo rollouts -n kardinal-demo set image frontend "*=lostbean/microservi
 <details>
   <summary>Google microservices demo (optional)</summary>
 
-```bash
-kubectl create namespace ms-demo
-# Adding the label for injecting the Istio sidecars
-kubectl label namespace ms-demo istio-injection=enabled
-kubectl apply -n ms-demo -f microservices-demo
-# or directly from the Github repo
-# kubectl apply -n ms-demo -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/main/release/kubernetes-manifests.yaml
-kubectl port-forward -n ms-demo deployment/frontend 8080:8080
-```
-
 ### Adding Istio and Kiali
 
 ```bash
@@ -133,6 +143,19 @@ kubectl rollout status deployment/kiali -n istio-system
 # Access into the Kiali dashboard
 istioctl dashboard kiali
 ```
+
+### Deploy the microservices-demo with sidecars (make sure Istio is already installed if you need the sidecars)
+
+```bash
+kubectl create namespace ms-demo
+# Adding the label for injecting the Istio sidecars
+kubectl label namespace ms-demo istio-injection=enabled
+kubectl apply -n ms-demo -f microservices-demo
+# or directly from the Github repo
+# kubectl apply -n ms-demo -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/main/release/kubernetes-manifests.yaml
+kubectl port-forward -n ms-demo deployment/frontend 8080:8080
+```
+
 
 </details>
 

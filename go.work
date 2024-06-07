@@ -1,0 +1,6 @@
+go 1.21.9
+
+use (
+	./kontrol-service
+	./redis-overlay-service
+)

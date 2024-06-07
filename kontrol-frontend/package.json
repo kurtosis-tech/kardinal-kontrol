@@ -10,21 +10,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@chakra-ui/icons": "^2.1.1",
     "@chakra-ui/react": "^2.8.2",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
-    "@visx/event": "^3.3.0",
-    "@visx/gradient": "^3.3.0",
-    "@visx/grid": "^3.5.0",
-    "@visx/mock-data": "^3.3.0",
-    "@visx/responsive": "^3.10.2",
-    "@visx/scale": "^3.5.0",
-    "@visx/shape": "^3.5.0",
-    "@visx/tooltip": "^3.3.0",
-    "@visx/vendor": "^3.5.0",
     "framer-motion": "^11.2.9",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.23.1"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",
