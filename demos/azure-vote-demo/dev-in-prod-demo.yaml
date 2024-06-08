@@ -68,7 +68,6 @@ kind: Service
 metadata:
   labels:
     app: voting-app-ui
-    version: v1
   name: voting-app-ui
   namespace: voting-app
 spec:
@@ -159,7 +158,24 @@ spec:
       mirror:
         host: voting-app-ui
         subset: v2
-      mirror_percent: 10
+      mirrorPercentage:
+        value: 10.
+
+---
+apiVersion: networking.istio.io/v1alpha3
+kind: DestinationRule
+metadata:
+  name: voting-app-ui
+  namespace: voting-app
+spec:
+  host: voting-app-ui
+  subsets:
+    - name: v1
+      labels:
+        version: v1
+    - name: v2
+      labels:
+        version: v2
 
 ---
 apiVersion: networking.istio.io/v1beta1
@@ -262,23 +278,6 @@ spec:
             port:
               number: 6379
 
----
-apiVersion: v1
-kind: Service
-metadata:
-  labels:
-    app: voting-app-ui
-    version: v2
-  name: voting-app-ui
-  namespace: voting-app
-spec:
-  ports:
-    - name: http
-      port: 80
-      protocol: TCP
-      targetPort: 80
-  selector:
-    app: voting-app-ui
 ---
 apiVersion: apps/v1
 kind: Deployment
