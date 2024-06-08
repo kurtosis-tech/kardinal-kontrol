@@ -1,5 +1,4 @@
-{ pkgs, ... }:
-
+{pkgs, ...}:
 pkgs.mkShell {
   buildInputs = [
     pkgs.python3
@@ -7,7 +6,7 @@ pkgs.mkShell {
   ];
 
   shellHook = ''
-    cd "$(git rev-parse --show-toplevel)/kardinal-cli"
+    pushd "$(git rev-parse --show-toplevel)/kardinal-cli"
     if [ ! -d ".venv" ]; then
       python -m venv .venv
     fi
@@ -16,5 +15,6 @@ pkgs.mkShell {
 
     export PYTHONPATH=.
     alias kardinal="python $(pwd)/cli.py"
+    popd
   '';
 }
