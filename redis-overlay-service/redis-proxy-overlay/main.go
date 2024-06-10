@@ -93,14 +93,14 @@ func main() {
 				incrby, _ := strconv.Atoi(string(cmd.Args[2]))
 				mu.Lock()
 				val, ok := items[string(cmd.Args[1])]
-				if !ok {
-					conn.WriteError("Incrby on a missing key")
-					return
-				}
-				valInt, err := strconv.Atoi(string(val[:]))
-				if err != nil {
-					conn.WriteError("Increment by a non integer")
-					return
+				valInt := 0
+				if ok {
+					var err error
+					valInt, err = strconv.Atoi(string(val[:]))
+					if err != nil {
+						conn.WriteError("Increment by a non integer")
+						return
+					}
 				}
 				items[string(cmd.Args[1])] = []byte(strconv.Itoa(valInt + incrby))
 				mu.Unlock()
