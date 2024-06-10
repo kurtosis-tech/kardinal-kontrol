@@ -35,6 +35,7 @@ type Node struct {
 func graphToNodesMap(graph *RawKialiGraph) map[string]*Node {
 	nodesMap := make(map[string]*Node)
 	idMap := make(map[string]string) // Map from raw graph ID to readable ID
+	nodesByUsefulID := make(map[string]*Node)
 
 	// Populate nodes
 	for _, n := range graph.Elements.Nodes {
@@ -57,6 +58,7 @@ func graphToNodesMap(graph *RawKialiGraph) map[string]*Node {
 		}
 		nodesMap[n.Data.ID] = node
 		idMap[n.Data.ID] = readableID
+		nodesByUsefulID[readableID] = node
 	}
 
 	// Populate connections using readable IDs
@@ -75,5 +77,5 @@ func graphToNodesMap(graph *RawKialiGraph) map[string]*Node {
 		logrus.Debugf("  Talks To: %v", node.TalksTo)
 	}
 
-	return nodesMap
+	return nodesByUsefulID
 }
