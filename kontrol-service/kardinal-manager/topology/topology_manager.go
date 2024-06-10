@@ -79,6 +79,8 @@ func fetchGraphData(namespace string) (map[string]*Node, error) {
 	return graphToNodesMap(&graph), nil
 }
 
+// setupPortForwarding this sets up a port forward for Kiali;
+// TODO make this less fragile
 func setupPortForwarding(config *rest.Config, stopChan, readyChan chan struct{}) error {
 	roundTripper, upgrader, err := spdy.RoundTripperFor(config)
 	if err != nil {
