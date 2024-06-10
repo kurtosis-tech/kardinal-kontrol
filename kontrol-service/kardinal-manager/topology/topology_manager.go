@@ -2,6 +2,7 @@ package topology
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"io/ioutil"
@@ -16,8 +17,8 @@ import (
 )
 
 const (
-	serviceName   = "kiali"
-	namespaceName = "istio-system"
+	kialiServiceName = "kiali"
+	namespaceName    = "istio-system"
 )
 
 type Manager struct {
@@ -28,7 +29,7 @@ func NewTopologyManager(k8sConfig *rest.Config) *Manager {
 	return &Manager{k8sConfig: k8sConfig}
 }
 
-func (tf *Manager) FetchTopology(namespace string) error {
+func (tf *Manager) FetchTopology(namespace string) (map[string]*Node, error) {
 	stopChan, readyChan := make(chan struct{}, 1), make(chan struct{}, 1)
 	go func() {
 		err := setupPortForwarding(tf.k8sConfig, stopChan, readyChan)
@@ -40,38 +41,42 @@ func (tf *Manager) FetchTopology(namespace string) error {
 
 	defer close(stopChan)
 
+	var graph map[string]*Node
+
 	// Fetch the graph data
-	if err := fetchGraphData(namespace); err != nil {
-		logrus.Fatalf("Error fetching graph data: %v", err)
+	graph, err := fetchGraphData(namespace)
+	if err != nil {
+		return nil, fmt.Errorf("Error fetching graph data: %v", err)
 	}
-	return nil
+	return graph, nil
 }
 
-func fetchGraphData(namespace string) error {
+func fetchGraphData(namespace string) (map[string]*Node, error) {
 	fmt.Printf("Fetching graph data for namespace %s...\n", namespace)
 
 	url := fmt.Sprintf("http://localhost:20001/kiali/api/namespaces/graph?duration=60s&graphType=versionedApp&includeIdleEdges=false&injectServiceNodes=true&boxBy=cluster,namespace&appenders=deadNode,istio,serviceEntry,meshCheck,workloadEntry,health&rateGrpc=requests&rateHttp=requests&rateTcp=sent&namespaces=%s", namespace)
 	resp, err := http.Get(url)
 	if err != nil {
-		return fmt.Errorf("failed to fetch graph data: %v", err)
+		return nil, fmt.Errorf("failed to fetch graph data: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed to fetch graph data: %s", resp.Status)
+		return nil, fmt.Errorf("failed to fetch graph data: %s", resp.Status)
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		return fmt.Errorf("failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %v", err)
 	}
 
-	if err := ioutil.WriteFile("graph.json", body, 0644); err != nil {
-		return fmt.Errorf("failed to write graph data to file: %v", err)
+	var graph RawKialiGraph
+
+	if err := json.Unmarshal(body, &graph); err != nil {
+		return nil, fmt.Errorf("failed to convert response body into inner representation")
 	}
 
-	fmt.Println("Graph data successfully fetched and saved to graph.json")
-	return nil
+	return graphToNodesMap(&graph), nil
 }
 
 func setupPortForwarding(config *rest.Config, stopChan, readyChan chan struct{}) error {
@@ -85,7 +90,7 @@ func setupPortForwarding(config *rest.Config, stopChan, readyChan chan struct{})
 		return fmt.Errorf("error creating Kubernetes client: %v", err)
 	}
 
-	podName, err := getPodsForSvc(serviceName, namespaceName, clientset)
+	podName, err := getPodsForSvc(kialiServiceName, namespaceName, clientset)
 	if err != nil {
 		return err
 	}

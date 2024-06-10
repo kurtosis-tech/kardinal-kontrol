@@ -194,6 +194,6 @@ func (iom *IstioManager) AddSubset(ctx context.Context, drName string, subset *i
 	return nil
 }
 
-func (iom *IstioManager) GetTopologyForNameSpace(namespace string) error {
+func (iom *IstioManager) GetTopologyForNameSpace(namespace string) (map[string]*topology.Node, error) {
 	return iom.topologyManager.FetchTopology(namespace)
 }
