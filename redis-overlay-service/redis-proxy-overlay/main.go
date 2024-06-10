@@ -91,8 +91,9 @@ func main() {
 					return
 				}
 				incrby, _ := strconv.Atoi(string(cmd.Args[2]))
-				mu.Lock()
+				mu.RLock()
 				val, ok := items[string(cmd.Args[1])]
+				mu.RUnlock()
 				valInt := 0
 				if ok {
 					var err error
@@ -102,6 +103,7 @@ func main() {
 						return
 					}
 				}
+				mu.Lock()
 				items[string(cmd.Args[1])] = []byte(strconv.Itoa(valInt + incrby))
 				mu.Unlock()
 				conn.WriteInt(valInt + incrby)
