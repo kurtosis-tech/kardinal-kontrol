@@ -25,14 +25,16 @@ type RawKialiGraph struct {
 }
 
 type Node struct {
-	ID             string
-	ServiceName    string
-	ServiceVersion string
-	TalksTo        []string
+	RawKialiGraphID string
+	ID              string // serviceName_version
+	ServiceName     string
+	ServiceVersion  string
+	TalksTo         []string // List of IDs (serviceName_version)
 }
 
 func graphToNodesMap(graph *RawKialiGraph) map[string]*Node {
 	nodesMap := make(map[string]*Node)
+	idMap := make(map[string]string) // Map from raw graph ID to readable ID
 
 	// Populate nodes
 	for _, n := range graph.Elements.Nodes {
@@ -44,27 +46,31 @@ func graphToNodesMap(graph *RawKialiGraph) map[string]*Node {
 		if serviceVersion == "" {
 			serviceVersion = "latest" // Default to 'latest' if no version is specified
 		}
+		readableID := serviceName + "_" + serviceVersion
 
-		nodesMap[n.Data.ID] = &Node{
-			ID:             n.Data.ID,
-			ServiceName:    serviceName,
-			ServiceVersion: serviceVersion,
-			TalksTo:        make([]string, 0),
+		node := &Node{
+			RawKialiGraphID: n.Data.ID,
+			ID:              readableID,
+			ServiceName:     serviceName,
+			ServiceVersion:  serviceVersion,
+			TalksTo:         make([]string, 0),
 		}
+		nodesMap[n.Data.ID] = node
+		idMap[n.Data.ID] = readableID
 	}
 
-	// Populate connections
+	// Populate connections using readable IDs
 	for _, e := range graph.Elements.Edges {
 		if sourceNode, ok := nodesMap[e.Data.Source]; ok {
-			if targetNode, ok := nodesMap[e.Data.Target]; ok {
-				sourceNode.TalksTo = append(sourceNode.TalksTo, targetNode.ID)
+			if targetID, ok := idMap[e.Data.Target]; ok {
+				sourceNode.TalksTo = append(sourceNode.TalksTo, targetID)
 			}
 		}
 	}
 
 	// Print the nodes and their connections
 	for _, node := range nodesMap {
-		logrus.Infof("Node ID: %s", node.ID)
+		logrus.Infof("Node ID: %s (RawKialiGraphID: %s)", node.ID, node.RawKialiGraphID)
 		logrus.Infof("  Service: %s Version: %s", node.ServiceName, node.ServiceVersion)
 		logrus.Infof("  Talks To: %v", node.TalksTo)
 	}
