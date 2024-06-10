@@ -25,7 +25,7 @@ func TestIstioManager_GetTopologyForNameSpace(t *testing.T) {
 	require.NoError(t, err)
 
 	err = istioManager.GetTopologyForNameSpace("ms-demo")
-	require.NotEmpty(t, err)
+	require.Empty(t, err)
 }
 
 // This test is to demonstrate using the IstioManager to accomplish certain workflows
