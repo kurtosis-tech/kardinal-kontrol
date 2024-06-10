@@ -70,9 +70,9 @@ func graphToNodesMap(graph *RawKialiGraph) map[string]*Node {
 
 	// Print the nodes and their connections
 	for _, node := range nodesMap {
-		logrus.Infof("Node ID: %s (RawKialiGraphID: %s)", node.ID, node.RawKialiGraphID)
-		logrus.Infof("  Service: %s Version: %s", node.ServiceName, node.ServiceVersion)
-		logrus.Infof("  Talks To: %v", node.TalksTo)
+		logrus.Debugf("Node ID: %s (RawKialiGraphID: %s)", node.ID, node.RawKialiGraphID)
+		logrus.Debugf("  Service: %s Version: %s", node.ServiceName, node.ServiceVersion)
+		logrus.Debugf("  Talks To: %v", node.TalksTo)
 	}
 
 	return nodesMap
