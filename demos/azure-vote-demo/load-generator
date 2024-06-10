@@ -23,10 +23,9 @@ def send_burst(data):
         response = None
         try:
             response = requests.post(url, headers=headers, data={'vote': data})
+            print(f"Sent '{data}' - Response status code: {response.status_code}")
         except requests.exceptions.RequestException as e:
             print(f"Error sending '{data}' - {e}")
-        if response:
-            print(f"Sent '{data}' - Response status code: {response.status_code}")
 
 
 # Send bursts of 5 POST requests every 5 seconds, alternating between 'Cats' and 'Dogs'
