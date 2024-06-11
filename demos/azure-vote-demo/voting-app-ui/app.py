@@ -9,6 +9,13 @@ redis_server = os.environ["REDIS"]
 # Initialize Redis
 r = redis.Redis(host=redis_server, port=6379)
 
+# Getting app version
+if "APP_VERSION" in os.environ and os.environ["APP_VERSION"]:
+    app_version = os.environ["APP_VERSION"]
+else:
+    app_version = "v1"
+
+print("app_version is: " + app_version)
 
 if "OPTION1" in os.environ and os.environ["OPTION1"]:
     option1 = os.environ["OPTION1"]
@@ -19,6 +26,11 @@ if "OPTION2" in os.environ and os.environ["OPTION2"]:
     option2 = os.environ["OPTION2"]
 else:
     option2 = "Option 2"
+
+if "OPTION3" in os.environ and os.environ["OPTION3"] and app_version != "v1":
+    option3 = os.environ["OPTION3"]
+elif app_version != "v1":
+    option3 = "Option 3"
 
 if "TITLE" in os.environ and os.environ["TITLE"]:
     title = os.environ["TITLE"]
@@ -32,6 +44,9 @@ else:
 # if not r.exists("option2"):
 #     r.set("option2", 0)
 
+if app_version == "v1":
+    r.set("option3", 0)
+
 
 @app.route("/", methods=["GET", "POST"])
 def index():
@@ -41,19 +56,37 @@ def index():
             r.incr("option1")
         elif vote == "option2":
             r.incr("option2")
+        elif vote == "option3" and app_version != "v1":
+            r.incr("option3")
         return redirect(url_for("index"))
 
     # Get current vote counts
     option1_votes = int(r.get("option1") or 0)
     option2_votes = int(r.get("option2") or 0)
-    return render_template(
-        "index.html",
-        option1_votes=option1_votes,
-        option2_votes=option2_votes,
-        subtitle=title,
-        option1=option1,
-        option2=option2,
-    )
+    if app_version != "v1":
+        option3_votes = int(r.get("option3") or 0)
+
+    if app_version != "v1":
+        return render_template(
+            "index.html",
+            option1_votes=option1_votes,
+            option2_votes=option2_votes,
+            option3_votes=option3_votes,
+            subtitle=title,
+            option1=option1,
+            option2=option2,
+            option3=option3,
+        )
+    else:
+        return render_template(
+            "index.html",
+            option1_votes=option1_votes,
+            option2_votes=option2_votes,
+            subtitle=title,
+            option1=option1,
+            option2=option2,
+        )
+
 
 
 if __name__ == "__main__":
