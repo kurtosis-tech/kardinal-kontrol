@@ -7,6 +7,8 @@ We added a Redis proxy in between the Azure vote frontend and backend. The proxy
 1. You're also likely to use a local k8s, in this case minikube is available to use:
 
 ```bash
+nix develop
+
 kubectl config set-context minikube
 minikube start --driver=docker --cpus=10 --memory 8192 --disk-size 32g
 minikube addons enable ingress
@@ -17,6 +19,8 @@ minikube dashboard
 2. You will need to install Istio and its addons in the local cluster:
 
 ```bash
+nix develop
+
 # Install Istio in the local cluster with the demo profile
 istioctl install --set profile=demo -y
 
@@ -34,6 +38,7 @@ istioctl dashboard kiali
 3. Build the Redis proxy overlay and load it into Minikube.
 
 ```bash
+nix develop
 eval $(minikube docker-env)
 docker load < $(nix build ./#redis-proxy-overlay-container --no-link --print-out-paths)
 minikube image build -t voting-app-ui -f ./Dockerfile ./demos/azure-vote-demo/voting-app-ui/
@@ -42,13 +47,35 @@ minikube image build -t voting-app-ui -f ./Dockerfile ./demos/azure-vote-demo/vo
 4. Deploy the Azure voting app and Redis proxy overlay.
 
 ```bash
+nix develop
 kubectl create namespace voting-app
 kubectl label namespace voting-app istio-injection=enabled
 kubectl apply -n voting-app -f demos/azure-vote-demo/prod-only-demo.yaml
+minikube tunnel
 ```
 
-5. On another terminal, start the tunnel:
+## Demo
+
+After deploying the application, you can access the Azure voting app at `http://localhost`. And can also start some artificial load with the following command:
 
 ```bash
-minikube tunnel
+./demos/azure-vote-demo/load-generator
+```
+
+After some time, you can access the Kiali dashboard to see the traffic flow between the services in the production mode. Now you enter the dev mode and start to test with the Redis proxy overlay.
+
+```bash
+./demos/azure-vote-demo/cli.py reset-dev-flow voting-app --env=prod
+```
+
+Use the following command to reset the state (replace the pod) on Redis proxy overlay:
+
+```bash
+./demos/azure-vote-demo/cli.py reset-dev-flow voting-app --env=prod
+```
+
+And finally, you can delete the dev path with the following command:
+
+```bash
+./demos/azure-vote-demo/cli.py delete-dev-flow voting-app --env=prod
 ```
