@@ -1,20 +1,18 @@
-#! /usr/bin/env nix-shell
-#! nix-shell -i python3 -p python3 python3Packages.requests
-
 import requests
 import time
 
 # The URL to send the POST requests to
-url = 'http://voting-app.local/'
+url = "http://voting-app.local/"
 
 # Headers to be included in the POST requests
 headers = {
-    'Origin': 'http://localhost',
+    "Origin": "http://localhost",
 }
 
 # Data to be sent in the POST requests
-data_options = ['option1', 'option2']
+data_options = ["option1", "option2"]
 data_index = 0
+
 
 # Function to send a burst of 5 POST requests
 def send_burst(data):
@@ -22,7 +20,7 @@ def send_burst(data):
     for _ in range(5):
         response = None
         try:
-            response = requests.post(url, headers=headers, data={'vote': data})
+            response = requests.post(url, headers=headers, data={"vote": data})
             print(f"Sent '{data}' - Response status code: {response.status_code}")
         except requests.exceptions.RequestException as e:
             print(f"Error sending '{data}' - {e}")
@@ -33,4 +31,3 @@ while True:
     send_burst(data_options[data_index])
     data_index = (data_index + 1) % 2
     time.sleep(5)
-

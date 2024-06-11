@@ -1,11 +1,9 @@
-#! /usr/bin/env nix-shell
-#! nix-shell -i python3 -p python3 python3Packages.click
-
 import click
 import subprocess
 import os
 
 file_dir = os.path.dirname(os.path.abspath(__file__))
+manifest_dir = os.path.join(file_dir, "manifests")
 
 
 @click.group()
@@ -95,7 +93,7 @@ def create_dev_flow(env, namespace, image_tag):
             "kubectl",
             "apply",
             "-f",
-            f"{file_dir}/dev-in-prod-demo.yaml",
+            f"{manifest_dir}/dev-in-prod-demo.yaml",
             "--namespace",
             namespace,
         ]
@@ -110,7 +108,14 @@ def delete_dev_flow(env, flow_id_hash):
     namespace = f"{flow_id_hash}"
 
     subprocess.run(
-        ["kubectl", "apply", "-n", namespace, "-f", f"{file_dir}/prod-only-demo.yaml"]
+        [
+            "kubectl",
+            "apply",
+            "-n",
+            namespace,
+            "-f",
+            f"{manifest_dir}/prod-only-demo.yaml",
+        ]
     )
 
     for command in ["all", "virtualservices", "destinationrules"]:
