@@ -91,20 +91,40 @@ func main() {
 					return
 				}
 				incrby, _ := strconv.Atoi(string(cmd.Args[2]))
-				mu.Lock()
+				mu.RLock()
 				val, ok := items[string(cmd.Args[1])]
-				if !ok {
-					conn.WriteError("Incrby on a missing key")
-					return
+				mu.RUnlock()
+				valInt := 0
+				if ok {
+					var err error
+					valInt, err = strconv.Atoi(string(val[:]))
+					if err != nil {
+						conn.WriteError("Increment by a non integer")
+						return
+					}
 				}
-				valInt, err := strconv.Atoi(string(val[:]))
+
+				// Get the upstream value
+				upstreamVal := "0"
+				upstreamVal, err := rdb.Get(context.Background(), string(cmd.Args[1])).Result()
 				if err != nil {
-					conn.WriteError("Increment by a non integer")
+					log.Printf("Proxied get command failed: '%v'", err)
+					conn.WriteError("Proxied get command failed")
 					return
 				}
+
+				upVal, err := strconv.Atoi(upstreamVal)
+				if err != nil {
+					log.Printf("Upstream value is not an Int: '%v'", err)
+					conn.WriteError("Upstream value for key '" + string(cmd.Args[1]) + "' is not an Int")
+					return
+				}
+
+				// Update the value in the local cache and return total value
+				mu.Lock()
 				items[string(cmd.Args[1])] = []byte(strconv.Itoa(valInt + incrby))
 				mu.Unlock()
-				conn.WriteInt(valInt + incrby)
+				conn.WriteInt(valInt + incrby + upVal)
 			case "get":
 				if len(cmd.Args) != 2 {
 					conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")
