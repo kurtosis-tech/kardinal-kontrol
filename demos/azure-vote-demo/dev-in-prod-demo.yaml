@@ -222,6 +222,7 @@ kind: Deployment
 metadata:
   name: redis-proxy-overlay
   labels:
+    type: dev
     app: redis-proxy-overlay
 spec:
   selector:
