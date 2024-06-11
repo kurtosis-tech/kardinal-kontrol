@@ -13,6 +13,41 @@ def cli():
     pass
 
 
+def replace_pod(namespace):
+    try:
+        get_cmd = [
+            "kubectl",
+            "get",
+            "pod",
+            "-n",
+            namespace,
+            "-l",
+            "app=redis-proxy-overlay",
+            "-o",
+            "yaml",
+        ]
+
+        replace_cmd = ["kubectl", "replace", "--force", "-n", namespace, "-f", "-"]
+
+        get_proc = subprocess.Popen(get_cmd, stdout=subprocess.PIPE)
+        replace_proc = subprocess.Popen(
+            replace_cmd,
+            stdin=get_proc.stdout,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        get_proc.stdout.close()
+        out, err = replace_proc.communicate()
+
+        if replace_proc.returncode != 0:
+            print(f"Error: {err.decode()}")
+        else:
+            print(f"Output: {out.decode()}")
+
+    except subprocess.CalledProcessError as e:
+        print(f"Command failed with return code {e.returncode}")
+
+
 def delete_dev_resources(resource, namespace):
     try:
         get_cmd = [
@@ -82,6 +117,14 @@ def delete_dev_flow(env, flow_id_hash):
         delete_dev_resources(command, namespace)
 
     print(f"Deleted flow with ID hash: {flow_id_hash}")
+
+
+@cli.command()
+@click.option("--env", required=True, type=str, help="Environment to deploy to")
+@click.argument("flow_id_hash")
+def reset_dev_flow(env, flow_id_hash):
+    namespace = f"{flow_id_hash}"
+    replace_pod(namespace)
 
 
 if __name__ == "__main__":
