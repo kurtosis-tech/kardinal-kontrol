@@ -5,7 +5,7 @@ import requests
 import time
 
 # The URL to send the POST requests to
-url = 'http://localhost/'
+url = 'http://voting-app.local/'
 
 # Headers to be included in the POST requests
 headers = {

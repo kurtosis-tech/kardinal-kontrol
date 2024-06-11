@@ -18,8 +18,6 @@ minikube dashboard
 
 2. You will need to install Istio and its addons in the local cluster:
 
-For prod-only-demo:
-
 ```bash
 nix develop
 
@@ -56,9 +54,22 @@ kubectl apply -n voting-app -f demos/azure-vote-demo/prod-only-demo.yaml
 minikube tunnel
 ```
 
+Add the hots for test configuration in the host file
+
+```bash
+sudo nano /private/etc/hosts
+```
+
+And include these lines at the end and save the host file
+
+```bash
+127.0.0.1	voting-app.local
+127.0.0.1	dev.voting-app.local
+```
+
 ## Demo
 
-After deploying the application, you can access the Azure voting app at `http://localhost`. And can also start some artificial load with the following command:
+After deploying the application, you can access the Azure voting app at [http://voting-app.local](http://voting-app.local). And can also start some artificial load with the following command:
 
 ```bash
 ./demos/azure-vote-demo/load-generator
@@ -67,9 +78,10 @@ After deploying the application, you can access the Azure voting app at `http://
 After some time, you can access the Kiali dashboard to see the traffic flow between the services in the production mode. Now you enter the dev mode and start to test with the Redis proxy overlay.
 
 ```bash
-./demos/azure-vote-demo/cli.py reset-dev-flow voting-app --env=prod
+./demos/azure-vote-demo/cli.py create-dev-flow voting-app test --env=prod-only-demo
 ```
 
+Youn can now access the dev path at [http://dev.voting-app.local](http://dev.voting-app.local) and the Kiali dashboard will reflect the new traffic flow.
 Use the following command to reset the state (replace the pod) on Redis proxy overlay:
 
 ```bash
@@ -82,24 +94,5 @@ And finally, you can delete the dev path with the following command:
 ./demos/azure-vote-demo/cli.py delete-dev-flow voting-app --env=prod
 ```
 
-For dev-in-prod-demo.yaml
+Then go to the browser and enter the ``to see the`UI v1`and``to see the`UI v2`
 
-Add the hots for test configuration in the host file
-```bash
-sudo nano /private/etc/hosts
-```
-
-And include these lines at the end and save the host file
-```bash
-127.0.0.1 voting-app.local
-127.0.0.1 dev.voting-app.local
-```
-
-Deploy the yaml file
-```bash
-kubectl create namespace voting-app
-kubectl label namespace voting-app istio-injection=enabled
-kubectl apply -n voting-app -f demos/azure-vote-demo/dev-in-prod-demo.yaml
-```
-
-Then go to the browser and enter the `voting-app.local` to see the `UI v1` and `dev.voting-app.local` to see the `UI v2`
