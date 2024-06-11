@@ -18,6 +18,8 @@ minikube dashboard
 
 2. You will need to install Istio and its addons in the local cluster:
 
+For prod-only-demo:
+
 ```bash
 nix develop
 
@@ -79,3 +81,25 @@ And finally, you can delete the dev path with the following command:
 ```bash
 ./demos/azure-vote-demo/cli.py delete-dev-flow voting-app --env=prod
 ```
+
+For dev-in-prod-demo.yaml
+
+Add the hots for test configuration in the host file
+```bash
+sudo nano /private/etc/hosts
+```
+
+And include these lines at the end and save the host file
+```bash
+127.0.0.1 voting-app.local
+127.0.0.1 dev.voting-app.local
+```
+
+Deploy the yaml file
+```bash
+kubectl create namespace voting-app
+kubectl label namespace voting-app istio-injection=enabled
+kubectl apply -n voting-app -f demos/azure-vote-demo/dev-in-prod-demo.yaml
+```
+
+Then go to the browser and enter the `voting-app.local` to see the `UI v1` and `dev.voting-app.local` to see the `UI v2`
