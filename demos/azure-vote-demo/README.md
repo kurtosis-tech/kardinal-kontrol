@@ -36,6 +36,7 @@ istioctl dashboard kiali
 ```bash
 eval $(minikube docker-env)
 docker load < $(nix build ./#redis-proxy-overlay-container --no-link --print-out-paths)
+minikube image build -t voting-app-ui -f ./Dockerfile ./demos/azure-vote-demo/voting-app-ui/
 ```
 
 4. Deploy the Azure voting app and Redis proxy overlay.

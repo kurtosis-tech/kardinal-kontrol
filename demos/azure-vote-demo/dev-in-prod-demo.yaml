@@ -108,7 +108,8 @@ spec:
     spec:
       containers:
         - name: azure-vote-front
-          image: mcr.microsoft.com/azuredocs/azure-vote-front:v1
+          image: voting-app-ui
+          imagePullPolicy: IfNotPresent
           resources:
             requests:
               cpu: 100m
@@ -314,7 +315,8 @@ spec:
     spec:
       containers:
         - name: azure-vote-front
-          image: mcr.microsoft.com/azuredocs/azure-vote-front:v1
+          image: voting-app-ui
+          imagePullPolicy: IfNotPresent
           resources:
             requests:
               cpu: 100m
