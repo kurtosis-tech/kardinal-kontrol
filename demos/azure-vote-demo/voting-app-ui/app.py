@@ -44,8 +44,8 @@ def index():
         return redirect(url_for("index"))
 
     # Get current vote counts
-    option1_votes = int(r.get("option1"))
-    option2_votes = int(r.get("option2"))
+    option1_votes = int(r.get("option1") or 0)
+    option2_votes = int(r.get("option2") or 0)
     return render_template(
         "index.html",
         option1_votes=option1_votes,
