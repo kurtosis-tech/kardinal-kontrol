@@ -30,8 +30,8 @@ sudo nano /private/etc/hosts
 
 And include these lines at the end and save the host file
 ```bash
-127.0.0.1 prod.voting-app.com
-127.0.0.1 dev.voting-app.com
+127.0.0.1 voting-app.local
+127.0.0.1 dev.voting-app.local
 ```
 
 Deploy the yaml file
@@ -41,4 +41,4 @@ kubectl label namespace voting-app istio-injection=enabled
 kubectl apply -n voting-app -f demos/azure-vote-demo/dev-in-prod-demo.yaml
 ```
 
-Then go to the browser and enter the `prod.voting-app.com` to see the `UI v1` and `dev.voting-app.com` to see the `UI v2`
+Then go to the browser and enter the `voting-app.local` to see the `UI v1` and `dev.voting-app.local` to see the `UI v2`
