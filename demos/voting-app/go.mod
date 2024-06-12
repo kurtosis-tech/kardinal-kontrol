@@ -1,6 +1,6 @@
 module votingapp
 
-go 1.22.2
+go 1.20
 
 require github.com/gin-gonic/gin v1.10.0
 
