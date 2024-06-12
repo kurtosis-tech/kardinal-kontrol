@@ -83,9 +83,8 @@ def delete_dev_resources(resource, namespace):
 
 @cli.command()
 @click.argument("namespace")
-@click.argument("image_tag")
-def create_dev_flow(namespace, image_tag):
-    flow_id_hash = f"{namespace}"
+def create_dev_flow(namespace):
+    namespace = f"{namespace}"
 
     subprocess.run(
         [
@@ -97,13 +96,13 @@ def create_dev_flow(namespace, image_tag):
             namespace,
         ]
     )
-    print(f"Deployed with flow ID hash: {flow_id_hash}")
+    print(f"Deployed with flow ID hash: {namespace}")
 
 
 @cli.command()
-@click.argument("flow_id_hash")
-def delete_dev_flow(flow_id_hash):
-    namespace = f"{flow_id_hash}"
+@click.argument("namespace")
+def delete_dev_flow(namespace):
+    namespace = f"{namespace}"
 
     subprocess.run(
         [
@@ -119,13 +118,13 @@ def delete_dev_flow(flow_id_hash):
     for command in ["all", "virtualservices", "destinationrules"]:
         delete_dev_resources(command, namespace)
 
-    print(f"Deleted flow with ID hash: {flow_id_hash}")
+    print(f"Deleted flow with ID hash: {namespace}")
 
 
 @cli.command()
-@click.argument("flow_id_hash")
-def reset_dev_flow(flow_id_hash):
-    namespace = f"{flow_id_hash}"
+@click.argument("namespace")
+def reset_dev_flow(namespace):
+    namespace = f"{namespace}"
     replace_pod(namespace)
 
 
