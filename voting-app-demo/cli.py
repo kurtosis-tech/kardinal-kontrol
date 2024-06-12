@@ -82,10 +82,9 @@ def delete_dev_resources(resource, namespace):
 
 
 @cli.command()
-@click.option("--env", required=True, type=str, help="Environment to deploy to")
 @click.argument("namespace")
 @click.argument("image_tag")
-def create_dev_flow(env, namespace, image_tag):
+def create_dev_flow(namespace, image_tag):
     flow_id_hash = f"{namespace}"
 
     subprocess.run(
@@ -102,9 +101,8 @@ def create_dev_flow(env, namespace, image_tag):
 
 
 @cli.command()
-@click.option("--env", required=True, type=str, help="Environment to delete from")
 @click.argument("flow_id_hash")
-def delete_dev_flow(env, flow_id_hash):
+def delete_dev_flow(flow_id_hash):
     namespace = f"{flow_id_hash}"
 
     subprocess.run(
@@ -125,9 +123,8 @@ def delete_dev_flow(env, flow_id_hash):
 
 
 @cli.command()
-@click.option("--env", required=True, type=str, help="Environment to deploy to")
 @click.argument("flow_id_hash")
-def reset_dev_flow(env, flow_id_hash):
+def reset_dev_flow(flow_id_hash):
     namespace = f"{flow_id_hash}"
     replace_pod(namespace)
 

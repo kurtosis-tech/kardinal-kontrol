@@ -80,20 +80,18 @@ After some time, you can access the Kiali dashboard to see the traffic flow betw
 you enter the dev mode and start to test with the Redis proxy overlay.
 
 ```bash
-kardinal create-dev-flow voting-app test --env=prod-only-demo
+kardinal create-dev-flow voting-app test
 ```
 
 Youn can now access the dev path at [http://dev.voting-app.local](http://dev.voting-app.local) and the Kiali dashboard will reflect the new traffic flow.
 Use the following command to reset the state (replace the pod) on Redis proxy overlay:
 
 ```bash
-kardinal reset-dev-flow voting-app --env=prod
+kardinal reset-dev-flow voting-app
 ```
 
 And finally, you can delete the dev path with the following command:
 
 ```bash
-kardinal delete-dev-flow voting-app --env=prod
+kardinal delete-dev-flow voting-app
 ```
-
-Then go to the browser and enter the ``to see the`UI v1`and``to see the`UI v2`
