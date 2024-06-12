@@ -19,20 +19,11 @@
         font-family: Helvetica;
     }
 
-    div#subtitle {
-        isplay: block;
-        margin: 0 auto;
-        width: 500px;
-        text-align: center;
-        font-size: 26px;
-        font-family: Helvetica;
-    }
-
     div#container {
         margin-top: 5%;
     }
 
-    div#space {
+    div.space {
         display: block;
         margin: 0 auto;
         width: 500px;
@@ -122,8 +113,8 @@
 <body>
 <div id="container">
     <div id="logo">{{ title }}</div>
-    <div id="space"></div>
-    <div id="space"></div>
+    <div class="space"></div>
+    <div class="space"></div>
     <div id="form">
         <form action="/" method="POST">
             <center>
@@ -134,8 +125,8 @@
                 {% endif %}
             </center>
         </form>
-        <div id="space"></div>
-        <div id="space"></div>
+        <div class="space"></div>
+        <div class="space"></div>
         <div id="result-title">Current votes</div>
         <div id="results">
             {{ option1 }}: {{ option1_votes }} |
