@@ -42,6 +42,7 @@ nix develop
 eval $(minikube docker-env)
 docker load < $(nix build ./#redis-proxy-overlay-container --no-link --print-out-paths)
 minikube image build -t voting-app-ui -f ./Dockerfile ./voting-app-demo/voting-app-ui/
+minikube image build -t voting-app-ui-v2 -f ./Dockerfile-v2 ./voting-app-demo/voting-app-ui/
 ```
 
 4. Deploy the Azure voting app and Redis proxy overlay.
@@ -69,7 +70,7 @@ And include these lines at the end and save the host file
 
 ## Demo
 
-After deploying the application, you can access the Azure voting app at [http://voting-app.local](http://voting-app.local). And
+After deploying the application, you can access the Azure voting app at [http://voting-app.localhost](http://voting-app.localhost). And
 can also start some artificial load with the following command (`nix develop` will make them available in the shell):
 
 ```bash
@@ -83,7 +84,7 @@ you enter the dev mode and start to test with the Redis proxy overlay.
 kardinal create-dev-flow voting-app test
 ```
 
-Youn can now access the dev path at [http://dev.voting-app.local](http://dev.voting-app.local) and the Kiali dashboard will reflect the new traffic flow.
+You can now access the dev path at [http://dev.voting-app.localhost](http://dev.voting-app.localhost) and the Kiali dashboard will reflect the new traffic flow.
 Use the following command to reset the state (replace the pod) on Redis proxy overlay:
 
 ```bash
