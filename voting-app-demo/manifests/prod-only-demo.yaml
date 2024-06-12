@@ -139,7 +139,7 @@ spec:
         name: http
         protocol: HTTP
       hosts:
-        - "voting-app.local"
+        - "voting-app.localhost"
 ---
 apiVersion: networking.istio.io/v1alpha3
 kind: VirtualService
@@ -148,7 +148,7 @@ metadata:
   namespace: voting-app
 spec:
   hosts:
-    - "voting-app.local"
+    - "voting-app.localhost"
   gateways:
     - voting-app
   http:
