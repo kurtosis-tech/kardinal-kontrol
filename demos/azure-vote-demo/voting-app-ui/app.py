@@ -35,7 +35,7 @@ elif app_version != "v1":
 if "TITLE" in os.environ and os.environ["TITLE"]:
     title = os.environ["TITLE"]
 else:
-    title = "Title"
+    title = "Vote For Your Favorite Option"
 
 # Set up initial vote counts
 # TODO: implement this on redis proxy
@@ -72,7 +72,7 @@ def index():
             option1_votes=option1_votes,
             option2_votes=option2_votes,
             option3_votes=option3_votes,
-            subtitle=title,
+            title=title,
             option1=option1,
             option2=option2,
             option3=option3,
@@ -82,7 +82,7 @@ def index():
             "index.html",
             option1_votes=option1_votes,
             option2_votes=option2_votes,
-            subtitle=title,
+            title=title,
             option1=option1,
             option2=option2,
         )
