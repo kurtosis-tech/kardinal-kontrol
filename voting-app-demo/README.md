@@ -63,8 +63,8 @@ sudo nano /private/etc/hosts
 And include these lines at the end and save the host file
 
 ```bash
-127.0.0.1	voting-app.local
-127.0.0.1	dev.voting-app.local
+127.0.0.1	voting-app.localhost
+127.0.0.1	dev.voting-app.localhost
 ```
 
 ## Demo
