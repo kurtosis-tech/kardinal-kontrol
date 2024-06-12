@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voting App</title>
+</head>
+<body>
+    <h1>Vote for Your Favorite Option</h1>
+    <h2>{{ subtitle }}</h2>
+    <form action="/" method="POST">
+      <button type="submit" name="vote" value="option1">Vote for {{ option1 }}</button>
+      <button type="submit" name="vote" value="option2">Vote for {{ option2 }}</button>
+    </form>
+    <h2>Current Votes</h2>
+    <p>Option 1: {{ option1_votes }}</p>
+    <p>Option 2: {{ option2_votes }}</p>
+</body>
+</html>
+

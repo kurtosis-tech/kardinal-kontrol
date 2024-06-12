@@ -20,10 +20,12 @@ minikube dashboard
 
 ### Regenerate REST API Bindings
 
-You can either: 
+You can either:
+
 1. Press the green play button in `kontrol-service/kardinal-manager/api/http_rest/generate.go` in Goland
-   <img src="./readme-static-files/goland-generate-rest-bindings.png"/>
+   <img src="./.github/readme-static-files/goland-generate-rest-bindings.png"/>
 2. Or execute the following go from the repository root
+
 ```bash
 go generate ./kontrol-service/kardinal-manager/api/http_rest/generate.go
 ```
@@ -31,12 +33,12 @@ go generate ./kontrol-service/kardinal-manager/api/http_rest/generate.go
 ### Regenerate gomod2nix.toml
 
 You will need to do this every time the `go.mod` file is edited
+
 ```bash
 # inside the kontrol-service directory
 nix develop
 gomod2nix generate
 ```
-
 
 ## Deploying Kontrol to local cluster
 
@@ -102,7 +104,7 @@ kubectl port-forward -n <namespace> services/argo-rollouts-dashboard 3100:3100
   <summary>Kardinal demo</summary>
 
 ```bash
-cd demos
+cd k8s-demos
 kubectl create namespace kardinal-demo
 kubectl apply -n kardinal-demo -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
 kubectl apply -n kardinal-demo -f kardinal-demo
@@ -124,20 +126,14 @@ kubectl argo rollouts -n kardinal-demo set image frontend "*=lostbean/microservi
 ### Adding Istio and Kiali
 
 ```bash
-# Download Istio in the host
-curl -L https://istio.io/downloadIstio | sh -
-
-# Go to the folder
-cd istio-1.22.0 #(or the version installed)
-
-# Add Istio Command line into the path
-export PATH=$PWD/bin:$PATH
-
 # Install Istio in the local cluster with the demo profile
 istioctl install --set profile=demo -y
 
 # Install Kiali and the other Addons
-kubectl apply -f samples/addons
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.10/samples/addons/prometheus.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.10/samples/addons/grafana.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.10/samples/addons/jaeger.yaml
+kubectl apply -f https://raw.githubusercontent.com/istio/istio/release-1.10/samples/addons/kiali.yaml
 kubectl rollout status deployment/kiali -n istio-system
 
 # Access into the Kiali dashboard
@@ -155,7 +151,6 @@ kubectl apply -n ms-demo -f microservices-demo
 # kubectl apply -n ms-demo -f https://raw.githubusercontent.com/GoogleCloudPlatform/microservices-demo/main/release/kubernetes-manifests.yaml
 kubectl port-forward -n ms-demo deployment/frontend 8080:8080
 ```
-
 
 </details>
 

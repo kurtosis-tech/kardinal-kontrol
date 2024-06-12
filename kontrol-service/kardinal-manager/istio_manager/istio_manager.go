@@ -9,6 +9,7 @@ import (
 	"istio.io/client-go/pkg/clientset/versioned/typed/networking/v1alpha3"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/rest"
+	"kardinal.kontrol/kardinal-manager/topology"
 )
 
 // IstIO ontology:
@@ -41,6 +42,8 @@ type IstioManager struct {
 	virtualServicesClient v1alpha3.VirtualServiceInterface
 
 	destinationRulesClient v1alpha3.DestinationRuleInterface
+
+	topologyManager *topology.Manager
 }
 
 func CreateIstIoManager(k8sConfig *rest.Config, namespace string) (*IstioManager, error) {
@@ -51,6 +54,7 @@ func CreateIstIoManager(k8sConfig *rest.Config, namespace string) (*IstioManager
 	vsClient := ic.NetworkingV1alpha3().VirtualServices(namespace)
 	drClient := ic.NetworkingV1alpha3().DestinationRules(namespace)
 	return &IstioManager{
+		topologyManager:        topology.NewTopologyManager(k8sConfig),
 		istioClient:            ic,
 		virtualServicesClient:  vsClient,
 		destinationRulesClient: drClient,
@@ -187,4 +191,8 @@ func (iom *IstioManager) AddSubset(ctx context.Context, drName string, subset *i
 		return stacktrace.Propagate(err, "An error occurred updating destination rule '%s' with subset: %v", drName, subset)
 	}
 	return nil
+}
+
+func (iom *IstioManager) GetTopologyForNameSpace(namespace string) (map[string]*topology.Node, error) {
+	return iom.topologyManager.FetchTopology(namespace)
 }
