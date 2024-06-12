@@ -2,113 +2,178 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"os/signal"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
-func NewVotingAppServer() (http.Handler, *gin.Engine, error) {
-	// create connection to Redis db
-	redis, err := NewRedisConnection()
+const (
+	upvotesSuffix            = ":upvotes"
+	downvotesSuffix          = ":downvotes"
+	validFeatureNameRegexStr = ""
+)
+
+var (
+	validFeatureRegex = regexp.MustCompile(validFeatureNameRegexStr)
+)
+
+func NewVotingAppServer(ctx context.Context) (*gin.Engine, error) {
+	redis, err := NewRedisConnection(ctx)
 	if err != nil {
-		return nil, nil, nil
+		return nil, nil
 	}
 
-	// setup rest api server with gin
 	router := gin.Default()
-	router.POST("/createFeatures", getGinHandler(createFeature, redis))
-	router.POST("/upvoteFeature", getGinHandler(upvoteFeature, redis))
-	router.POST("/downvoteFeature", getGinHandler(downvoteFeature, redis))
+	router.GET("/features", getGinHandler(getFeatures, redis, ctx))
+	router.GET("/upvote/:id", getGinHandler(upvoteFeature, redis, ctx))
+	router.POST("/downvote/:id", getGinHandler(downvoteFeature, redis, ctx))
 
-	return router.Handler(), router, nil
+	return router, nil
 }
 
 func RunVotingAppServer(ctx context.Context) error {
 	ctx, cancel := signal.NotifyContext(ctx)
 	defer cancel()
-
-	_, ginRestApiServer, err := NewVotingAppServer()
+	ginRestApiServer, err := NewVotingAppServer(ctx)
 	if err != nil {
 		return err
 	}
 	ginRestApiServer.Run("0.0.0.0:9000")
-
-	// TODO: switch to graceful shutdown
-	//httpServer := &http.Server{
-	//	Addr:    net.JoinHostPort("0.0.0.0", "9000"),
-	//	Handler: handler,
-	//}
-	//go func() {
-	//	if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-	//		fmt.Fprintf(os.Stderr, "error listening and serving: %s\n", err)
-	//	}
-	//}()
-	//var wg sync.WaitGroup
-	//wg.Add(1)
-	//go func() {
-	//	defer wg.Done()
-	//	<-ctx.Done()
-	//	// make a new context for the Shutdown (thanks Alessandro Rosetti)
-	//	shutdownCtx := context.Background()
-	//	shutdownCtx, cancel := context.WithTimeout(ctx, 10 * time.Second)
-	//	defer cancel()
-	//	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-	//		fmt.Fprintf(os.Stderr, "error shutting down http server: %s\n", err)
-	//	}
-	//}()
-	//wg.Wait()
 	return nil
 }
 
 type Feature struct {
-	Name        string `json:"id"`
-	Description string `json:"id"`
+	Name      string `json:"name"`
+	Upvotes   int    `json:"upvotes"`
+	Downvotes int    `json:"downvotes"`
 }
 
-type Upvote struct {
-	FeatureName string `josn:"feature"`
-}
-
-type Downvote struct {
-	FeatureName string `josn:"feature"`
-}
-
-func createFeature(ctx *gin.Context, db *RedisConnection) {
-	var feature Feature
-	if err := ctx.BindJSON(&feature); err != nil {
-		return
+func upvoteFeature(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
+	featureName := c.Param(":id")
+	err := createFeatureIdempotently(ctx, rdb, featureName)
+	if err != nil {
+		c.String(400, "An error occurred checing if feature exists/creating it: %v", err.Error())
 	}
 
-	// put it in the redis db
-
-	ctx.Data(http.StatusOK, "application/json", []byte("successfully created your feature."))
-}
-
-func upvoteFeature(ctx *gin.Context, db *RedisConnection) {
-	var upvote Upvote
-	if err := ctx.BindJSON(&upvote); err != nil {
-		return
+	_, err = rdb.rdb.Incr(ctx, getUpvoteKey(featureName)).Result()
+	if err != nil {
+		c.String(400, "An error occurred downvoting feature: %v\n%v", featureName, err.Error())
 	}
 
-	// update the redis db
-
-	ctx.Data(http.StatusOK, "application/json", []byte("successfully upvoted feature."))
+	c.Data(http.StatusOK, "application/json", []byte("successfully upvoted feature."))
 }
 
-func downvoteFeature(ctx *gin.Context, db *RedisConnection) {
-	var downvote Downvote
-	if err := ctx.BindJSON(&downvote); err != nil {
-		return
+func downvoteFeature(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
+	featureName := c.Param(":id")
+	err := createFeatureIdempotently(ctx, rdb, featureName)
+	if err != nil {
+		c.String(400, "An error occurred checing if feature exists/creating it: %v", err.Error())
 	}
 
-	// update the redis db
+	_, err = rdb.rdb.Decr(ctx, getDownvoteKey(featureName)).Result()
+	if err != nil {
+		c.String(400, "An error occurred downvoting feature: %v\n%v", featureName, err.Error())
+	}
 
-	ctx.Data(http.StatusOK, "application/json", []byte("successfully downvoted feature."))
+	c.Data(http.StatusOK, "application/json", []byte("successfully downvoted feature."))
+}
+
+func getFeatures(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
+	var cursor uint64
+	keys := make([]string, 0)
+	for {
+		var scanKeys []string
+		var err error
+		scanKeys, cursor, err = rdb.rdb.Scan(ctx, cursor, "*", 10).Result()
+		if err != nil {
+			c.String(400, "An error occurred scanning keys from Redis to get features.")
+		}
+		keys = append(keys, scanKeys...)
+		if cursor == 0 {
+			break
+		}
+	}
+
+	features := map[string]Feature{}
+	for _, key := range keys {
+		featureName := getFeatureNameFromKey(key)
+		if _, ok := features[featureName]; !ok {
+			features[featureName] = Feature{
+				Name:      featureName,
+				Upvotes:   0,
+				Downvotes: 0,
+			}
+		}
+		upvotesStr, err := rdb.rdb.Get(ctx, fmt.Sprintf("%v:%v", featureName, upvotesSuffix)).Result()
+		if err != nil {
+			c.String(400, "An error occurred scanning keys from Redis to get features.")
+		}
+		upvotes, err := strconv.Atoi(upvotesStr)
+		if err != nil {
+			c.String(400, "An error occurred converting upvote string to int")
+		}
+		downvotesStr, err := rdb.rdb.Get(ctx, fmt.Sprintf("%v:%v", featureName, downvotesSuffix)).Result()
+		if err != nil {
+			c.String(400, "An error occurred scanning keys from Redis to get features.")
+		}
+		downvotes, err := strconv.Atoi(downvotesStr)
+		if err != nil {
+			c.String(400, "An error occurred converting downvote string to int")
+		}
+		features[featureName] = Feature{
+			Name:      featureName,
+			Upvotes:   upvotes,
+			Downvotes: downvotes,
+		}
+	}
+
+	c.JSONP(http.StatusOK, features)
+}
+
+func createFeatureIdempotently(ctx context.Context, rdb *RedisConnection, featureName string) error {
+	upvoteKey := getUpvoteKey(featureName)
+	downvoteKey := getDownvoteKey(featureName)
+
+	tx := rdb.rdb.TxPipeline()
+	upvoteExists := tx.Exists(ctx, getUpvoteKey(featureName))
+	downvoteExists := tx.Exists(ctx, getDownvoteKey(featureName))
+	_, err := tx.Exec(ctx)
+	if err != nil {
+		return err
+	}
+
+	doesFeatureExist := upvoteExists.Val() == 1 && downvoteExists.Val() == 1
+	if !doesFeatureExist {
+		rdb.rdb.Set(ctx, upvoteKey, 0, 0)
+		rdb.rdb.Set(ctx, downvoteKey, 0, 0)
+	}
+
+	return nil
 }
 
 // adapter to get redis connection inside api handlers
-func getGinHandler(handler func(ctx *gin.Context, db *RedisConnection), redis *RedisConnection) func(ctx *gin.Context) {
-	return func(ctx *gin.Context) {
-		handler(ctx, redis)
+func getGinHandler(handler func(c *gin.Context, rdb *RedisConnection, ctx context.Context), redis *RedisConnection, ctxWrap context.Context) func(ctx *gin.Context) {
+	return func(c *gin.Context) {
+		handler(c, redis, ctxWrap)
 	}
+}
+
+func getUpvoteKey(featureName string) string {
+	return fmt.Sprintf("%v:%v", featureName, upvotesSuffix)
+}
+
+func getDownvoteKey(featureName string) string {
+	return fmt.Sprintf("%v:%v", featureName, downvotesSuffix)
+}
+
+func getFeatureNameFromKey(key string) string {
+	return strings.Split(key, ":")[0]
+}
+
+func persistRedis(rdb *RedisConnection) {
+
 }
