@@ -41,8 +41,8 @@ istioctl dashboard kiali
 nix develop
 eval $(minikube docker-env)
 docker load < $(nix build ./#redis-proxy-overlay-container --no-link --print-out-paths)
-minikube image build -t voting-app-ui -f ./Dockerfile ./demos/azure-vote-demo/voting-app-ui/
-minikube image build -t voting-app-ui-v2 -f ./Dockerfile-v2 ./demos/azure-vote-demo/voting-app-ui/
+minikube image build -t voting-app-ui -f ./Dockerfile ./voting-app-demo/voting-app-ui/
+minikube image build -t voting-app-ui-v2 -f ./Dockerfile-v2 ./voting-app-demo/voting-app-ui/
 ```
 
 4. Deploy the Azure voting app and Redis proxy overlay.
@@ -51,7 +51,7 @@ minikube image build -t voting-app-ui-v2 -f ./Dockerfile-v2 ./demos/azure-vote-d
 nix develop
 kubectl create namespace voting-app
 kubectl label namespace voting-app istio-injection=enabled
-kubectl apply -n voting-app -f demos/azure-vote-demo/prod-only-demo.yaml
+kubectl apply -n voting-app -f ./voting-app-demo/manifests/prod-only-demo.yaml
 minikube tunnel
 ```
 
@@ -70,30 +70,29 @@ And include these lines at the end and save the host file
 
 ## Demo
 
-After deploying the application, you can access the Azure voting app at [http://voting-app.local](http://voting-app.local). And can also start some artificial load with the following command:
+After deploying the application, you can access the Azure voting app at [http://voting-app.local](http://voting-app.local). And
+can also start some artificial load with the following command (`nix develop` will make them available in the shell):
 
 ```bash
-./demos/azure-vote-demo/load-generator
+load-generator
 ```
 
-After some time, you can access the Kiali dashboard to see the traffic flow between the services in the production mode. Now you enter the dev mode and start to test with the Redis proxy overlay.
+After some time, you can access the Kiali dashboard to see the traffic flow between the services in the production mode. Now
+you enter the dev mode and start to test with the Redis proxy overlay.
 
 ```bash
-./demos/azure-vote-demo/cli.py create-dev-flow voting-app test --env=prod-only-demo
+kardinal create-dev-flow voting-app test
 ```
 
 You can now access the dev path at [http://dev.voting-app.local](http://dev.voting-app.local) and the Kiali dashboard will reflect the new traffic flow.
 Use the following command to reset the state (replace the pod) on Redis proxy overlay:
 
 ```bash
-./demos/azure-vote-demo/cli.py reset-dev-flow voting-app --env=prod
+kardinal reset-dev-flow voting-app
 ```
 
 And finally, you can delete the dev path with the following command:
 
 ```bash
-./demos/azure-vote-demo/cli.py delete-dev-flow voting-app --env=prod
+kardinal delete-dev-flow voting-app
 ```
-
-Then go to the browser and enter the ``to see the`UI v1`and``to see the`UI v2`
-

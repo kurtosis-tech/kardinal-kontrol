@@ -1,11 +1,9 @@
-#! /usr/bin/env nix-shell
-#! nix-shell -i python3 -p python3 python3Packages.click
-
 import click
 import subprocess
 import os
 
 file_dir = os.path.dirname(os.path.abspath(__file__))
+manifest_dir = os.path.join(file_dir, "manifests")
 
 
 @click.group()
@@ -84,10 +82,9 @@ def delete_dev_resources(resource, namespace):
 
 
 @cli.command()
-@click.option("--env", required=True, type=str, help="Environment to deploy to")
 @click.argument("namespace")
 @click.argument("image_tag")
-def create_dev_flow(env, namespace, image_tag):
+def create_dev_flow(namespace, image_tag):
     flow_id_hash = f"{namespace}"
 
     subprocess.run(
@@ -95,7 +92,7 @@ def create_dev_flow(env, namespace, image_tag):
             "kubectl",
             "apply",
             "-f",
-            f"{file_dir}/dev-in-prod-demo.yaml",
+            f"{manifest_dir}/dev-in-prod-demo.yaml",
             "--namespace",
             namespace,
         ]
@@ -104,13 +101,19 @@ def create_dev_flow(env, namespace, image_tag):
 
 
 @cli.command()
-@click.option("--env", required=True, type=str, help="Environment to delete from")
 @click.argument("flow_id_hash")
-def delete_dev_flow(env, flow_id_hash):
+def delete_dev_flow(flow_id_hash):
     namespace = f"{flow_id_hash}"
 
     subprocess.run(
-        ["kubectl", "apply", "-n", namespace, "-f", f"{file_dir}/prod-only-demo.yaml"]
+        [
+            "kubectl",
+            "apply",
+            "-n",
+            namespace,
+            "-f",
+            f"{manifest_dir}/prod-only-demo.yaml",
+        ]
     )
 
     for command in ["all", "virtualservices", "destinationrules"]:
@@ -120,9 +123,8 @@ def delete_dev_flow(env, flow_id_hash):
 
 
 @cli.command()
-@click.option("--env", required=True, type=str, help="Environment to deploy to")
 @click.argument("flow_id_hash")
-def reset_dev_flow(env, flow_id_hash):
+def reset_dev_flow(flow_id_hash):
     namespace = f"{flow_id_hash}"
     replace_pod(namespace)
 

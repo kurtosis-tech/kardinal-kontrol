@@ -20,6 +20,15 @@ func TestIstioManager(t *testing.T) {
 	require.NotEmpty(t, virtualServices)
 }
 
+func TestIstioManager_GetTopologyForNameSpace(t *testing.T) {
+	istioManager, err := getIstioManagerForTesting()
+	require.NoError(t, err)
+
+	graph, err := istioManager.GetTopologyForNameSpace("ms-demo")
+	require.Empty(t, err)
+	require.NotNil(t, graph)
+}
+
 // This test is to demonstrate using the IstioManager to accomplish certain workflows
 // assumes
 // - default k8s namespace contains the services from the sample bookinfo application: https://istio.io/latest/docs/examples/bookinfo/, run

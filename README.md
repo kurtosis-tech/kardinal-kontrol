@@ -104,7 +104,7 @@ kubectl port-forward -n <namespace> services/argo-rollouts-dashboard 3100:3100
   <summary>Kardinal demo</summary>
 
 ```bash
-cd demos
+cd k8s-demos
 kubectl create namespace kardinal-demo
 kubectl apply -n kardinal-demo -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
 kubectl apply -n kardinal-demo -f kardinal-demo
@@ -181,14 +181,3 @@ kubectl argo rollouts -n argo-demo set image bluegreen-demo "*=argoproj/rollouts
 ```
 
 </details>
-
-## CLI
-
-The CLI is located at `kardinal-cli/cli.py`
-
-The Nix shell creates a python virtualenv and installs dependencies. It also creates an alias for `kardinal` to run the CLI.
-
-```
-nix develop
-kardinal --help # run the CLI
-```

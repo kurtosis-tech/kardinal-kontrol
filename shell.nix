@@ -8,7 +8,7 @@
     };
   kontrol_shell = pkgs.callPackage ./kontrol-service/shell.nix {inherit pkgs;};
   frontend_shell = pkgs.callPackage ./kontrol-frontend/shell.nix {inherit pkgs;};
-  cli_shell = pkgs.callPackage ./kardinal-cli/shell.nix {inherit pkgs;};
+  cli_shell = pkgs.callPackage ./voting-app-demo/shell.nix {inherit pkgs;};
   kardinal_shell = with pkgs;
     pkgs.mkShell {
       buildInputs = [k3d kubectl kustomize argo-rollouts kubernetes-helm minikube istioctl tilt];
@@ -18,36 +18,27 @@
         source <(minikube completion bash)
         printf '\u001b[31m
 
+                                          :::::
+                                           :::::::
+                                           ::   :::
+                                          :::     ::
+                                          ::   ::- :::
+                                        :::         :::
+                                       ::: :::    :::
+                                     :::    ::    ::
+                                   :::      ::   :::
+                                 :::       :::   ::
+                               :::        ::     ::
+                            ::::       ::::     ::
+                          ::::      ::::      :::
+                       ::::::::::::::       ::::
+                                       ::::::
+                   :::::::::::::::::::::
+               ::::::
+            :::::
+          :::
 
-                                                            **+==:.
-                                                            .=##**#*=:
-                                                              =#* .-+##=.
-                                                              :##.   .=##=
-                                                              -##      .+#*.
-                                                              *#-        :##:
-                                                            .*#=      .   :##-.
-                                                           .##=      +#*   :+##+.
-                                                          :##-       .:.      -##+
-                                                         +#*.               -+###*:
-                                                       -##-   .#*-        :##=:
-                                                     :*#*.     .*#-      .##.
-                                                   :+#*:        -#+      -#+
-                                                 :+#*-          +#=      -#+
-                                               :+#*:           =#*       =#=
-                                             -*#*:            =##.       ##:
-                                          .=##+:            :*#+.       =#*
-                                        :+#*-.            :*#*:        -##.
-                                     :=##+:            :=*#+:         =##.
-                                  .=*#*-           .-+##*-          .+#*.
-                               .-*#*=:       .:-=+##*+-.          .=##-
-                             +####*++++++**###*+=-:             :+#*-
-                             .:---------::..                :-+##+:
-                               ...:::....             .:-+*##*=:
-                       :-=+*######***#######*******####*+=-:
-                  :-+*##+=-:..            ...::::::..
-              .-+##+-:.
-           :=*#*=:
-        :=##+=.
+
 
         \u001b[0m
         Starting Kardinal dev shell.
