@@ -41,7 +41,7 @@ istioctl dashboard kiali
 nix develop
 eval $(minikube docker-env)
 docker load < $(nix build ./#redis-proxy-overlay-container --no-link --print-out-paths)
-minikube image build -t voting-app-ui -f ./Dockerfile ./demos/voting-app-demo/voting-app-ui/
+minikube image build -t voting-app-ui -f ./Dockerfile ./voting-app-demo/voting-app-ui/
 ```
 
 4. Deploy the Azure voting app and Redis proxy overlay.
@@ -50,7 +50,7 @@ minikube image build -t voting-app-ui -f ./Dockerfile ./demos/voting-app-demo/vo
 nix develop
 kubectl create namespace voting-app
 kubectl label namespace voting-app istio-injection=enabled
-kubectl apply -n voting-app -f demos/voting-app-demo/manifests/prod-only-demo.yaml
+kubectl apply -n voting-app -f ./voting-app-demo/manifests/prod-only-demo.yaml
 minikube tunnel
 ```
 

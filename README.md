@@ -104,7 +104,7 @@ kubectl port-forward -n <namespace> services/argo-rollouts-dashboard 3100:3100
   <summary>Kardinal demo</summary>
 
 ```bash
-cd demos
+cd k8s-demos
 kubectl create namespace kardinal-demo
 kubectl apply -n kardinal-demo -f https://github.com/argoproj/argo-rollouts/releases/latest/download/install.yaml
 kubectl apply -n kardinal-demo -f kardinal-demo
