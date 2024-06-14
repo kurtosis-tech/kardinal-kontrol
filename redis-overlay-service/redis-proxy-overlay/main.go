@@ -102,6 +102,10 @@ func main() {
 						conn.WriteError("Increment by a non integer")
 						return
 					}
+					// #####################################################################
+					// TODO: Unless upsteam get! Only to genereate calls to show up in Kiali
+					rdb.Get(context.Background(), string(cmd.Args[1])).Result()
+					// #####################################################################
 				} else {
 					// Get the upstream value if local write does not exist yet
 					upstreamVal, err := rdb.Get(context.Background(), string(cmd.Args[1])).Result()
