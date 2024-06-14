@@ -3,5 +3,6 @@ go 1.21.9
 use (
 	./kardinal-cli
 	./kontrol-service
+	./libs/cli-kontrol-api
 	./redis-overlay-service
 )
