@@ -44,6 +44,10 @@
             inherit pkgs;
           };
 
+          packages.kardinal-cli = pkgs.callPackage ./kardinal-cli/default.nix {
+            inherit pkgs;
+          };
+
           packages.kardinal-manager = pkgs.callPackage ./kontrol-service/default.nix {
             inherit pkgs;
           };
