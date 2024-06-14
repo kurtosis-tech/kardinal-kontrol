@@ -153,6 +153,30 @@ func main() {
 				} else {
 					conn.WriteBulk(val)
 				}
+			case "exists":
+				if len(cmd.Args) != 2 {
+					conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")
+					return
+				}
+				mu.Lock()
+				_, ok := items[string(cmd.Args[1])]
+				mu.Unlock()
+				if !ok {
+					_, err := rdb.Get(context.Background(), string(cmd.Args[1])).Result()
+					if err == redis.Nil {
+						conn.WriteInt(0)
+						return
+					} else if err != nil {
+						log.Printf("Proxied get command failed: '%v'", err)
+						conn.WriteError("Proxied get command failed")
+						return
+					} else {
+						conn.WriteInt(1)
+						return
+					}
+				} else {
+					conn.WriteInt(1)
+				}
 			case "del":
 				if len(cmd.Args) != 2 {
 					conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")

@@ -39,14 +39,14 @@ else:
 
 # Set up initial vote counts
 # TODO: implement this on redis proxy
-# if not r.exists("option1"):
-#     r.set("option1", 0)
-# if not r.exists("option2"):
-#     r.set("option2", 0)
+if not r.exists("option1"):
+    r.set("option1", 0)
+if not r.exists("option2"):
+    r.set("option2", 0)
 
-# if app_version == "v1":
-#    if not r.exists("option3"):
-#        r.set("option3", 0)
+if app_version == "v1":
+   if not r.exists("option3"):
+       r.set("option3", 0)
 
 
 @app.route("/", methods=["GET", "POST"])
