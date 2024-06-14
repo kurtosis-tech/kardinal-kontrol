@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 	"net/http"
 	"os/signal"
 	"regexp"
@@ -24,7 +25,7 @@ var (
 func NewVotingAppServer(ctx context.Context) (*gin.Engine, error) {
 	redis, err := NewRedisConnection(ctx)
 	if err != nil {
-		return nil, nil
+		return nil, err
 	}
 
 	router := gin.Default()
@@ -42,7 +43,9 @@ func RunVotingAppServer(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	ginRestApiServer.Run("0.0.0.0:9000")
+
+	// get port from environment
+	ginRestApiServer.Run("0.0.0.0:9111")
 	return nil
 }
 
@@ -54,14 +57,18 @@ type Feature struct {
 
 func upvoteFeature(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
 	featureName := c.Param(":id")
+	logrus.Infof("upvoting %v", featureName)
+	// validate name
 	err := createFeatureIdempotently(ctx, rdb, featureName)
 	if err != nil {
-		c.String(400, "An error occurred checing if feature exists/creating it: %v", err.Error())
+		c.String(400, "An error occurred checking if feature exists/creating it: %v", err.Error())
+		return
 	}
 
 	_, err = rdb.rdb.Incr(ctx, getUpvoteKey(featureName)).Result()
 	if err != nil {
-		c.String(400, "An error occurred downvoting feature: %v\n%v", featureName, err.Error())
+		c.String(400, "An error occurred upvoting feature: %v\n%v", featureName, err.Error())
+		return
 	}
 
 	c.Data(http.StatusOK, "application/json", []byte("successfully upvoted feature."))
@@ -69,6 +76,8 @@ func upvoteFeature(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
 
 func downvoteFeature(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
 	featureName := c.Param(":id")
+	// validate feature name
+
 	err := createFeatureIdempotently(ctx, rdb, featureName)
 	if err != nil {
 		c.String(400, "An error occurred checing if feature exists/creating it: %v", err.Error())
