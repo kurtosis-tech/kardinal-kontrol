@@ -9,11 +9,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const projectName = "kardinal"
+
 var composeFile string
 
 var rootCmd = &cobra.Command{
-	Use:   "docker-compose-parser",
-	Short: "Parses a Docker Compose file and lists services",
+	Use:   "kardinal",
+	Short: "Setup new dev and test paths in your system",
 	Run: func(cmd *cobra.Command, args []string) {
 		project, err := loadComposeFile(composeFile)
 		if err != nil {
@@ -37,7 +39,11 @@ func init() {
 }
 
 func loadComposeFile(filename string) (*types.Project, error) {
-	opts, err := cli.NewProjectOptions([]string{filename})
+	opts, err := cli.NewProjectOptions([]string{filename},
+		cli.WithOsEnv,
+		cli.WithDotEnv,
+		cli.WithName(projectName),
+	)
 	if err != nil {
 		return nil, err
 	}
@@ -46,6 +52,13 @@ func loadComposeFile(filename string) (*types.Project, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	projectYAML, err := project.MarshalYAML()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	fmt.Println(string(projectYAML))
 
 	return project, nil
 }
