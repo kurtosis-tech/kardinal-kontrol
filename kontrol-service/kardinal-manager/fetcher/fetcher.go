@@ -5,132 +5,100 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"github.com/kurtosis-tech/stacktrace"
 	yamlV3 "gopkg.in/yaml.v3"
 	"io"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/restmapper"
+	"kardinal.kontrol/kardinal-manager/kubernetes_client"
 	"net/http"
 	"sigs.k8s.io/yaml"
 )
 
-func FetchConfig() ([]byte, error) {
+const (
+	defaultNamespace = "default"
+)
 
-	//TODO get this from the argument and set the value in the deployment yaml file with an ENV VAR
-	configEndpoint := "https://gist.githubusercontent.com/leoporoli/d9afda02795f18abef04fa74afe3b555/raw/a231255e66585dd295dd1e83318245fd725b30dd/deployment-example.yml"
+var (
+	yamlDelimiter = []byte("---\n")
+)
 
+func FetchConfig(configEndpoint string) ([]byte, error) {
 	resp, err := http.Get(configEndpoint)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error fetching configuration from endpoint '%s'", configEndpoint)
 	}
 	defer resp.Body.Close()
 
-	responseBodyContent, err := io.ReadAll(resp.Body)
+	responseBodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "Error reading YAML data: %v", err)
+		return nil, stacktrace.Propagate(err, "Error reading the response from '%v'", configEndpoint)
 	}
 
-	var jsonObject []interface{}
+	var jsonListObject []interface{}
 
-	err = json.Unmarshal(responseBodyContent, &jsonObject)
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "And error occurred unmarshalling", err)
+	if err = json.Unmarshal(responseBodyBytes, &jsonListObject); err != nil {
+		return nil, stacktrace.Propagate(err, "And error occurred unmarshalling the response to a JSON list", err)
 	}
 
 	var concatenatedYamlContent []byte
-	for _, jsonData := range jsonObject {
-		jsonDataMap := jsonData.(map[string]interface{})
-		jsonByte, err := json.Marshal(jsonDataMap)
-		if err != nil {
-			return nil, stacktrace.Propagate(err, "Error ", err)
+	for _, jsonData := range jsonListObject {
+		jsonDataMap, ok := jsonData.(map[string]interface{})
+		if !ok {
+			return nil, stacktrace.NewError("An error occurred while casting the JSON data to a map[string]interface{}")
 		}
-		yamlData, err := yaml.JSONToYAML(jsonByte)
-		if err != nil {
-			return nil, stacktrace.Propagate(err, "Error converting JSON to YAML: %v", err)
+		jsonByte, marshallErr := json.Marshal(jsonDataMap)
+		if marshallErr != nil {
+			return nil, stacktrace.Propagate(err, "An error occurred marshalling the JSON data map", err)
 		}
-		concatenatedYamlContent = append(concatenatedYamlContent, []byte("---\n")...)
+		yamlData, toYAMLErr := yaml.JSONToYAML(jsonByte)
+		if toYAMLErr != nil {
+			return nil, stacktrace.Propagate(err, "An error occurred converting the JSON content to YAML")
+		}
+		concatenatedYamlContent = append(concatenatedYamlContent, yamlDelimiter...)
 		concatenatedYamlContent = append(concatenatedYamlContent, yamlData...)
 	}
 
 	return concatenatedYamlContent, nil
 }
 
-func ApplyConfig(dynaMicClient *dynamic.DynamicClient, yamlFileContent []byte) error {
-
-	yamlReader := bytes.NewReader(yamlFileContent)
-
-	// Read YAML file
-	yamlFile, err := io.ReadAll(yamlReader)
-	if err != nil {
-		return stacktrace.Propagate(err, "And error occurred reading yaml content")
-	}
-
-	// Decode YAML to Unstructured object
-	var obj unstructured.Unstructured
-	err = yaml.Unmarshal(yamlFile, &obj)
-	if err != nil {
-		return stacktrace.Propagate(err, "And error occurred unmarshalling the yaml content")
-	}
-
-	// Apply the configuration
-
-	groupVersionResource := obj.GroupVersionKind().GroupVersion().WithResource(obj.GetKind() + "s")
-
-	namespaceableResource := dynaMicClient.Resource(groupVersionResource)
-
-	resource := namespaceableResource.Namespace(obj.GetNamespace())
-
-	_, err = resource.Create(context.Background(), &obj, metav1.CreateOptions{})
-	//applyOpts := metav1.ApplyOptions{FieldManager: "kube-apply"}
-	//_, err = resource.Apply(context.Background(), obj.GetName(), &obj, applyOpts)
-	if err != nil {
-		return stacktrace.Propagate(err, "And error occurred applying the configuration")
-	}
-
-	fmt.Println("Configuration applied successfully!")
-
-	return nil
-}
-
-func ApplyConfig2(dynaMicClient *dynamic.DynamicClient, discoveryMapper *restmapper.DeferredDiscoveryRESTMapper, yamlFileContent []byte) error {
+func ApplyConfig(ctx context.Context, kubernetesClient *kubernetes_client.KubernetesClient, yamlFileContent []byte) error {
 	yamlReader := bytes.NewReader(yamlFileContent)
 
 	dec := yamlV3.NewDecoder(yamlReader)
 
 	for {
-		obj := &unstructured.Unstructured{Object: map[string]interface{}{}}
-		err := dec.Decode(obj.Object)
+		unstructuredObject := &unstructured.Unstructured{Object: map[string]interface{}{}}
+		err := dec.Decode(unstructuredObject.Object)
 		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred applying the configuration")
+			return stacktrace.Propagate(err, "An error occurred decoding the unstructured object")
 		}
-		if obj.Object == nil {
-			return stacktrace.Propagate(err, "Object is nil")
+		if unstructuredObject.Object == nil {
+			return stacktrace.NewError("Expected to find the object value after decoding the unstructured object but it was not found")
 		}
 
-		// get GroupVersionResource to invoke the dynamic client
-		gvk := obj.GroupVersionKind()
-		restMapping, err := discoveryMapper.RESTMapping(gvk.GroupKind(), gvk.Version)
+		groupVersionKind := unstructuredObject.GroupVersionKind()
+		restMapping, err := kubernetesClient.GetDiscoveryMapper().RESTMapping(groupVersionKind.GroupKind(), groupVersionKind.Version)
 		if err != nil {
-			return err
+			return stacktrace.Propagate(err, "An error occurred getting the rest mapping for GVK")
 		}
-		gvr := restMapping.Resource
-		// apply the YAML doc
-		namespace := obj.GetNamespace()
+		
+		groupVersionResource := restMapping.Resource
+		namespace := unstructuredObject.GetNamespace()
 		if len(namespace) == 0 {
-			namespace = "default"
+			namespace = defaultNamespace
 		}
+
 		applyOpts := metav1.ApplyOptions{FieldManager: "kube-apply"}
-		_, err = dynaMicClient.Resource(gvr).Namespace(namespace).Apply(context.TODO(), obj.GetName(), obj, applyOpts)
+		namespaceResource := kubernetesClient.GetDynamicClient().Resource(groupVersionResource).Namespace(namespace)
+
+		_, err = namespaceResource.Apply(ctx, unstructuredObject.GetName(), unstructuredObject, applyOpts)
 		if err != nil {
-			return fmt.Errorf("apply error: %w", err)
+			return stacktrace.Propagate(err, "An error occurred applying the k8s resource with name '%s' in namespace '%s'", unstructuredObject.GetName(), unstructuredObject.GetNamespace())
 		}
 	}
 
-	return nil
 }

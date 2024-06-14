@@ -4,20 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"k8s.io/client-go/discovery/cached/memory"
-	"k8s.io/client-go/dynamic"
-	"k8s.io/client-go/restmapper"
-	"kardinal.kontrol/kardinal-manager/fetcher"
-	"os"
-	"path/filepath"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
-
 	versionedclient "istio.io/client-go/pkg/clientset/versioned"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"kardinal.kontrol/kardinal-manager/fetcher"
+	"kardinal.kontrol/kardinal-manager/kubernetes_client"
+	"os"
 )
 
 const (
@@ -26,11 +17,32 @@ const (
 
 func main() {
 
-	if err := basicInteractionWithK8sAndIstio(); err != nil {
-		logrus.Fatalf("An error occurred while calling basicInteractionWithK8sAndIstio()!\nError was: %s", err)
+	// Create context
+	ctx := context.Background()
+
+	kubernetesClient, err := kubernetes_client.CreateKubernetesClient()
+	if err != nil {
+		logrus.Fatal("An error occurred while creating the Kubernetes client!\nError was: %s", err)
 	}
 
-	// No clients connection so-far
+	//TODO get this from  the deployment yaml file with an ENV VAR
+	configEndpoint := "https://gist.githubusercontent.com/leoporoli/d9afda02795f18abef04fa74afe3b555/raw/a231255e66585dd295dd1e83318245fd725b30dd/deployment-example.yml"
+
+	yamlFileContent, err := fetcher.FetchConfig(configEndpoint)
+	if err != nil {
+		logrus.Fatalf("An error occurred fetching config from!\nError was: %s", err)
+	}
+
+	if err := fetcher.ApplyConfig(ctx, kubernetesClient, yamlFileContent); err != nil {
+		logrus.Fatalf("An error occurred applying the config in the cluster!\nError was: %s", err)
+	}
+
+	// Uncomment if you want to test basic interaction with K8s cluster and Istio resources
+	//if err := basicInteractionWithK8sAndIstio(kubernetesClient); err != nil {
+	//	logrus.Fatalf("An error occurred while calling basicInteractionWithK8sAndIstio()!\nError was: %s", err)
+	//}
+
+	// No external clients connection so-far
 	//if err := server.CreateAndStartRestAPIServer(); err != nil {
 	//	logrus.Fatalf("The REST API server is down, exiting!\nError was: %s", err)
 	//}
@@ -38,47 +50,9 @@ func main() {
 	os.Exit(successExitCode)
 }
 
-func basicInteractionWithK8sAndIstio() error {
-	var config *rest.Config
-	var err error
+func basicInteractionWithK8sAndIstio(ctx context.Context, kubernetesClient *kubernetes_client.KubernetesClient) error {
 
-	// Load in-cluster configuration
-	config, err = rest.InClusterConfig()
-	if err != nil {
-		// Fallback to out-of-cluster configuration (for local development)
-		home := homedir.HomeDir()
-		kubeconfig := filepath.Join(home, ".kube", "config")
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			panic(err.Error())
-		}
-	}
-
-	// Create the clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	discoveryClient := memory.NewMemCacheClient(clientset.Discovery())
-	discoveryMapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
-
-	yamlFileContent, err := fetcher.FetchConfig()
-	if err != nil {
-		panic(err.Error())
-	}
-
-	if err := fetcher.ApplyConfig2(dynamicClient, discoveryMapper, yamlFileContent); err != nil {
-		panic(err.Error())
-	}
-
-	// Create context
-	ctx := context.Background()
+	clientset := kubernetesClient.GetClientSet()
 
 	// List pods
 	pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
@@ -91,7 +65,7 @@ func basicInteractionWithK8sAndIstio() error {
 	}
 
 	// Istio Client
-	ic, err := versionedclient.NewForConfig(config)
+	ic, err := versionedclient.NewForConfig(kubernetesClient.GetConfig())
 	if err != nil {
 		logrus.Fatalf("Failed to create istio client: %s", err)
 	}
