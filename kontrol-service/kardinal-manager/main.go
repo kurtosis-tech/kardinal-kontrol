@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"kardinal.kontrol/kardinal-manager/server"
+	"k8s.io/client-go/discovery/cached/memory"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/restmapper"
+	"kardinal.kontrol/kardinal-manager/fetcher"
 	"os"
 	"path/filepath"
 
@@ -27,9 +30,10 @@ func main() {
 		logrus.Fatalf("An error occurred while calling basicInteractionWithK8sAndIstio()!\nError was: %s", err)
 	}
 
-	if err := server.CreateAndStartRestAPIServer(); err != nil {
-		logrus.Fatalf("The REST API server is down, exiting!\nError was: %s", err)
-	}
+	// No clients connection so-far
+	//if err := server.CreateAndStartRestAPIServer(); err != nil {
+	//	logrus.Fatalf("The REST API server is down, exiting!\nError was: %s", err)
+	//}
 
 	os.Exit(successExitCode)
 }
@@ -53,6 +57,23 @@ func basicInteractionWithK8sAndIstio() error {
 	// Create the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
+		panic(err.Error())
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	discoveryClient := memory.NewMemCacheClient(clientset.Discovery())
+	discoveryMapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
+
+	yamlFileContent, err := fetcher.FetchConfig()
+	if err != nil {
+		panic(err.Error())
+	}
+
+	if err := fetcher.ApplyConfig2(dynamicClient, discoveryMapper, yamlFileContent); err != nil {
 		panic(err.Error())
 	}
 
