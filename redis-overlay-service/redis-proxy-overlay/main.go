@@ -94,7 +94,7 @@ func main() {
 				mu.RLock()
 				val, ok := items[string(cmd.Args[1])]
 				mu.RUnlock()
-				valInt := 0
+				var valInt int
 				if ok {
 					var err error
 					valInt, err = strconv.Atoi(string(val[:]))
@@ -102,29 +102,31 @@ func main() {
 						conn.WriteError("Increment by a non integer")
 						return
 					}
+				} else {
+					// Get the upstream value if local write does not exist yet
+					upstreamVal, err := rdb.Get(context.Background(), string(cmd.Args[1])).Result()
+					if err == redis.Nil {
+						log.Printf("%v does not exist", string(cmd.Args[1]))
+						valInt = 0
+					} else if err != nil {
+						log.Printf("Proxied get command failed: '%v'", err)
+						conn.WriteError("Proxied get command failed")
+						return
+					} else {
+						log.Printf("got upval: '%v'", upstreamVal)
+						valInt, err = strconv.Atoi(upstreamVal)
+						if err != nil {
+							log.Printf("Upstream value is not an Int: '%v'", err)
+							conn.WriteError("Upstream value for key '" + string(cmd.Args[1]) + "' is not an Int")
+							return
+						}
+					}
 				}
-
-				// Get the upstream value
-				upstreamVal := "0"
-				upstreamVal, err := rdb.Get(context.Background(), string(cmd.Args[1])).Result()
-				if err != nil {
-					log.Printf("Proxied get command failed: '%v'", err)
-					conn.WriteError("Proxied get command failed")
-					return
-				}
-
-				upVal, err := strconv.Atoi(upstreamVal)
-				if err != nil {
-					log.Printf("Upstream value is not an Int: '%v'", err)
-					conn.WriteError("Upstream value for key '" + string(cmd.Args[1]) + "' is not an Int")
-					return
-				}
-
 				// Update the value in the local cache and return total value
 				mu.Lock()
 				items[string(cmd.Args[1])] = []byte(strconv.Itoa(valInt + incrby))
 				mu.Unlock()
-				conn.WriteInt(valInt + incrby + upVal)
+				conn.WriteInt(valInt + incrby)
 			case "get":
 				if len(cmd.Args) != 2 {
 					conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")
@@ -150,6 +152,30 @@ func main() {
 					conn.WriteString(res)
 				} else {
 					conn.WriteBulk(val)
+				}
+			case "exists":
+				if len(cmd.Args) != 2 {
+					conn.WriteError("ERR wrong number of arguments for '" + string(cmd.Args[0]) + "' command")
+					return
+				}
+				mu.Lock()
+				_, ok := items[string(cmd.Args[1])]
+				mu.Unlock()
+				if !ok {
+					_, err := rdb.Get(context.Background(), string(cmd.Args[1])).Result()
+					if err == redis.Nil {
+						conn.WriteInt(0)
+						return
+					} else if err != nil {
+						log.Printf("Proxied get command failed: '%v'", err)
+						conn.WriteError("Proxied get command failed")
+						return
+					} else {
+						conn.WriteInt(1)
+						return
+					}
+				} else {
+					conn.WriteInt(1)
 				}
 			case "del":
 				if len(cmd.Args) != 2 {
