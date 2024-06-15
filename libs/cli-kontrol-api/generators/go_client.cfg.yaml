@@ -1,7 +1,7 @@
 package: client
 generate:
   client: true
-additional-imports:
-  - package: kardinal/cli-kontrol-api/api/golang/types
-    alias: .
+# additional-imports:
+#   - package: kardinal/cli-kontrol-api/api/golang/types
+#     alias: .
 output: api/golang/client/client.gen.go

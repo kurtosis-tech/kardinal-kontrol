@@ -15,8 +15,6 @@ import (
 	"path"
 	"strings"
 
-	. "kardinal/cli-kontrol-api/api/golang/types"
-
 	"github.com/deepmap/oapi-codegen/pkg/runtime"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
@@ -66,14 +64,17 @@ func RegisterHandlers(router EchoRouter, si ServerInterface) {
 // Registers handlers, and prepends BaseURL to the paths, so that the paths
 // can be served under a prefix.
 func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL string) {
+
 	wrapper := ServerInterfaceWrapper{
 		Handler: si,
 	}
 
 	router.GET(baseURL+"/greet", wrapper.Greet)
+
 }
 
-type GreetRequestObject struct{}
+type GreetRequestObject struct {
+}
 
 type GreetResponseObject interface {
 	VisitGreetResponse(w http.ResponseWriter) error
@@ -95,10 +96,8 @@ type StrictServerInterface interface {
 	Greet(ctx context.Context, request GreetRequestObject) (GreetResponseObject, error)
 }
 
-type (
-	StrictHandlerFunc    = runtime.StrictEchoHandlerFunc
-	StrictMiddlewareFunc = runtime.StrictEchoMiddlewareFunc
-)
+type StrictHandlerFunc = runtime.StrictEchoHandlerFunc
+type StrictMiddlewareFunc = runtime.StrictEchoMiddlewareFunc
 
 func NewStrictHandler(ssi StrictServerInterface, middlewares []StrictMiddlewareFunc) ServerInterface {
 	return &strictHandler{ssi: ssi, middlewares: middlewares}
@@ -134,6 +133,7 @@ func (sh *strictHandler) Greet(ctx echo.Context) error {
 
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
+
 	"H4sIAAAAAAAC/zyOQWoDMQxFrxL+2iTTduddVyW70pzAOMpEZcYWlqYQBt292CldfWPp6b8dXG4VcYex",
 	"LYSIC6+y0OH984yAH2rKtSDi5TgdJ3hAFSpJGBFv4ytAkt21nzjNjcj6a35GFWrJuJbzFREfYxrQSKUW",
 	"pcG8TlOPXItRGVASWTgP7PStvXyH5jutaWg+pFuqNS4z3D3gSpobiz1FL1vOpHrblsPXXxH6lm7rmtrj",
