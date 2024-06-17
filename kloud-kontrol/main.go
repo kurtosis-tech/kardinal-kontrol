@@ -15,6 +15,7 @@ func main() {
 
 	e := echo.New()
 	api.RegisterHandlers(e, strictHalder)
+	// api.RegisterHandlers(e, server)
 
 	// And we serve HTTP until the world ends.
 	log.Fatal(e.Start("0.0.0.0:8080"))

@@ -86,9 +86,11 @@ func server(project *types.Project) {
 	}
 
 	imageLocator := "someimage"
-	serviceName := "kardinal"
+	serviceName := "azure-vote-front"
+	var services []types.ServiceConfig
+	services = project.Services
 	body := api_types.PostDevFlowJSONRequestBody{
-		DockerCompose: &dockerCompose,
+		DockerCompose: &services,
 		ServiceName:   &serviceName,
 		ImageLocator:  &imageLocator,
 	}

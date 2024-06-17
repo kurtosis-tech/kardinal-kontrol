@@ -34,9 +34,7 @@ export interface components {
       "image-locator"?: string;
       /** @example backend-service-a */
       "service-name"?: string;
-      "docker-compose"?: {
-        [key: string]: unknown;
-      };
+      "docker-compose"?: unknown[];
     };
   };
   responses: never;

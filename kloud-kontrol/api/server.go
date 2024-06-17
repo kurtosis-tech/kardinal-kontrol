@@ -26,7 +26,15 @@ func NewStrictHandler(si api.StrictServerInterface) api.ServerInterface {
 
 // (POST /dev-flow)
 func (Server) PostDevFlow(ctx context.Context, request api.PostDevFlowRequestObject) (api.PostDevFlowResponseObject, error) {
-	log.Printf("Starting new dev flow for service %v on image %v", *request.Body.ServiceName, *request.Body.ImageLocator)
+	serviceName := *request.Body.ServiceName
+	imageLocator := *request.Body.ImageLocator
+	log.Printf("Starting new dev flow for service %v on image %v", serviceName, imageLocator)
+
+	project := *request.Body.DockerCompose
+	for _, service := range project {
+		log.Printf("ContainerName: %s", service.ContainerName)
+	}
+
 	resp := "ok"
 	return api.PostDevFlow200JSONResponse(resp), nil
 }

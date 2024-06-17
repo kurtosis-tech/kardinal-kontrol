@@ -143,12 +143,13 @@ func (sh *strictHandler) PostDevFlow(ctx echo.Context) error {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/5SRQW/UMBCF/0o0cEyaALfcgAppVQ4r8Qum9mzr1vEYzySlWuW/o3F2YcXCgVOcyfsm",
-	"z+8dwfGUOVFSgfEI4h5pwnq8peVL5JdvmZy95sKZigaqHz27ZypdhYVsgt4HDZww7i+UWmZqQV8zwQh8",
-	"/0ROYW0hTPhAXWSHysVo+oFTjia6R/dMyXc4RlQShV+4aAnpwXChsgRHXcKJ/k6fFXiNr1d+bBTSgW2V",
-	"Bq2LPn/d9XeRZ9/dcdLCsfm430ELCxUJnGCEdzfDzWBuOFPCHGCED3XUQkZ9rDH1npbuEPmlJsii9rR0",
-	"0KLaeRhhz6KnqKGFQt9nEv3E/tWkjpNSqhTmHIOrXP8k5uDclp3eFjrACG/633X2py77yyLrXT2JKyHr",
-	"do9bWhqz2IgJNguhkN/KW20gmZNsxb8fhv8y9mf4//69K1SXNKKos5h2XdefAQAA//+peueeoQIAAA==",
+	"H4sIAAAAAAAC/5RSTW/bMAz9KwG3oxVn2823rcWAoDsU6C9QZMZRa4saSbsNCv/3gbLbBPs4TCeJ5COf",
+	"+N4rBBoyJUwq0LyChBMOvlxvcfre0/NDxmDPzJSRNWJJthSekF0BC1okKg4l9eI6cnrOCA2s+e0D8hQD",
+	"3lA6xg6qS42LQyZWwyU/XEGgguz1BA10UU/jYRtoqNeck4zh/dFRbZ0E5rmCda5n9meYK4iD79D1FLwS",
+	"2xR88UPurebgwxOm1vmm94qi8I4W5Zg6g8vC2y3c/oZ+q/B/wi906PCIQWG2UExHslYatTS6+bGv73oa",
+	"W3dHSZn6zdf7PVQwIUukBA182u62O2NDGZPPERr4UkLLisrS6xYnd+zpuUhFUjZqgnmNlPYtNHBPoqum",
+	"UAHjzxFFv1F7ttJASTEVlM+5j6Hg6kcxBm+2sNtHxiM08KG++KZeTVNfO6b8tUUJHLMu/7jFaWMUNybf",
+	"SiEyttAojzhbQDIlWRz2ebf7L2K/L//f4wNjabIR9Tqab+z8CgAA//8WoQjWCgMAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

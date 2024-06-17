@@ -32,5 +32,9 @@ components:
           type: string
           example: backend-service-a
         docker-compose:
-          type: object
-          additionalProperties: true
+          type: array
+          items:
+            x-go-type: compose.ServiceConfig
+            x-go-type-import:
+              path: github.com/compose-spec/compose-go/types
+              name: compose

@@ -267,6 +267,7 @@ func ParsePostDevFlowResponse(rsp *http.Response) (*PostDevFlowResponse, error) 
 			return nil, err
 		}
 		response.JSON200 = &dest
+
 	}
 
 	return response, nil
