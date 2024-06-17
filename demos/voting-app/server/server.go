@@ -7,7 +7,6 @@ import (
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/sirupsen/logrus"
 	"net/http"
-	"os/signal"
 	"regexp"
 	"strconv"
 	"strings"
@@ -39,8 +38,6 @@ func NewVotingAppServer(ctx context.Context) (*gin.Engine, error) {
 }
 
 func RunVotingAppServer(ctx context.Context) error {
-	ctx, cancel := signal.NotifyContext(ctx)
-	defer cancel()
 	ginRestApiServer, err := NewVotingAppServer(ctx)
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred creating voting app server.")
@@ -56,57 +53,65 @@ type Feature struct {
 	Downvotes int    `json:"downvotes"`
 }
 
-func upvoteFeature(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
-	featureName := c.Param(":id")
+func upvoteFeature(c *gin.Context, redisClient *RedisConnection, ctx context.Context) {
+	featureName := c.Param("id")
 	if !isValidFeatureName(featureName) {
-		c.String(400, "invalid feature name.")
-	}
-	logrus.Infof("upvoting %v", featureName)
-
-	err := createFeatureIdempotently(ctx, rdb, featureName)
-	if err != nil {
-		c.String(400, "An error occurred checking if feature exists/creating it: %v", err.Error())
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid feature name"})
 		return
 	}
 
-	_, err = rdb.rdb.Incr(ctx, getUpvoteKey(featureName)).Result()
+	logrus.Infof("Upvoting feature: %s", featureName)
+
+	err := createFeatureIdempotently(ctx, redisClient, featureName)
 	if err != nil {
-		c.String(400, "An error occurred upvoting feature: %v\n%v", featureName, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error", "message": err.Error()})
 		return
 	}
 
-	c.Data(http.StatusOK, "application/json", []byte("successfully upvoted feature."))
+	_, err = redisClient.rdb.Incr(ctx, getUpvoteKey(featureName)).Result()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to upvote feature", "message": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "Successfully upvoted feature"})
 }
 
-func downvoteFeature(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
-	featureName := c.Param(":id")
+func downvoteFeature(c *gin.Context, redisClient *RedisConnection, ctx context.Context) {
+	featureName := c.Param("id")
 	if !isValidFeatureName(featureName) {
-		c.String(400, "invalid feature name.")
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid feature name"})
+		return
 	}
-	logrus.Infof("downvoting %v", featureName)
 
-	err := createFeatureIdempotently(ctx, rdb, featureName)
+	logrus.Infof("Downvoting feature: %s", featureName)
+
+	err := createFeatureIdempotently(ctx, redisClient, featureName)
 	if err != nil {
-		c.String(400, "An error occurred checking if feature exists/creating it: %v", err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error", "message": err.Error()})
+		return
 	}
 
-	_, err = rdb.rdb.Incr(ctx, getDownvoteKey(featureName)).Result()
+	_, err = redisClient.rdb.Incr(ctx, getDownvoteKey(featureName)).Result()
 	if err != nil {
-		c.String(400, "An error occurred downvoting feature: %v\n%v", featureName, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to downvote feature", "message": err.Error()})
+		return
 	}
 
-	c.Data(http.StatusOK, "application/json", []byte("successfully downvoted feature."))
+	c.JSON(http.StatusOK, gin.H{"message": "Successfully downvoted feature"})
 }
 
-func getFeatures(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
+func getFeatures(c *gin.Context, redisClient *RedisConnection, ctx context.Context) {
 	var cursor uint64
 	keys := make([]string, 0)
 	for {
 		var scanKeys []string
 		var err error
-		scanKeys, cursor, err = rdb.rdb.Scan(ctx, cursor, "*", 10).Result()
+		// assume for each upvote key, there is a downvote one, so only scan for upvotes
+		scanKeys, cursor, err = redisClient.rdb.Scan(ctx, cursor, fmt.Sprintf("*%v", upvotesSuffix), 10).Result()
 		if err != nil {
-			c.String(400, "An error occurred scanning keys from Redis to get features:\n%v", err.Error())
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error", "message": err.Error()})
+			return
 		}
 		keys = append(keys, scanKeys...)
 		if cursor == 0 {
@@ -114,37 +119,39 @@ func getFeatures(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
 		}
 	}
 
-	features := map[string]Feature{}
+	features := []Feature{}
 	for _, key := range keys {
 		featureName := getFeatureNameFromKey(key)
-		if _, ok := features[featureName]; ok {
-			// if we've already seen the feature don't need to retrieve again
-			continue
-		}
-		upvotesStr, err := rdb.rdb.Get(ctx, getUpvoteKey(featureName)).Result()
+		upvotesStr, err := redisClient.rdb.Get(ctx, getUpvoteKey(featureName)).Result()
 		if err != nil {
-			c.String(400, "An error occurred scanning keys from Redis to get features.")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error", "message": err.Error()})
+			return
 		}
 		upvotes, err := strconv.Atoi(upvotesStr)
 		if err != nil {
-			c.String(400, "An error occurred converting upvote string to int")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error", "message": err.Error()})
+			return
 		}
-		downvotesStr, err := rdb.rdb.Get(ctx, getDownvoteKey(featureName)).Result()
+
+		downvotesStr, err := redisClient.rdb.Get(ctx, getDownvoteKey(featureName)).Result()
 		if err != nil {
-			c.String(400, "An error occurred scanning keys from Redis to get features.")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error", "message": err.Error()})
+			return
 		}
 		downvotes, err := strconv.Atoi(downvotesStr)
 		if err != nil {
-			c.String(400, "An error occurred converting downvote string to int")
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "Internal server error", "message": err.Error()})
+			return
 		}
-		features[featureName] = Feature{
+
+		features = append(features, Feature{
 			Name:      featureName,
 			Upvotes:   upvotes,
 			Downvotes: downvotes,
-		}
+		})
 	}
 
-	c.JSONP(http.StatusOK, features)
+	c.JSON(http.StatusOK, features)
 }
 
 func createFeatureIdempotently(ctx context.Context, rdb *RedisConnection, featureName string) error {
@@ -184,12 +191,11 @@ func getDownvoteKey(featureName string) string {
 }
 
 func getFeatureNameFromKey(key string) string {
-	logrus.Infof("feature name: %v", strings.Split(key, ":"))
 	return strings.Split(key, ":")[0]
 }
 
 func isValidFeatureName(featureName string) bool {
-	return validFeatureNameRegex.Match([]byte(featureName))
+	return validFeatureNameRegex.MatchString(featureName)
 }
 
 func persistRedis(rdb *RedisConnection) {
