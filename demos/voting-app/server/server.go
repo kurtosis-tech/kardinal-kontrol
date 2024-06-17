@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gin-gonic/gin"
+	"github.com/kurtosis-tech/stacktrace"
 	"github.com/sirupsen/logrus"
 	"net/http"
 	"os/signal"
@@ -15,22 +16,23 @@ import (
 const (
 	upvotesSuffix            = ":upvotes"
 	downvotesSuffix          = ":downvotes"
-	validFeatureNameRegexStr = ""
+	validFeatureNameRegexStr = "^[a-z]+$"
+	serverPortNum            = 9111
 )
 
 var (
-	validFeatureRegex = regexp.MustCompile(validFeatureNameRegexStr)
+	validFeatureNameRegex = regexp.MustCompile(validFeatureNameRegexStr)
 )
 
 func NewVotingAppServer(ctx context.Context) (*gin.Engine, error) {
 	redis, err := NewRedisConnection(ctx)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "An error occurred establishing connection to redis instance")
 	}
 
 	router := gin.Default()
 	router.GET("/features", getGinHandler(getFeatures, redis, ctx))
-	router.GET("/upvote/:id", getGinHandler(upvoteFeature, redis, ctx))
+	router.POST("/upvote/:id", getGinHandler(upvoteFeature, redis, ctx))
 	router.POST("/downvote/:id", getGinHandler(downvoteFeature, redis, ctx))
 
 	return router, nil
@@ -41,11 +43,10 @@ func RunVotingAppServer(ctx context.Context) error {
 	defer cancel()
 	ginRestApiServer, err := NewVotingAppServer(ctx)
 	if err != nil {
-		return err
+		return stacktrace.Propagate(err, "An error occurred creating voting app server.")
 	}
 
-	// get port from environment
-	ginRestApiServer.Run("0.0.0.0:9111")
+	ginRestApiServer.Run(fmt.Sprintf("0.0.0.0:%v", serverPortNum))
 	return nil
 }
 
@@ -57,8 +58,11 @@ type Feature struct {
 
 func upvoteFeature(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
 	featureName := c.Param(":id")
+	if !isValidFeatureName(featureName) {
+		c.String(400, "invalid feature name.")
+	}
 	logrus.Infof("upvoting %v", featureName)
-	// validate name
+
 	err := createFeatureIdempotently(ctx, rdb, featureName)
 	if err != nil {
 		c.String(400, "An error occurred checking if feature exists/creating it: %v", err.Error())
@@ -76,14 +80,17 @@ func upvoteFeature(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
 
 func downvoteFeature(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
 	featureName := c.Param(":id")
-	// validate feature name
+	if !isValidFeatureName(featureName) {
+		c.String(400, "invalid feature name.")
+	}
+	logrus.Infof("downvoting %v", featureName)
 
 	err := createFeatureIdempotently(ctx, rdb, featureName)
 	if err != nil {
-		c.String(400, "An error occurred checing if feature exists/creating it: %v", err.Error())
+		c.String(400, "An error occurred checking if feature exists/creating it: %v", err.Error())
 	}
 
-	_, err = rdb.rdb.Decr(ctx, getDownvoteKey(featureName)).Result()
+	_, err = rdb.rdb.Incr(ctx, getDownvoteKey(featureName)).Result()
 	if err != nil {
 		c.String(400, "An error occurred downvoting feature: %v\n%v", featureName, err.Error())
 	}
@@ -99,7 +106,7 @@ func getFeatures(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
 		var err error
 		scanKeys, cursor, err = rdb.rdb.Scan(ctx, cursor, "*", 10).Result()
 		if err != nil {
-			c.String(400, "An error occurred scanning keys from Redis to get features.")
+			c.String(400, "An error occurred scanning keys from Redis to get features:\n%v", err.Error())
 		}
 		keys = append(keys, scanKeys...)
 		if cursor == 0 {
@@ -110,14 +117,11 @@ func getFeatures(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
 	features := map[string]Feature{}
 	for _, key := range keys {
 		featureName := getFeatureNameFromKey(key)
-		if _, ok := features[featureName]; !ok {
-			features[featureName] = Feature{
-				Name:      featureName,
-				Upvotes:   0,
-				Downvotes: 0,
-			}
+		if _, ok := features[featureName]; ok {
+			// if we've already seen the feature don't need to retrieve again
+			continue
 		}
-		upvotesStr, err := rdb.rdb.Get(ctx, fmt.Sprintf("%v:%v", featureName, upvotesSuffix)).Result()
+		upvotesStr, err := rdb.rdb.Get(ctx, getUpvoteKey(featureName)).Result()
 		if err != nil {
 			c.String(400, "An error occurred scanning keys from Redis to get features.")
 		}
@@ -125,7 +129,7 @@ func getFeatures(c *gin.Context, rdb *RedisConnection, ctx context.Context) {
 		if err != nil {
 			c.String(400, "An error occurred converting upvote string to int")
 		}
-		downvotesStr, err := rdb.rdb.Get(ctx, fmt.Sprintf("%v:%v", featureName, downvotesSuffix)).Result()
+		downvotesStr, err := rdb.rdb.Get(ctx, getDownvoteKey(featureName)).Result()
 		if err != nil {
 			c.String(400, "An error occurred scanning keys from Redis to get features.")
 		}
@@ -180,9 +184,14 @@ func getDownvoteKey(featureName string) string {
 }
 
 func getFeatureNameFromKey(key string) string {
+	logrus.Infof("feature name: %v", strings.Split(key, ":"))
 	return strings.Split(key, ":")[0]
 }
 
-func persistRedis(rdb *RedisConnection) {
+func isValidFeatureName(featureName string) bool {
+	return validFeatureNameRegex.Match([]byte(featureName))
+}
 
+func persistRedis(rdb *RedisConnection) {
+	// TODO
 }

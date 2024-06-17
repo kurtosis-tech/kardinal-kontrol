@@ -2,7 +2,13 @@ package server
 
 import (
 	"context"
+	"github.com/kurtosis-tech/stacktrace"
 	"github.com/redis/go-redis/v9"
+	"os"
+)
+
+const (
+	REDIS_URI_ENV_VAR = "REDIS_HOST"
 )
 
 type RedisConnection struct {
@@ -10,15 +16,16 @@ type RedisConnection struct {
 }
 
 func NewRedisConnection(ctx context.Context) (*RedisConnection, error) {
-	// get redis uri from environment
-	rdb := redis.NewClient(&redis.Options{
-		Addr:     "127.0.0.1:64433",
-		Password: "",
-		DB:       0,
-	})
-	_, err := rdb.Ping(ctx).Result()
+	redisUri := os.Getenv(REDIS_URI_ENV_VAR)
+	opt, err := redis.ParseURL(redisUri)
 	if err != nil {
-		return nil, err
+		return nil, stacktrace.Propagate(err, "An error occurred parsing redis URI: %v", redisUri)
+	}
+	rdb := redis.NewClient(opt)
+
+	_, err = rdb.Ping(ctx).Result()
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred attempting to ping redis service at uri: %v", redisUri)
 	}
 	return &RedisConnection{
 		rdb: rdb,
