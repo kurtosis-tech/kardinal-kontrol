@@ -15,7 +15,7 @@ import (
 const (
 	upvotesSuffix            = ":upvotes"
 	downvotesSuffix          = ":downvotes"
-	validFeatureNameRegexStr = "^[a-z]+$"
+	validFeatureNameRegexStr = "^[a-z_]+$"
 	serverPortNum            = 9111
 )
 
