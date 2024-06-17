@@ -1,12 +1,18 @@
 package cmd
 
 import (
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/compose-spec/compose-go/cli"
 	"github.com/compose-spec/compose-go/types"
 	"github.com/spf13/cobra"
+
+	api "kardinal/cli-kontrol-api/api/golang/client"
+	api_types "kardinal/cli-kontrol-api/api/golang/types"
 )
 
 const projectName = "kardinal"
@@ -26,6 +32,10 @@ var rootCmd = &cobra.Command{
 		for _, service := range project.Services {
 			fmt.Println(service.Name)
 		}
+
+		fmt.Println("Asking Kontrol to setup new dev flow")
+		server(project)
+		fmt.Println("done!")
 	},
 }
 
@@ -53,12 +63,40 @@ func loadComposeFile(filename string) (*types.Project, error) {
 		return nil, err
 	}
 
-	projectYAML, err := project.MarshalYAML()
+	return project, nil
+}
+
+func server(project *types.Project) {
+	ctx := context.Background()
+
+	projectYAML, err := project.MarshalJSON()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println(string(projectYAML))
+	var dockerCompose map[string]interface{}
+	err = json.Unmarshal(projectYAML, &dockerCompose)
+	if err != nil {
+		log.Fatalf("error: %v", err)
+	}
 
-	return project, nil
+	client, err := api.NewClientWithResponses("http://localhost:8080", api.WithHTTPClient(http.DefaultClient))
+	if err != nil {
+		log.Fatalf("Failed to create client: %v", err)
+	}
+
+	imageLocator := "someimage"
+	serviceName := "kardinal"
+	body := api_types.PostDevFlowJSONRequestBody{
+		DockerCompose: &dockerCompose,
+		ServiceName:   &serviceName,
+		ImageLocator:  &imageLocator,
+	}
+
+	resp, err := client.PostDevFlowWithResponse(ctx, body)
+	if err != nil {
+		log.Fatalf("Failed to call greet: %v", err)
+	}
+
+	fmt.Printf("Response: %s\n", string(resp.Body))
 }

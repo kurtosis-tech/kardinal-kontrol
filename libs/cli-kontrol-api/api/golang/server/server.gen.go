@@ -15,6 +15,8 @@ import (
 	"path"
 	"strings"
 
+	. "kardinal/cli-kontrol-api/api/golang/types"
+
 	"github.com/deepmap/oapi-codegen/pkg/runtime"
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/labstack/echo/v4"
@@ -22,9 +24,9 @@ import (
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// Greet
-	// (GET /greet)
-	Greet(ctx echo.Context) error
+
+	// (POST /dev-flow)
+	PostDevFlow(ctx echo.Context) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -32,12 +34,12 @@ type ServerInterfaceWrapper struct {
 	Handler ServerInterface
 }
 
-// Greet converts echo context to params.
-func (w *ServerInterfaceWrapper) Greet(ctx echo.Context) error {
+// PostDevFlow converts echo context to params.
+func (w *ServerInterfaceWrapper) PostDevFlow(ctx echo.Context) error {
 	var err error
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.Greet(ctx)
+	err = w.Handler.PostDevFlow(ctx)
 	return err
 }
 
@@ -69,20 +71,21 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 		Handler: si,
 	}
 
-	router.GET(baseURL+"/greet", wrapper.Greet)
+	router.POST(baseURL+"/dev-flow", wrapper.PostDevFlow)
 
 }
 
-type GreetRequestObject struct {
+type PostDevFlowRequestObject struct {
+	Body *PostDevFlowJSONRequestBody
 }
 
-type GreetResponseObject interface {
-	VisitGreetResponse(w http.ResponseWriter) error
+type PostDevFlowResponseObject interface {
+	VisitPostDevFlowResponse(w http.ResponseWriter) error
 }
 
-type Greet200JSONResponse string
+type PostDevFlow200JSONResponse string
 
-func (response Greet200JSONResponse) VisitGreetResponse(w http.ResponseWriter) error {
+func (response PostDevFlow200JSONResponse) VisitPostDevFlowResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
@@ -91,9 +94,9 @@ func (response Greet200JSONResponse) VisitGreetResponse(w http.ResponseWriter) e
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
-	// Greet
-	// (GET /greet)
-	Greet(ctx context.Context, request GreetRequestObject) (GreetResponseObject, error)
+
+	// (POST /dev-flow)
+	PostDevFlow(ctx context.Context, request PostDevFlowRequestObject) (PostDevFlowResponseObject, error)
 }
 
 type StrictHandlerFunc = runtime.StrictEchoHandlerFunc
@@ -108,23 +111,29 @@ type strictHandler struct {
 	middlewares []StrictMiddlewareFunc
 }
 
-// Greet operation middleware
-func (sh *strictHandler) Greet(ctx echo.Context) error {
-	var request GreetRequestObject
+// PostDevFlow operation middleware
+func (sh *strictHandler) PostDevFlow(ctx echo.Context) error {
+	var request PostDevFlowRequestObject
+
+	var body PostDevFlowJSONRequestBody
+	if err := ctx.Bind(&body); err != nil {
+		return err
+	}
+	request.Body = &body
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.Greet(ctx.Request().Context(), request.(GreetRequestObject))
+		return sh.ssi.PostDevFlow(ctx.Request().Context(), request.(PostDevFlowRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "Greet")
+		handler = middleware(handler, "PostDevFlow")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(GreetResponseObject); ok {
-		return validResponse.VisitGreetResponse(ctx.Response())
+	} else if validResponse, ok := response.(PostDevFlowResponseObject); ok {
+		return validResponse.VisitPostDevFlowResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("Unexpected response type: %T", response)
 	}
@@ -134,10 +143,12 @@ func (sh *strictHandler) Greet(ctx echo.Context) error {
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/zyOQWoDMQxFrxL+2iTTduddVyW70pzAOMpEZcYWlqYQBt292CldfWPp6b8dXG4VcYex",
-	"LYSIC6+y0OH984yAH2rKtSDi5TgdJ3hAFSpJGBFv4ytAkt21nzjNjcj6a35GFWrJuJbzFREfYxrQSKUW",
-	"pcG8TlOPXItRGVASWTgP7PStvXyH5jutaWg+pFuqNS4z3D3gSpobiz1FL1vOpHrblsPXXxH6lm7rmtrj",
-	"38Pd/TcAAP//rgCnVf4AAAA=",
+	"H4sIAAAAAAAC/5SRQW/UMBCF/0o0cEyaALfcgAppVQ4r8Qum9mzr1vEYzySlWuW/o3F2YcXCgVOcyfsm",
+	"z+8dwfGUOVFSgfEI4h5pwnq8peVL5JdvmZy95sKZigaqHz27ZypdhYVsgt4HDZww7i+UWmZqQV8zwQh8",
+	"/0ROYW0hTPhAXWSHysVo+oFTjia6R/dMyXc4RlQShV+4aAnpwXChsgRHXcKJ/k6fFXiNr1d+bBTSgW2V",
+	"Bq2LPn/d9XeRZ9/dcdLCsfm430ELCxUJnGCEdzfDzWBuOFPCHGCED3XUQkZ9rDH1npbuEPmlJsii9rR0",
+	"0KLaeRhhz6KnqKGFQt9nEv3E/tWkjpNSqhTmHIOrXP8k5uDclp3eFjrACG/633X2py77yyLrXT2JKyHr",
+	"do9bWhqz2IgJNguhkN/KW20gmZNsxb8fhv8y9mf4//69K1SXNKKos5h2XdefAQAA//+peueeoQIAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

@@ -5,31 +5,49 @@
 
 
 export interface paths {
-  "/greet": {
-    /** Greet */
-    get: operations["greet"];
-  };
-}
-
-export type webhooks = Record<string, never>;
-
-export type components = Record<string, never>;
-
-export type $defs = Record<string, never>;
-
-export type external = Record<string, never>;
-
-export interface operations {
-
-  /** Greet */
-  greet: {
-    responses: {
-      /** @description Successful Response */
-      200: {
+  "/dev-flow": {
+    post: {
+      /** @description Dev flow spec */
+      requestBody: {
         content: {
-          "application/json": string;
+          "application/json": components["schemas"]["DevFlowSpec"];
+        };
+      };
+      responses: {
+        /** @description Dev flow creation status */
+        200: {
+          content: {
+            "application/json": string;
+          };
         };
       };
     };
   };
 }
+
+export type webhooks = Record<string, never>;
+
+export interface components {
+  schemas: {
+    DevFlowSpec: {
+      /** @example backend-a:latest */
+      "image-locator"?: string;
+      /** @example backend-service-a */
+      "service-name"?: string;
+      "docker-compose"?: {
+        [key: string]: unknown;
+      };
+    };
+  };
+  responses: never;
+  parameters: never;
+  requestBodies: never;
+  headers: never;
+  pathItems: never;
+}
+
+export type $defs = Record<string, never>;
+
+export type external = Record<string, never>;
+
+export type operations = Record<string, never>;

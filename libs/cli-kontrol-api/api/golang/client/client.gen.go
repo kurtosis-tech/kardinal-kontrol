@@ -4,6 +4,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	. "kardinal/cli-kontrol-api/api/golang/types"
 )
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
@@ -86,12 +89,14 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 
 // The interface specification for the client above.
 type ClientInterface interface {
-	// Greet request
-	Greet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error)
+	// PostDevFlowWithBody request with any body
+	PostDevFlowWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	PostDevFlow(ctx context.Context, body PostDevFlowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-func (c *Client) Greet(ctx context.Context, reqEditors ...RequestEditorFn) (*http.Response, error) {
-	req, err := NewGreetRequest(c.Server)
+func (c *Client) PostDevFlowWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostDevFlowRequestWithBody(c.Server, contentType, body)
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +107,31 @@ func (c *Client) Greet(ctx context.Context, reqEditors ...RequestEditorFn) (*htt
 	return c.Client.Do(req)
 }
 
-// NewGreetRequest generates requests for Greet
-func NewGreetRequest(server string) (*http.Request, error) {
+func (c *Client) PostDevFlow(ctx context.Context, body PostDevFlowJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewPostDevFlowRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+// NewPostDevFlowRequest calls the generic PostDevFlow builder with application/json body
+func NewPostDevFlowRequest(server string, body PostDevFlowJSONRequestBody) (*http.Request, error) {
+	var bodyReader io.Reader
+	buf, err := json.Marshal(body)
+	if err != nil {
+		return nil, err
+	}
+	bodyReader = bytes.NewReader(buf)
+	return NewPostDevFlowRequestWithBody(server, "application/json", bodyReader)
+}
+
+// NewPostDevFlowRequestWithBody generates requests for PostDevFlow with any type of body
+func NewPostDevFlowRequestWithBody(server string, contentType string, body io.Reader) (*http.Request, error) {
 	var err error
 
 	serverURL, err := url.Parse(server)
@@ -111,7 +139,7 @@ func NewGreetRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	operationPath := fmt.Sprintf("/greet")
+	operationPath := fmt.Sprintf("/dev-flow")
 	if operationPath[0] == '/' {
 		operationPath = "." + operationPath
 	}
@@ -121,10 +149,12 @@ func NewGreetRequest(server string) (*http.Request, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	req, err := http.NewRequest("POST", queryURL.String(), body)
 	if err != nil {
 		return nil, err
 	}
+
+	req.Header.Add("Content-Type", contentType)
 
 	return req, nil
 }
@@ -172,18 +202,20 @@ func WithBaseURL(baseURL string) ClientOption {
 
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
-	// GreetWithResponse request
-	GreetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GreetResponse, error)
+	// PostDevFlowWithBodyWithResponse request with any body
+	PostDevFlowWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostDevFlowResponse, error)
+
+	PostDevFlowWithResponse(ctx context.Context, body PostDevFlowJSONRequestBody, reqEditors ...RequestEditorFn) (*PostDevFlowResponse, error)
 }
 
-type GreetResponse struct {
+type PostDevFlowResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
 	JSON200      *string
 }
 
 // Status returns HTTPResponse.Status
-func (r GreetResponse) Status() string {
+func (r PostDevFlowResponse) Status() string {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.Status
 	}
@@ -191,31 +223,39 @@ func (r GreetResponse) Status() string {
 }
 
 // StatusCode returns HTTPResponse.StatusCode
-func (r GreetResponse) StatusCode() int {
+func (r PostDevFlowResponse) StatusCode() int {
 	if r.HTTPResponse != nil {
 		return r.HTTPResponse.StatusCode
 	}
 	return 0
 }
 
-// GreetWithResponse request returning *GreetResponse
-func (c *ClientWithResponses) GreetWithResponse(ctx context.Context, reqEditors ...RequestEditorFn) (*GreetResponse, error) {
-	rsp, err := c.Greet(ctx, reqEditors...)
+// PostDevFlowWithBodyWithResponse request with arbitrary body returning *PostDevFlowResponse
+func (c *ClientWithResponses) PostDevFlowWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostDevFlowResponse, error) {
+	rsp, err := c.PostDevFlowWithBody(ctx, contentType, body, reqEditors...)
 	if err != nil {
 		return nil, err
 	}
-	return ParseGreetResponse(rsp)
+	return ParsePostDevFlowResponse(rsp)
 }
 
-// ParseGreetResponse parses an HTTP response from a GreetWithResponse call
-func ParseGreetResponse(rsp *http.Response) (*GreetResponse, error) {
+func (c *ClientWithResponses) PostDevFlowWithResponse(ctx context.Context, body PostDevFlowJSONRequestBody, reqEditors ...RequestEditorFn) (*PostDevFlowResponse, error) {
+	rsp, err := c.PostDevFlow(ctx, body, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParsePostDevFlowResponse(rsp)
+}
+
+// ParsePostDevFlowResponse parses an HTTP response from a PostDevFlowWithResponse call
+func ParsePostDevFlowResponse(rsp *http.Response) (*PostDevFlowResponse, error) {
 	bodyBytes, err := io.ReadAll(rsp.Body)
 	defer func() { _ = rsp.Body.Close() }()
 	if err != nil {
 		return nil, err
 	}
 
-	response := &GreetResponse{
+	response := &PostDevFlowResponse{
 		Body:         bodyBytes,
 		HTTPResponse: rsp,
 	}
@@ -227,7 +267,6 @@ func ParseGreetResponse(rsp *http.Response) (*GreetResponse, error) {
 			return nil, err
 		}
 		response.JSON200 = &dest
-
 	}
 
 	return response, nil
