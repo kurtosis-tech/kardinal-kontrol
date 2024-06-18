@@ -51,6 +51,22 @@ paths:
             application/json:
               schema:
                 type: string
+  /topology:
+    get:
+      parameters:
+        - in: query
+          name: namespace
+          schema:
+            type: string
+          required: false
+          description: The namespace for which to retrieve the topology
+      responses:
+        "200":
+          description: Topology information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Topology"
 
 components:
   schemas:
@@ -80,3 +96,28 @@ components:
             x-go-type-import:
               path: github.com/compose-spec/compose-go/types
               name: compose
+    Topology:
+      type: object
+      properties:
+        graph:
+          type: object
+          properties:
+            nodes:
+              type: array
+              items:
+                type: object
+                properties:
+                  serviceName:
+                    type: string
+                    example: backend-service-a
+                  serviceVersion:
+                    type: string
+                    example: 1.0.0
+                  id:
+                    type: string
+                    example: node-1
+                  talks_to:
+                    type: array
+                    items:
+                      type: string
+                    example: [node-2, node-3]

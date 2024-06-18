@@ -19,6 +19,24 @@ type ProdFlowSpec struct {
 	DockerCompose *[]compose.ServiceConfig `json:"docker-compose,omitempty"`
 }
 
+// Topology defines model for Topology.
+type Topology struct {
+	Graph *struct {
+		Nodes *[]struct {
+			Id             *string   `json:"id,omitempty"`
+			ServiceName    *string   `json:"serviceName,omitempty"`
+			ServiceVersion *string   `json:"serviceVersion,omitempty"`
+			TalksTo        *[]string `json:"talks_to,omitempty"`
+		} `json:"nodes,omitempty"`
+	} `json:"graph,omitempty"`
+}
+
+// GetTopologyParams defines parameters for GetTopology.
+type GetTopologyParams struct {
+	// Namespace The namespace for which to retrieve the topology
+	Namespace *string `form:"namespace,omitempty" json:"namespace,omitempty"`
+}
+
 // PostDeployJSONRequestBody defines body for PostDeploy for application/json ContentType.
 type PostDeployJSONRequestBody = ProdFlowSpec
 

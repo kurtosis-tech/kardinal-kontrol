@@ -18,6 +18,7 @@ import (
 	"github.com/getkin/kin-openapi/openapi3"
 	. "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	"github.com/labstack/echo/v4"
+	"github.com/oapi-codegen/runtime"
 	strictecho "github.com/oapi-codegen/runtime/strictmiddleware/echo"
 )
 
@@ -32,6 +33,9 @@ type ServerInterface interface {
 
 	// (POST /flow/delete)
 	PostFlowDelete(ctx echo.Context) error
+
+	// (GET /topology)
+	GetTopology(ctx echo.Context, params GetTopologyParams) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -66,6 +70,24 @@ func (w *ServerInterfaceWrapper) PostFlowDelete(ctx echo.Context) error {
 	return err
 }
 
+// GetTopology converts echo context to params.
+func (w *ServerInterfaceWrapper) GetTopology(ctx echo.Context) error {
+	var err error
+
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetTopologyParams
+	// ------------- Optional query parameter "namespace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "namespace", ctx.QueryParams(), &params.Namespace)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter namespace: %s", err))
+	}
+
+	// Invoke the callback with all the unmarshaled arguments
+	err = w.Handler.GetTopology(ctx, params)
+	return err
+}
+
 // This is a simple interface which specifies echo.Route addition functions which
 // are present on both echo.Echo and echo.Group, since we want to allow using
 // either of them for path registration
@@ -97,6 +119,7 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 	router.POST(baseURL+"/deploy", wrapper.PostDeploy)
 	router.POST(baseURL+"/flow/create", wrapper.PostFlowCreate)
 	router.POST(baseURL+"/flow/delete", wrapper.PostFlowDelete)
+	router.GET(baseURL+"/topology", wrapper.GetTopology)
 
 }
 
@@ -151,6 +174,23 @@ func (response PostFlowDelete200JSONResponse) VisitPostFlowDeleteResponse(w http
 	return json.NewEncoder(w).Encode(response)
 }
 
+type GetTopologyRequestObject struct {
+	Params GetTopologyParams
+}
+
+type GetTopologyResponseObject interface {
+	VisitGetTopologyResponse(w http.ResponseWriter) error
+}
+
+type GetTopology200JSONResponse Topology
+
+func (response GetTopology200JSONResponse) VisitGetTopologyResponse(w http.ResponseWriter) error {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(200)
+
+	return json.NewEncoder(w).Encode(response)
+}
+
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 
@@ -162,6 +202,9 @@ type StrictServerInterface interface {
 
 	// (POST /flow/delete)
 	PostFlowDelete(ctx context.Context, request PostFlowDeleteRequestObject) (PostFlowDeleteResponseObject, error)
+
+	// (GET /topology)
+	GetTopology(ctx context.Context, request GetTopologyRequestObject) (GetTopologyResponseObject, error)
 }
 
 type StrictHandlerFunc = strictecho.StrictEchoHandlerFunc
@@ -263,18 +306,46 @@ func (sh *strictHandler) PostFlowDelete(ctx echo.Context) error {
 	return nil
 }
 
+// GetTopology operation middleware
+func (sh *strictHandler) GetTopology(ctx echo.Context, params GetTopologyParams) error {
+	var request GetTopologyRequestObject
+
+	request.Params = params
+
+	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
+		return sh.ssi.GetTopology(ctx.Request().Context(), request.(GetTopologyRequestObject))
+	}
+	for _, middleware := range sh.middlewares {
+		handler = middleware(handler, "GetTopology")
+	}
+
+	response, err := handler(ctx, request)
+
+	if err != nil {
+		return err
+	} else if validResponse, ok := response.(GetTopologyResponseObject); ok {
+		return validResponse.VisitGetTopologyResponse(ctx.Response())
+	} else if response != nil {
+		return fmt.Errorf("unexpected response type: %T", response)
+	}
+	return nil
+}
+
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/9RUQW/bPAz9KwK/77ABdpxtN9+2BgOC7hCgv0CRGEetLGoUnTYo/N8HyW7SrcGwHYZ1",
-	"N4nkE997ovQIhvpIAYMkaB8hmT32uixXePjs6f4mosnbyBSRxWFJWjJ3yHUBJ8wRJ9iX1EPdUS3HiNDC",
-	"nF/cIB+cwSsKO9dBda6pXR+JJeOC7p9BoIKoZQ8tdE72w3ZhqG/mXJ0imtOmoyaflGAcK5j7amZ9hLEC",
-	"1+sOa09GC3Hugg+6jz7XbLW5w2Br3XotmARO6CTsQpfhaeJdT9wuoZ8q9Ev4mQ5tb9FIPnDDZP91V1/q",
-	"yiEXdpQbipNi0NWXdXPtabD1NQVh8urjZg0VHJCTowAtvFssF8tsCkUMOjpo4UMJTSSL7MZi9HQsVlEq",
-	"irJhWhyFtYUWNpRkNdVUwPh1wCSfyBaEoSAYCkjH6J0psOY25fZPs55X/zPuoIX/mvNjaOaX0Hx3Y0Wp",
-	"xWTYRZlUTM2VVpHJKgr+qIwfkiDPhByjhVZ4wDEHUqSQput+v1z+Fs0f5+sCl4PaebpXhrEcopJoGfIl",
-	"5uIm55qSw587mgVfTXV/xtXnn8sFIVNvpZWdFb1SLy16/BUvV1Pd35rQ3PxkpXrDeEAWlb8wJXQe3Lev",
-	"zOVx/BYAAP//ZYILE58GAAA=",
+	"H4sIAAAAAAAC/9RV30/bMBD+VyxvD5uUNAXe8raBNiGmCQm0F4Qm41wTQ+Iz52uhQv3fJ9shpTQq+6Fp",
+	"7M323Xd33+fz+UFq7BxasOxl+SC9bqBTcXkEi08t3p050GHrCB0QG4jGCvUNUB7BHsKJYeii6T6vMeel",
+	"A1nK3j45A1oYDYdoZ6aW2donN51D4oCzqnsCkZl0ihtZytpwM7+aaOyK3pZ7B3rY1FiESF6uVpns8yoi",
+	"tZSrTJpO1ZC3qBUjhSxwrzrXBp8rpW/AVrkqW8XgWQ5oz2RsHeA+1Z2n2sbQjx5qG74uB6+uQXMIeEpY",
+	"/e+qjvE6R4ct1sttTjUp12wfW6zSYmC4aTfVpt7BP9/bcUdff+eKBvQ3IG/QbgbYm0wn0zEQq/bGf2fc",
+	"cL9INe7LLC0O5GW2Zrcd40VNX/IYOQkdb2exLjYcSRx+OS5OWpxX+QlaJmzFh9NjmcnFI+Oe5iqT6MAq",
+	"Z2QpD3rmoVli+UUFrsV0vehjZ4XbUmzQHleylKfo+Sj5ZJLgdg6eP2IVERotg40g5VxrdIQV1z4JnmZO",
+	"WL0lmMlSvinWQ6noJ1Kx8XIi0wq8JuM4sUjJhRKOsBJo26XQ7dwzUF+QIahkyTSHVTjwDq1PvbY/nf5S",
+	"mc/f+UgtCzFr8U5oghhEeFY8D48pOBfBVkQb7FY0ED5Mfn9H1adDfoRIyi2UqHpGr1TLClr4GS2Pkt+/",
+	"6tCQfJBSvCNYALEIc0owrhv3/etTmZ/M9xpGFP4MPPwBYW6Q6oCBvCwvHp7lOm9AhG/JO6VBzJDEXWN0",
+	"EyQgYDKwAMENCF7HMwF3OwcKm/5LG0LIbAfTyz9UbteFD4RHBH20iTCPqYvho5ir1Y8AAAD//+s4sCx0",
+	"CQAA",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

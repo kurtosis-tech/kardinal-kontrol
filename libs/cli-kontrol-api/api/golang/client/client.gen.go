@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	. "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
+	"github.com/oapi-codegen/runtime"
 )
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function
@@ -103,6 +104,9 @@ type ClientInterface interface {
 	PostFlowDeleteWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
 	PostFlowDelete(ctx context.Context, body PostFlowDeleteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
+
+	// GetTopology request
+	GetTopology(ctx context.Context, params *GetTopologyParams, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
 func (c *Client) PostDeployWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error) {
@@ -167,6 +171,18 @@ func (c *Client) PostFlowDeleteWithBody(ctx context.Context, contentType string,
 
 func (c *Client) PostFlowDelete(ctx context.Context, body PostFlowDeleteJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error) {
 	req, err := NewPostFlowDeleteRequest(c.Server, body)
+	if err != nil {
+		return nil, err
+	}
+	req = req.WithContext(ctx)
+	if err := c.applyEditors(ctx, req, reqEditors); err != nil {
+		return nil, err
+	}
+	return c.Client.Do(req)
+}
+
+func (c *Client) GetTopology(ctx context.Context, params *GetTopologyParams, reqEditors ...RequestEditorFn) (*http.Response, error) {
+	req, err := NewGetTopologyRequest(c.Server, params)
 	if err != nil {
 		return nil, err
 	}
@@ -297,6 +313,55 @@ func NewPostFlowDeleteRequestWithBody(server string, contentType string, body io
 	return req, nil
 }
 
+// NewGetTopologyRequest generates requests for GetTopology
+func NewGetTopologyRequest(server string, params *GetTopologyParams) (*http.Request, error) {
+	var err error
+
+	serverURL, err := url.Parse(server)
+	if err != nil {
+		return nil, err
+	}
+
+	operationPath := fmt.Sprintf("/topology")
+	if operationPath[0] == '/' {
+		operationPath = "." + operationPath
+	}
+
+	queryURL, err := serverURL.Parse(operationPath)
+	if err != nil {
+		return nil, err
+	}
+
+	if params != nil {
+		queryValues := queryURL.Query()
+
+		if params.Namespace != nil {
+
+			if queryFrag, err := runtime.StyleParamWithLocation("form", true, "namespace", runtime.ParamLocationQuery, *params.Namespace); err != nil {
+				return nil, err
+			} else if parsed, err := url.ParseQuery(queryFrag); err != nil {
+				return nil, err
+			} else {
+				for k, v := range parsed {
+					for _, v2 := range v {
+						queryValues.Add(k, v2)
+					}
+				}
+			}
+
+		}
+
+		queryURL.RawQuery = queryValues.Encode()
+	}
+
+	req, err := http.NewRequest("GET", queryURL.String(), nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return req, nil
+}
+
 func (c *Client) applyEditors(ctx context.Context, req *http.Request, additionalEditors []RequestEditorFn) error {
 	for _, r := range c.RequestEditors {
 		if err := r(ctx, req); err != nil {
@@ -354,6 +419,9 @@ type ClientWithResponsesInterface interface {
 	PostFlowDeleteWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostFlowDeleteResponse, error)
 
 	PostFlowDeleteWithResponse(ctx context.Context, body PostFlowDeleteJSONRequestBody, reqEditors ...RequestEditorFn) (*PostFlowDeleteResponse, error)
+
+	// GetTopologyWithResponse request
+	GetTopologyWithResponse(ctx context.Context, params *GetTopologyParams, reqEditors ...RequestEditorFn) (*GetTopologyResponse, error)
 }
 
 type PostDeployResponse struct {
@@ -422,6 +490,28 @@ func (r PostFlowDeleteResponse) StatusCode() int {
 	return 0
 }
 
+type GetTopologyResponse struct {
+	Body         []byte
+	HTTPResponse *http.Response
+	JSON200      *Topology
+}
+
+// Status returns HTTPResponse.Status
+func (r GetTopologyResponse) Status() string {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.Status
+	}
+	return http.StatusText(0)
+}
+
+// StatusCode returns HTTPResponse.StatusCode
+func (r GetTopologyResponse) StatusCode() int {
+	if r.HTTPResponse != nil {
+		return r.HTTPResponse.StatusCode
+	}
+	return 0
+}
+
 // PostDeployWithBodyWithResponse request with arbitrary body returning *PostDeployResponse
 func (c *ClientWithResponses) PostDeployWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*PostDeployResponse, error) {
 	rsp, err := c.PostDeployWithBody(ctx, contentType, body, reqEditors...)
@@ -471,6 +561,15 @@ func (c *ClientWithResponses) PostFlowDeleteWithResponse(ctx context.Context, bo
 		return nil, err
 	}
 	return ParsePostFlowDeleteResponse(rsp)
+}
+
+// GetTopologyWithResponse request returning *GetTopologyResponse
+func (c *ClientWithResponses) GetTopologyWithResponse(ctx context.Context, params *GetTopologyParams, reqEditors ...RequestEditorFn) (*GetTopologyResponse, error) {
+	rsp, err := c.GetTopology(ctx, params, reqEditors...)
+	if err != nil {
+		return nil, err
+	}
+	return ParseGetTopologyResponse(rsp)
 }
 
 // ParsePostDeployResponse parses an HTTP response from a PostDeployWithResponse call
@@ -541,6 +640,32 @@ func ParsePostFlowDeleteResponse(rsp *http.Response) (*PostFlowDeleteResponse, e
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
 		var dest string
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON200 = &dest
+
+	}
+
+	return response, nil
+}
+
+// ParseGetTopologyResponse parses an HTTP response from a GetTopologyWithResponse call
+func ParseGetTopologyResponse(rsp *http.Response) (*GetTopologyResponse, error) {
+	bodyBytes, err := io.ReadAll(rsp.Body)
+	defer func() { _ = rsp.Body.Close() }()
+	if err != nil {
+		return nil, err
+	}
+
+	response := &GetTopologyResponse{
+		Body:         bodyBytes,
+		HTTPResponse: rsp,
+	}
+
+	switch {
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
+		var dest Topology
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

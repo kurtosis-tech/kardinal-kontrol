@@ -59,6 +59,24 @@ export interface paths {
       };
     };
   };
+  "/topology": {
+    get: {
+      parameters: {
+        query?: {
+          /** @description The namespace for which to retrieve the topology */
+          namespace?: string;
+        };
+      };
+      responses: {
+        /** @description Topology information */
+        200: {
+          content: {
+            "application/json": components["schemas"]["Topology"];
+          };
+        };
+      };
+    };
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -74,6 +92,25 @@ export interface components {
       /** @example backend-service-a */
       "service-name"?: string;
       "docker-compose"?: unknown[];
+    };
+    Topology: {
+      graph?: {
+        nodes?: {
+            /** @example backend-service-a */
+            serviceName?: string;
+            /** @example 1.0.0 */
+            serviceVersion?: string;
+            /** @example node-1 */
+            id?: string;
+            /**
+             * @example [
+             *   "node-2",
+             *   "node-3"
+             * ]
+             */
+            talks_to?: string[];
+          }[];
+      };
     };
   };
   responses: never;
