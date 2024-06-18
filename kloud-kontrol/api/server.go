@@ -4,15 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"kardinal/cli-kontrol-api/api/golang/types"
 	"log"
 
-	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
-
 	compose "github.com/compose-spec/compose-go/types"
+	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
+	apiTypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
+
 	"k8s.io/client-go/rest"
 	"kardinal.kloud-kontrol/engine"
 	"kardinal.kloud-kontrol/engine/template"
+	"kardinal.kloud-kontrol/topology"
 	"kardinal.kloud-kontrol/types"
 
 	"github.com/samber/lo"
@@ -24,7 +25,9 @@ const frontendServiceName = "voting-app-ui"
 // optional code omitted
 var _ api.StrictServerInterface = (*Server)(nil)
 
-type Server struct{}
+type Server struct {
+	composes map[string][]compose.ServiceConfig
+}
 
 func NewServer() Server {
 	return Server{}
@@ -38,40 +41,90 @@ func NewStrictHandler(si api.StrictServerInterface) api.ServerInterface {
 	return api.NewStrictHandler(si, nil)
 }
 
-func (Server) PostDeploy(ctx context.Context, request api.PostDeployRequestObject) (api.PostDeployResponseObject, error) {
+func (sv *Server) PostDeploy(ctx context.Context, request api.PostDeployRequestObject) (api.PostDeployResponseObject, error) {
 	log.Printf("Deploying prod cluster")
 	restConn := engine.ConnectToCluster()
-	err := applyProdOnlyFlow(restConn, *request.Body.DockerCompose)
+	project := *request.Body.DockerCompose
+	err := applyProdOnlyFlow(restConn, project)
 	if err != nil {
 		return nil, err
 	}
+	sv.composes["default"] = project
 	resp := "ok"
 	return api.PostDeploy200JSONResponse(resp), nil
 }
 
-func (Server) PostFlowDelete(ctx context.Context, request api.PostFlowDeleteRequestObject) (api.PostFlowDeleteResponseObject, error) {
+func (sv *Server) PostFlowDelete(ctx context.Context, request api.PostFlowDeleteRequestObject) (api.PostFlowDeleteResponseObject, error) {
 	log.Printf("Deleting dev flow")
 	restConn := engine.ConnectToCluster()
-	err := applyProdOnlyFlow(restConn, *request.Body.DockerCompose)
+	project := *request.Body.DockerCompose
+	err := applyProdOnlyFlow(restConn, project)
 	if err != nil {
 		return nil, err
 	}
+	sv.composes["default"] = project
 	resp := "ok"
 	return api.PostFlowDelete200JSONResponse(resp), nil
 }
 
-func (Server) PostFlowCreate(ctx context.Context, request api.PostFlowCreateRequestObject) (api.PostFlowCreateResponseObject, error) {
+func (sv *Server) PostFlowCreate(ctx context.Context, request api.PostFlowCreateRequestObject) (api.PostFlowCreateResponseObject, error) {
 	serviceName := *request.Body.ServiceName
 	imageLocator := *request.Body.ImageLocator
 	log.Printf("Starting new dev flow for service %v on image %v", serviceName, imageLocator)
 
 	restConn := engine.ConnectToCluster()
-	err := applyProdDevFlow(restConn, *request.Body.DockerCompose, serviceName, imageLocator)
+	project := *request.Body.DockerCompose
+	err := applyProdDevFlow(restConn, project, serviceName, imageLocator)
 	if err != nil {
 		return nil, err
 	}
+	sv.composes["default"] = project
 	resp := "ok"
 	return api.PostFlowCreate200JSONResponse(resp), nil
+}
+
+func (sv *Server) GetTopology(ctx context.Context, request api.GetTopologyRequestObject) (api.GetTopologyResponseObject, error) {
+	namespaceParam := request.Params.Namespace
+	namespace := "default"
+
+	if namespaceParam != nil && len(*namespaceParam) != 0 {
+		namespace = *namespaceParam
+	}
+
+	if targetCompose, found := sv.composes[namespace]; found {
+		topo := topology.ComposeToTopology(&targetCompose)
+		return api.GetTopology200JSONResponse(*topo), nil
+	}
+
+	redisServiceName := "redis-prod"
+	redisServiceVersion := "6.0.8"
+	redisServiceID := "node-1"
+
+	votingAppServiceName := "voting-app-ui"
+	votingAppServiceVersion := "latest"
+	votingAppServiceID := "node-2"
+
+	topo := apiTypes.Topology{
+		Graph: &apiTypes.Graph{
+			Nodes: &[]apiTypes.Node{
+				{
+					Id:             &redisServiceID,
+					ServiceName:    &redisServiceName,
+					ServiceVersion: &redisServiceVersion,
+					TalksTo:        nil,
+				},
+				{
+					Id:             &votingAppServiceID,
+					ServiceName:    &votingAppServiceName,
+					ServiceVersion: &votingAppServiceVersion,
+					TalksTo:        &[]string{redisServiceID},
+				},
+			},
+		},
+	}
+
+	log.Printf("Received %v as namespace", namespace)
+	return api.GetTopology200JSONResponse(topo), nil
 }
 
 // ============================================================================================================
@@ -200,42 +253,4 @@ func applyProdDevFlow(restConn *rest.Config, project []compose.ServiceConfig, de
 	engine.ApplyClusterResources(restConn, &clusterDevResources)
 	engine.CleanUpClusterResources(restConn, &clusterDevResources)
 	return nil
-}
-
-func (Server) GetTopology(ctx context.Context, request api.GetTopologyRequestObject) (api.GetTopologyResponseObject, error) {
-	namespaceParam := request.Params.Namespace
-	namespace := "default"
-	if namespaceParam != nil && len(*namespaceParam) != 0 {
-		namespace = *namespaceParam
-	}
-
-	redisServiceName := "redis-prod"
-	redisServiceVersion := "6.0.8"
-	redisServiceID := "node-1"
-
-	votingAppServiceName := "voting-app-ui"
-	votingAppServiceVersion := "latest"
-	votingAppServiceID := "node-2"
-
-	topology := types.Topology{
-		Graph: &types.Graph{
-			Nodes: &[]types.Node{
-				{
-					Id:             &redisServiceID,
-					ServiceName:    &redisServiceName,
-					ServiceVersion: &redisServiceVersion,
-					TalksTo:        nil,
-				},
-				{
-					Id:             &votingAppServiceID,
-					ServiceName:    &votingAppServiceName,
-					ServiceVersion: &votingAppServiceVersion,
-					TalksTo:        &[]string{redisServiceID},
-				},
-			},
-		},
-	}
-
-	log.Printf("Received %v as namespace", namespace)
-	return api.GetTopology200JSONResponse(topology), nil
 }
