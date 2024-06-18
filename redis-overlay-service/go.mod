@@ -1,6 +1,6 @@
 module kardinal.stateful.overlay.redis
 
-go 1.21.9
+go 1.22.3
 
 require (
 	github.com/redis/go-redis/v9 v9.5.2
