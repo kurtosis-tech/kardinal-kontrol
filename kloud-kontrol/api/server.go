@@ -97,12 +97,12 @@ func (sv *Server) GetTopology(ctx context.Context, request api.GetTopologyReques
 	}
 
 	redisServiceName := "redis-prod"
-	redisServiceVersion := "6.0.8"
-	redisServiceID := "node-1"
+	redisServiceVersion := "bitnami/redis:6.0.8"
+	redisServiceID := "azure-vote-back"
 
 	votingAppServiceName := "voting-app-ui"
-	votingAppServiceVersion := "latest"
-	votingAppServiceID := "node-2"
+	votingAppServiceVersion := "voting-app-ui"
+	votingAppServiceID := "azure-vote-front"
 
 	topo := apiTypes.Topology{
 		Graph: &apiTypes.Graph{
