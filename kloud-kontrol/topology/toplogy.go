@@ -25,7 +25,7 @@ func ComposeToTopology(services *[]compose.ServiceConfig) *types.Topology {
 	}
 
 	if len(nodes) == 0 {
-		return nil
+		return types.Topology{}
 	}
 
 	topology := types.Topology{
