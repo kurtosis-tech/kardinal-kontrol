@@ -20,7 +20,7 @@ def replace_pod(namespace):
             "-n",
             namespace,
             "-l",
-            "app=redis-proxy-overlay",
+            "app=kardinal-db-sidecar",
             "-o",
             "yaml",
         ]
