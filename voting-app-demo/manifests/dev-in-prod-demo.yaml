@@ -251,13 +251,21 @@ metadata:
     type: dev
     app: kardinal-db-sidecar
     version: v1
+  namespace: voting-app
 spec:
   selector:
     matchLabels:
       app: kardinal-db-sidecar
       version: v1
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
   template:
     metadata:
+      annotations:
+        sidecar.istio.io/inject: "true"
       labels:
         app: kardinal-db-sidecar
         version: v1

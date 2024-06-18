@@ -26,7 +26,8 @@ func main() {
 	}
 
 	//TODO get this from  the deployment yaml file with an ENV VAR
-	configEndpoint := "https://gist.githubusercontent.com/leoporoli/d9afda02795f18abef04fa74afe3b555/raw/d963450a13731c7bae5eafed25d975f93d3d57e3/prod-only-demo.json"
+	configEndpoint := "https://gist.githubusercontent.com/leoporoli/565e55949c976d25eaedfa7433dd8a0e/raw/cf681db5a2b8ff3a1436be4a1e6a1aabe7a2f98f/dev-in-prod-demo.json"
+	//configEndpoint := "https://gist.githubusercontent.com/leoporoli/d9afda02795f18abef04fa74afe3b555/raw/d963450a13731c7bae5eafed25d975f93d3d57e3/prod-only-demo.json"
 
 	fetcher := fetcher.NewFetcher(kubernetesClient, configEndpoint)
 
