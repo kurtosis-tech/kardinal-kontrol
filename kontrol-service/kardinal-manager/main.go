@@ -26,15 +26,12 @@ func main() {
 	}
 
 	//TODO get this from  the deployment yaml file with an ENV VAR
-	configEndpoint := "https://gist.githubusercontent.com/leoporoli/d9afda02795f18abef04fa74afe3b555/raw/a231255e66585dd295dd1e83318245fd725b30dd/deployment-example.yml"
+	configEndpoint := "https://gist.githubusercontent.com/leoporoli/d9afda02795f18abef04fa74afe3b555/raw/d963450a13731c7bae5eafed25d975f93d3d57e3/prod-only-demo.json"
 
-	yamlFileContent, err := fetcher.FetchConfig(configEndpoint)
-	if err != nil {
-		logrus.Fatalf("An error occurred fetching config from!\nError was: %s", err)
-	}
+	fetcher := fetcher.NewFetcher(kubernetesClient, configEndpoint)
 
-	if err := fetcher.ApplyConfig(ctx, kubernetesClient, yamlFileContent); err != nil {
-		logrus.Fatalf("An error occurred applying the config in the cluster!\nError was: %s", err)
+	if err = fetcher.Run(ctx); err != nil {
+		logrus.Fatalf("An error occurred while running the fetcher!\nError was: %s", err)
 	}
 
 	// Uncomment if you want to test basic interaction with K8s cluster and Istio resources

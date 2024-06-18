@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"github.com/kurtosis-tech/stacktrace"
+	"github.com/sirupsen/logrus"
 	yamlV3 "gopkg.in/yaml.v3"
 	"io"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -13,26 +14,65 @@ import (
 	"kardinal.kontrol/kardinal-manager/kubernetes_client"
 	"net/http"
 	"sigs.k8s.io/yaml"
+	"time"
 )
 
 const (
 	defaultNamespace = "default"
+	tickerDuration   = time.Second * 5
 )
 
 var (
 	yamlDelimiter = []byte("---\n")
 )
 
-func FetchConfig(configEndpoint string) ([]byte, error) {
-	resp, err := http.Get(configEndpoint)
+type fetcher struct {
+	kubernetesClient *kubernetes_client.KubernetesClient
+	configEndpoint   string
+}
+
+func NewFetcher(kubernetesClient *kubernetes_client.KubernetesClient, configEndpoint string) *fetcher {
+	return &fetcher{kubernetesClient: kubernetesClient, configEndpoint: configEndpoint}
+}
+
+func (fetcher *fetcher) Run(ctx context.Context) error {
+	ticker := time.NewTicker(tickerDuration)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			logrus.Debugf("New fetcher execution at %s", time.Now())
+			if err := fetcher.fetchAndApply(ctx); err != nil {
+				return stacktrace.Propagate(err, "Failed to fetch and apply the cluster configuration")
+			}
+		}
+	}
+}
+
+func (fetcher *fetcher) fetchAndApply(ctx context.Context) error {
+	yamlFileContent, err := fetcher.fetchConfig()
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "Error fetching configuration from endpoint '%s'", configEndpoint)
+		return stacktrace.Propagate(err, "An error occurred fetching config from '%s'", fetcher.configEndpoint)
+	}
+
+	if err := fetcher.applyConfig(ctx, yamlFileContent); err != nil {
+		return stacktrace.Propagate(err, "An error occurred applying the config in the cluster!")
+	}
+
+	return nil
+}
+
+func (fetcher *fetcher) fetchConfig() ([]byte, error) {
+	resp, err := http.Get(fetcher.configEndpoint)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Error fetching configuration from endpoint '%s'", fetcher.configEndpoint)
 	}
 	defer resp.Body.Close()
 
 	responseBodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "Error reading the response from '%v'", configEndpoint)
+		return nil, stacktrace.Propagate(err, "Error reading the response from '%v'", fetcher.configEndpoint)
 	}
 
 	var jsonListObject []interface{}
@@ -62,7 +102,7 @@ func FetchConfig(configEndpoint string) ([]byte, error) {
 	return concatenatedYamlContent, nil
 }
 
-func ApplyConfig(ctx context.Context, kubernetesClient *kubernetes_client.KubernetesClient, yamlFileContent []byte) error {
+func (fetcher *fetcher) applyConfig(ctx context.Context, yamlFileContent []byte) error {
 	yamlReader := bytes.NewReader(yamlFileContent)
 
 	dec := yamlV3.NewDecoder(yamlReader)
@@ -81,11 +121,11 @@ func ApplyConfig(ctx context.Context, kubernetesClient *kubernetes_client.Kubern
 		}
 
 		groupVersionKind := unstructuredObject.GroupVersionKind()
-		restMapping, err := kubernetesClient.GetDiscoveryMapper().RESTMapping(groupVersionKind.GroupKind(), groupVersionKind.Version)
+		restMapping, err := fetcher.kubernetesClient.GetDiscoveryMapper().RESTMapping(groupVersionKind.GroupKind(), groupVersionKind.Version)
 		if err != nil {
 			return stacktrace.Propagate(err, "An error occurred getting the rest mapping for GVK")
 		}
-		
+
 		groupVersionResource := restMapping.Resource
 		namespace := unstructuredObject.GetNamespace()
 		if len(namespace) == 0 {
@@ -93,7 +133,7 @@ func ApplyConfig(ctx context.Context, kubernetesClient *kubernetes_client.Kubern
 		}
 
 		applyOpts := metav1.ApplyOptions{FieldManager: "kube-apply"}
-		namespaceResource := kubernetesClient.GetDynamicClient().Resource(groupVersionResource).Namespace(namespace)
+		namespaceResource := fetcher.kubernetesClient.GetDynamicClient().Resource(groupVersionResource).Namespace(namespace)
 
 		_, err = namespaceResource.Apply(ctx, unstructuredObject.GetName(), unstructuredObject, applyOpts)
 		if err != nil {
