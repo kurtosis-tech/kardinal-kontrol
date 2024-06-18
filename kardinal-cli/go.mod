@@ -1,6 +1,6 @@
 module kardinal.cli
 
-go 1.21.9
+go 1.22
 
 require (
 	github.com/compose-spec/compose-go v1.20.2
