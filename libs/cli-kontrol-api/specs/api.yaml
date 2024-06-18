@@ -100,24 +100,28 @@ components:
       type: object
       properties:
         graph:
-          type: object
-          properties:
-            nodes:
-              type: array
-              items:
-                type: object
-                properties:
-                  serviceName:
-                    type: string
-                    example: backend-service-a
-                  serviceVersion:
-                    type: string
-                    example: 1.0.0
-                  id:
-                    type: string
-                    example: node-1
-                  talks_to:
-                    type: array
-                    items:
-                      type: string
-                    example: [node-2, node-3]
+          $ref: "#/components/schemas/Graph"
+    Graph:
+      type: object
+      properties:
+        nodes:
+          type: array
+          items:
+            $ref: "#/components/schemas/Node"
+    Node:
+      type: object
+      properties:
+        serviceName:
+          type: string
+          example: backend-service-a
+        serviceVersion:
+          type: string
+          example: 1.0.0
+        id:
+          type: string
+          example: node-1
+        talks_to:
+          type: array
+          items:
+            type: string
+          example: [node-2, node-3]

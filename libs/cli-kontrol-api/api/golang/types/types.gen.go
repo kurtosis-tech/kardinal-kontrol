@@ -14,6 +14,19 @@ type DevFlowSpec struct {
 	ServiceName   *string                  `json:"service-name,omitempty"`
 }
 
+// Graph defines model for Graph.
+type Graph struct {
+	Nodes *[]Node `json:"nodes,omitempty"`
+}
+
+// Node defines model for Node.
+type Node struct {
+	Id             *string   `json:"id,omitempty"`
+	ServiceName    *string   `json:"serviceName,omitempty"`
+	ServiceVersion *string   `json:"serviceVersion,omitempty"`
+	TalksTo        *[]string `json:"talks_to,omitempty"`
+}
+
 // ProdFlowSpec defines model for ProdFlowSpec.
 type ProdFlowSpec struct {
 	DockerCompose *[]compose.ServiceConfig `json:"docker-compose,omitempty"`
@@ -21,14 +34,7 @@ type ProdFlowSpec struct {
 
 // Topology defines model for Topology.
 type Topology struct {
-	Graph *struct {
-		Nodes *[]struct {
-			Id             *string   `json:"id,omitempty"`
-			ServiceName    *string   `json:"serviceName,omitempty"`
-			ServiceVersion *string   `json:"serviceVersion,omitempty"`
-			TalksTo        *[]string `json:"talks_to,omitempty"`
-		} `json:"nodes,omitempty"`
-	} `json:"graph,omitempty"`
+	Graph *Graph `json:"graph,omitempty"`
 }
 
 // GetTopologyParams defines parameters for GetTopology.

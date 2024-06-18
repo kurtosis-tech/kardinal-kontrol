@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"kardinal/cli-kontrol-api/api/golang/types"
 	"log"
 
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
@@ -199,4 +200,42 @@ func applyProdDevFlow(restConn *rest.Config, project []compose.ServiceConfig, de
 	engine.ApplyClusterResources(restConn, &clusterDevResources)
 	engine.CleanUpClusterResources(restConn, &clusterDevResources)
 	return nil
+}
+
+func (Server) GetTopology(ctx context.Context, request api.GetTopologyRequestObject) (api.GetTopologyResponseObject, error) {
+	namespaceParam := request.Params.Namespace
+	namespace := "default"
+	if namespaceParam != nil && len(*namespaceParam) != 0 {
+		namespace = *namespaceParam
+	}
+
+	redisServiceName := "redis-prod"
+	redisServiceVersion := "6.0.8"
+	redisServiceID := "node-1"
+
+	votingAppServiceName := "voting-app-ui"
+	votingAppServiceVersion := "latest"
+	votingAppServiceID := "node-2"
+
+	topology := types.Topology{
+		Graph: &types.Graph{
+			Nodes: &[]types.Node{
+				{
+					Id:             &redisServiceID,
+					ServiceName:    &redisServiceName,
+					ServiceVersion: &redisServiceVersion,
+					TalksTo:        nil,
+				},
+				{
+					Id:             &votingAppServiceID,
+					ServiceName:    &votingAppServiceName,
+					ServiceVersion: &votingAppServiceVersion,
+					TalksTo:        &[]string{redisServiceID},
+				},
+			},
+		},
+	}
+
+	log.Printf("Received %v as namespace", namespace)
+	return api.GetTopology200JSONResponse(topology), nil
 }

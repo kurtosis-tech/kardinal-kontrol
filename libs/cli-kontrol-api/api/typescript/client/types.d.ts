@@ -94,23 +94,25 @@ export interface components {
       "docker-compose"?: unknown[];
     };
     Topology: {
-      graph?: {
-        nodes?: {
-            /** @example backend-service-a */
-            serviceName?: string;
-            /** @example 1.0.0 */
-            serviceVersion?: string;
-            /** @example node-1 */
-            id?: string;
-            /**
-             * @example [
-             *   "node-2",
-             *   "node-3"
-             * ]
-             */
-            talks_to?: string[];
-          }[];
-      };
+      graph?: components["schemas"]["Graph"];
+    };
+    Graph: {
+      nodes?: components["schemas"]["Node"][];
+    };
+    Node: {
+      /** @example backend-service-a */
+      serviceName?: string;
+      /** @example 1.0.0 */
+      serviceVersion?: string;
+      /** @example node-1 */
+      id?: string;
+      /**
+       * @example [
+       *   "node-2",
+       *   "node-3"
+       * ]
+       */
+      talks_to?: string[];
     };
   };
   responses: never;
