@@ -2,48 +2,138 @@ package server
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/gin-gonic/gin"
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/sirupsen/logrus"
+	"log"
+	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"regexp"
 	"strconv"
 	"strings"
+	"syscall"
+	"time"
 )
 
 const (
 	upvotesSuffix            = ":upvotes"
 	downvotesSuffix          = ":downvotes"
 	validFeatureNameRegexStr = "^[a-z_]+$"
-	serverPortNum            = 9111
+	serverPortNumStr         = "9111"
+	serverStopGracePeriod    = 1 * time.Minute
 )
 
 var (
 	validFeatureNameRegex = regexp.MustCompile(validFeatureNameRegexStr)
 )
 
-func NewVotingAppServer(ctx context.Context) (*gin.Engine, error) {
+func NewVotingAppServer(ctx context.Context) (http.Handler, *logrus.Logger, error) {
 	redis, err := NewRedisConnection(ctx)
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "An error occurred establishing connection to redis instance")
+		return nil, nil, stacktrace.Propagate(err, "An error occurred establishing connection to redis instance")
 	}
 
 	router := gin.Default()
+
+	logger := setupLogrus()
+
+	router.Use(getLoggingMiddleware(logger))
+
 	router.GET("/features", getGinHandler(getFeatures, redis, ctx))
 	router.POST("/upvote/:id", getGinHandler(upvoteFeature, redis, ctx))
 	router.POST("/downvote/:id", getGinHandler(downvoteFeature, redis, ctx))
 
-	return router, nil
+	return router.Handler(), logger, nil
 }
 
-func RunVotingAppServer(ctx context.Context) error {
-	ginRestApiServer, err := NewVotingAppServer(ctx)
+// adapter to get redis connection inside api handlers
+func getGinHandler(handler func(c *gin.Context, rdb *RedisConnection, ctx context.Context), redis *RedisConnection, ctxWrap context.Context) func(ctx *gin.Context) {
+	return func(c *gin.Context) {
+		handler(c, redis, ctxWrap)
+	}
+}
+
+func getLoggingMiddleware(log *logrus.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		c.Next()
+		duration := time.Since(start)
+
+		entry := log.WithFields(logrus.Fields{
+			"status":  c.Writer.Status(),
+			"method":  c.Request.Method,
+			"path":    c.Request.URL.Path,
+			"ip":      c.ClientIP(),
+			"latency": duration,
+		})
+		if len(c.Errors) > 0 {
+			entry.Error(c.Errors.ByType(gin.ErrorTypePrivate).String())
+		} else {
+			entry.Infof("request completed")
+		}
+	}
+}
+
+func setupLogrus() *logrus.Logger {
+	log := logrus.New()
+	log.SetOutput(os.Stdout)
+	log.SetLevel(logrus.DebugLevel)
+	return log
+}
+
+func RunVotingAppServerUntilInterrupted(ctx context.Context) error {
+	handler, logger, err := NewVotingAppServer(ctx)
 	if err != nil {
 		return stacktrace.Propagate(err, "An error occurred creating voting app server.")
 	}
 
-	ginRestApiServer.Run(fmt.Sprintf("0.0.0.0:%v", serverPortNum))
+	srv := &http.Server{
+		Addr:     net.JoinHostPort("0.0.0.0", serverPortNumStr),
+		Handler:  handler,
+		ErrorLog: log.New(logrus.StandardLogger().Out, "", log.Ldate|log.Ltime|log.Lshortfile),
+	}
+	if err = runServerUntilInterrupted(ctx, srv, logger); err != nil {
+		return stacktrace.Propagate(err, "An error occurred while running server.")
+	}
+	return nil
+}
+
+func runServerUntilInterrupted(ctx context.Context, srv *http.Server, logger *logrus.Logger) error {
+	termSignalChan := make(chan os.Signal, 1)
+	signal.Notify(termSignalChan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGQUIT)
+	serverStopChan := make(chan struct{}, 1)
+	go func() {
+		<-termSignalChan
+		interruptSignal := struct{}{}
+		serverStopChan <- interruptSignal
+	}()
+
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			logger.Fatalf("An error occurred starting server:\n%v", err)
+		}
+	}()
+
+	<-serverStopChan
+	serverStoppedChan := make(chan interface{})
+	go func() {
+		if err := srv.Shutdown(ctx); err != nil {
+			logger.Fatalf("An error occurred shutting down server:\n%v", err)
+		}
+		serverStoppedChan <- nil
+	}()
+	select {
+	case <-serverStoppedChan:
+		logger.Debugf("Voting App Server exited gracefully.")
+	case <-time.After(serverStopGracePeriod):
+		if err := srv.Close(); err != nil {
+			logger.Infof("An error occurred forcefully closing the server:\n%v", err)
+		}
+	}
 	return nil
 }
 
@@ -173,13 +263,6 @@ func createFeatureIdempotently(ctx context.Context, rdb *RedisConnection, featur
 	}
 
 	return nil
-}
-
-// adapter to get redis connection inside api handlers
-func getGinHandler(handler func(c *gin.Context, rdb *RedisConnection, ctx context.Context), redis *RedisConnection, ctxWrap context.Context) func(ctx *gin.Context) {
-	return func(c *gin.Context) {
-		handler(c, redis, ctxWrap)
-	}
 }
 
 func getUpvoteKey(featureName string) string {
