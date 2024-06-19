@@ -5,7 +5,6 @@ import (
 	"log"
 
 	api "kardinal.kloud-kontrol/api"
-	"kardinal.kloud-kontrol/engine"
 
 	"github.com/labstack/echo/v4"
 )
@@ -17,15 +16,14 @@ func main() {
 
 	if *applyLocally {
 		log.Println("Applying changes directly.")
-		engine.ApplyLocally("voting-app")
 	} else {
 		log.Println("Server configuration for pulling.")
 	}
 
-	startServer()
+	startServer(*applyLocally)
 }
 
-func startServer() {
+func startServer(applyLocally bool) {
 	// create a type that satisfies the `api.ServerInterface`, which contains an implementation of every operation from the generated code
 	server := api.NewServer()
 	strictHalder := api.NewStrictHandler(server)

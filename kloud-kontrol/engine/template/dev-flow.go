@@ -2,6 +2,7 @@ package template
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/samber/lo"
 	"istio.io/api/networking/v1alpha3"
@@ -15,6 +16,28 @@ import (
 
 	"kardinal.kloud-kontrol/types"
 )
+
+func RenderClusterResources(cluster types.Cluster) types.ClusterResources {
+	return types.ClusterResources{
+		Services: lo.Map(cluster.Services, func(service types.ServiceSpec, _ int) v1.Service {
+			return Service(service, cluster.Namespace)
+		}),
+
+		Deployments: lo.Map(cluster.Services, func(service types.ServiceSpec, _ int) apps.Deployment {
+			return Deployment(service, cluster.Namespace)
+		}),
+
+		Gateway: Gateway(cluster.Namespace),
+
+		VirtualServices: lo.Map(cluster.Services, func(service types.ServiceSpec, _ int) istioclient.VirtualService {
+			return FrontendVirtualService(service, cluster.Namespace, cluster.TrafficSource)
+		}),
+
+		DestinationRules: lo.Map(cluster.Services, func(service types.ServiceSpec, _ int) istioclient.DestinationRule {
+			return FrontendDestinationRule(service, cluster.Namespace, cluster.TrafficSource)
+		}),
+	}
+}
 
 // Define the Service
 func Service(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec) v1.Service {
@@ -56,7 +79,7 @@ func Deployment(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec
 		return v1.ContainerPort{
 			Name:          fmt.Sprintf("%s-%d", port.Protocol, port.Target),
 			ContainerPort: int32(port.Target),
-			Protocol:      v1.Protocol(port.Protocol),
+			Protocol:      v1.Protocol(strings.ToUpper(port.Protocol)),
 		}
 	})
 
@@ -121,17 +144,17 @@ func Deployment(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec
 }
 
 // TODO: split prod and and dev flows
-func Gateway() istioclient.Gateway {
+func Gateway(namespaceSpec types.NamespaceSpec) istioclient.Gateway {
 	return istioclient.Gateway{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking.istio.io/v1alpha3",
 			Kind:       "Gateway",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "voting-app",
-			Namespace: "voting-app",
+			Name:      "gateway",
+			Namespace: namespaceSpec.Name,
 			Labels: map[string]string{
-				"app":     "voting-app",
+				"app":     "gateway",
 				"version": "v1",
 			},
 		},
@@ -147,8 +170,8 @@ func Gateway() istioclient.Gateway {
 						Protocol: "HTTP",
 					},
 					Hosts: []string{
-						"voting-app.localhost",
-						"dev.voting-app.localhost",
+						"gateway.localhost",
+						"dev.gateway.localhost",
 					},
 				},
 			},

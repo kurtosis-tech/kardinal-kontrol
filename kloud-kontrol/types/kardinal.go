@@ -25,3 +25,16 @@ type ServiceSpec struct {
 type NamespaceSpec struct {
 	Name string
 }
+
+type ServiceDependency struct {
+	OriginService      *ServiceSpec
+	DestinationService *ServiceSpec
+}
+
+type Cluster struct {
+	Services            []ServiceSpec
+	ServiceDependencies []ServiceDependency
+	FrontdoorService    *ServiceSpec
+	TrafficSource       Traffic
+	Namespace           NamespaceSpec
+}
