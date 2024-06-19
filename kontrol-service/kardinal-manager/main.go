@@ -44,7 +44,7 @@ func main() {
 	}
 
 	// Uncomment if you want to test basic interaction with K8s cluster and Istio resources
-	//if err := basicInteractionWithK8sAndIstio(kubernetesClient); err != nil {
+	//if err := basicInteractionWithK8sAndIstio(ctx, clusterManager); err != nil {
 	//	logrus.Fatalf("An error occurred while calling basicInteractionWithK8sAndIstio()!\nError was: %s", err)
 	//}
 
