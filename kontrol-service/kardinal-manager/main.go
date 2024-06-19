@@ -8,11 +8,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"kardinal.kontrol/kardinal-manager/fetcher"
 	"kardinal.kontrol/kardinal-manager/kubernetes_client"
+	"kardinal.kontrol/kardinal-manager/logger"
+	"kardinal.kontrol/kardinal-manager/utils"
 	"os"
 )
 
 const (
-	successExitCode = 0
+	successExitCode                = 0
+	clusterConfigEndpointEnvVarKey = "CLUSTER_CONFIG_ENDPOINT"
 )
 
 func main() {
@@ -20,14 +23,19 @@ func main() {
 	// Create context
 	ctx := context.Background()
 
+	if err := logger.ConfigureLogger(); err != nil {
+		logrus.Fatal("An error occurred configuring the logger!\nError was: %s", err)
+	}
+
 	kubernetesClient, err := kubernetes_client.CreateKubernetesClient()
 	if err != nil {
 		logrus.Fatal("An error occurred while creating the Kubernetes client!\nError was: %s", err)
 	}
 
-	//TODO get this from  the deployment yaml file with an ENV VAR
-	configEndpoint := "https://gist.githubusercontent.com/leoporoli/565e55949c976d25eaedfa7433dd8a0e/raw/cf681db5a2b8ff3a1436be4a1e6a1aabe7a2f98f/dev-in-prod-demo.json"
-	//configEndpoint := "https://gist.githubusercontent.com/leoporoli/d9afda02795f18abef04fa74afe3b555/raw/d963450a13731c7bae5eafed25d975f93d3d57e3/prod-only-demo.json"
+	configEndpoint, err := utils.GetFromEnvVar(clusterConfigEndpointEnvVarKey, "the config endpoint")
+	if err != nil {
+		logrus.Fatal("An error occurred getting the config endpoint from the env vars!\nError was: %s", err)
+	}
 
 	fetcher := fetcher.NewFetcher(kubernetesClient, configEndpoint)
 
