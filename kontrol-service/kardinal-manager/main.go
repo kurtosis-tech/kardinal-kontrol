@@ -6,8 +6,8 @@ import (
 	"github.com/sirupsen/logrus"
 	versionedclient "istio.io/client-go/pkg/clientset/versioned"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"kardinal.kontrol/kardinal-manager/cluster_manager"
 	"kardinal.kontrol/kardinal-manager/fetcher"
-	"kardinal.kontrol/kardinal-manager/kubernetes_client"
 	"kardinal.kontrol/kardinal-manager/logger"
 	"kardinal.kontrol/kardinal-manager/utils"
 	"os"
@@ -27,17 +27,17 @@ func main() {
 		logrus.Fatal("An error occurred configuring the logger!\nError was: %s", err)
 	}
 
-	kubernetesClient, err := kubernetes_client.CreateKubernetesClient()
-	if err != nil {
-		logrus.Fatal("An error occurred while creating the Kubernetes client!\nError was: %s", err)
-	}
-
 	configEndpoint, err := utils.GetFromEnvVar(clusterConfigEndpointEnvVarKey, "the config endpoint")
 	if err != nil {
 		logrus.Fatal("An error occurred getting the config endpoint from the env vars!\nError was: %s", err)
 	}
 
-	fetcher := fetcher.NewFetcher(kubernetesClient, configEndpoint)
+	clusterManager, err := cluster_manager.CreateClusterManager()
+	if err != nil {
+		logrus.Fatal("An error occurred while creating the cluster manager!\nError was: %s", err)
+	}
+
+	fetcher := fetcher.NewFetcher(clusterManager, configEndpoint)
 
 	if err = fetcher.Run(ctx); err != nil {
 		logrus.Fatalf("An error occurred while running the fetcher!\nError was: %s", err)
@@ -56,22 +56,19 @@ func main() {
 	os.Exit(successExitCode)
 }
 
-func basicInteractionWithK8sAndIstio(ctx context.Context, kubernetesClient *kubernetes_client.KubernetesClient) error {
+func basicInteractionWithK8sAndIstio(ctx context.Context, clusterManager *cluster_manager.ClusterManager) error {
 
-	clientset := kubernetesClient.GetClientSet()
+	podLabels := map[string]string{}
 
-	// List pods
-	pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
-	if err != nil {
-		panic(err.Error())
-	}
+	pods, err := clusterManager.GetPodsByLabels(ctx, "", podLabels)
+
 	fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
 	for _, pod := range pods.Items {
 		fmt.Printf("Pod Name: %s\n", pod.Name)
 	}
 
 	// Istio Client
-	ic, err := versionedclient.NewForConfig(kubernetesClient.GetConfig())
+	ic, err := versionedclient.NewForConfig(clusterManager.GetKubernetesClientConfig())
 	if err != nil {
 		logrus.Fatalf("Failed to create istio client: %s", err)
 	}

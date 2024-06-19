@@ -46,6 +46,8 @@ type IstioManager struct {
 	topologyManager *topology.Manager
 }
 
+// TODO make it private so it can be create only by the cluster manager
+// TODO namespace should be more dinamic
 func CreateIstIoManager(k8sConfig *rest.Config, namespace string) (*IstioManager, error) {
 	ic, err := versioned.NewForConfig(k8sConfig)
 	if err != nil {

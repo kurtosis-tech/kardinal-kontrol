@@ -3,18 +3,18 @@ package fetcher
 import (
 	"context"
 	"github.com/stretchr/testify/require"
-	"kardinal.kontrol/kardinal-manager/kubernetes_client"
+	"kardinal.kontrol/kardinal-manager/cluster_manager"
 	"testing"
 )
 
 // This test can be executed and use Minikube dashboard and Kiali Dashboard to see the changes between prod apply and devInProd apply
 func TestVotingAppDemoProdAndDevCase(t *testing.T) {
-	kubernetesClient, err := kubernetes_client.CreateKubernetesClient()
+	clusterManager, err := cluster_manager.CreateClusterManager()
 	require.NoError(t, err)
 
 	prodOnlyDemoConfigEndpoint := "https://gist.githubusercontent.com/leoporoli/d9afda02795f18abef04fa74afe3b555/raw/ac5123344a4cf2da26b747d69fb8ad6185a03723/prod-only-demo.json"
 
-	prodFetcher := NewFetcher(kubernetesClient, prodOnlyDemoConfigEndpoint)
+	prodFetcher := NewFetcher(clusterManager, prodOnlyDemoConfigEndpoint)
 
 	ctx := context.Background()
 
@@ -25,7 +25,7 @@ func TestVotingAppDemoProdAndDevCase(t *testing.T) {
 
 	devInProdEndpoint := "https://gist.githubusercontent.com/leoporoli/565e55949c976d25eaedfa7433dd8a0e/raw/4b252105fcc5ab8b07e4a8bb183428253c304268/dev-in-prod-demo.json"
 
-	devInProdFetcher := NewFetcher(kubernetesClient, devInProdEndpoint)
+	devInProdFetcher := NewFetcher(clusterManager, devInProdEndpoint)
 
 	err = devInProdFetcher.fetchAndApply(ctx)
 	require.NoError(t, err)

@@ -1,4 +1,4 @@
-package kubernetes_client
+package cluster_manager
 
 import (
 	"github.com/kurtosis-tech/stacktrace"
@@ -12,7 +12,17 @@ import (
 	"path/filepath"
 )
 
-func CreateKubernetesClient() (*KubernetesClient, error) {
+func CreateClusterManager() (*ClusterManager, error) {
+	kubernetesClientObj, err := createKubernetesClient()
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred while creating the Kubernetes client")
+	}
+
+	//TODO insert the Istio client once the namespace is decoupled
+	return NewClusterManager(kubernetesClientObj, nil), nil
+}
+
+func createKubernetesClient() (*kubernetesClient, error) {
 	var config *rest.Config
 
 	// Load in-cluster configuration
@@ -20,8 +30,8 @@ func CreateKubernetesClient() (*KubernetesClient, error) {
 	if err != nil {
 		// Fallback to out-of-cluster configuration (for local development)
 		home := homedir.HomeDir()
-		kubeconfig := filepath.Join(home, ".kube", "config")
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+		kubeConfig := filepath.Join(home, ".kube", "config")
+		config, err = clientcmd.BuildConfigFromFlags("", kubeConfig)
 		if err != nil {
 			return nil, stacktrace.Propagate(err, "impossible to get kubernetes client config either inside or outside the cluster")
 		}
@@ -40,7 +50,7 @@ func CreateKubernetesClient() (*KubernetesClient, error) {
 	discoveryClient := memory.NewMemCacheClient(clientSet.Discovery())
 	discoveryMapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
 
-	kubernetesClient := newKubernetesClient(config, clientSet, dynamicClient, discoveryMapper)
+	kubernetesClientObj := newKubernetesClient(config, clientSet, dynamicClient, discoveryMapper)
 
-	return kubernetesClient, nil
+	return kubernetesClientObj, nil
 }
