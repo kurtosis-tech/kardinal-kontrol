@@ -3,40 +3,21 @@ package template
 import (
 	"fmt"
 
-	composetypes "github.com/compose-spec/compose-go/types"
 	"github.com/samber/lo"
 	"istio.io/api/networking/v1alpha3"
+	"k8s.io/apimachinery/pkg/util/intstr"
+
+	composetypes "github.com/compose-spec/compose-go/types"
 	istioclient "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
+
+	"kardinal.kloud-kontrol/types"
 )
 
-type Traffic struct {
-	HasMirroring     bool
-	MirrorPercentage uint
-	MirrorToVersion  string
-	ExternalHostname string
-	GatewayName      string
-}
-
-// TODO: Needs to: 1) Validate/restrict version and name, 2) assume just on port on TCP
-// TODO: Remove dup ports and name
-type ServiceSpec struct {
-	Version    string
-	Name       string
-	Port       int32
-	TargetPort int32
-	Config     composetypes.ServiceConfig
-}
-
-type NamespaceSpec struct {
-	Name string
-}
-
 // Define the Service
-func Service(serviceSpec ServiceSpec, namespaceSpec NamespaceSpec) v1.Service {
+func Service(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec) v1.Service {
 	return v1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -66,7 +47,7 @@ func Service(serviceSpec ServiceSpec, namespaceSpec NamespaceSpec) v1.Service {
 	}
 }
 
-func Deployment(serviceSpec ServiceSpec, namespaceSpec NamespaceSpec) apps.Deployment {
+func Deployment(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec) apps.Deployment {
 	vol25pct := intstr.FromString("25%")
 	numReplicas := int32(1)
 	configPorts := serviceSpec.Config.Ports
@@ -176,7 +157,7 @@ func Gateway() istioclient.Gateway {
 }
 
 // Define the VirtualService
-func FrontendVirtualService(serviceSpec ServiceSpec, nameNamespaceSpec NamespaceSpec, traffic Traffic) istioclient.VirtualService {
+func FrontendVirtualService(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.VirtualService {
 	mainRoute := v1alpha3.HTTPRoute{
 		Route: []*v1alpha3.HTTPRouteDestination{
 			{
@@ -207,7 +188,7 @@ func FrontendVirtualService(serviceSpec ServiceSpec, nameNamespaceSpec Namespace
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      serviceSpec.Name,
-			Namespace: nameNamespaceSpec.Name,
+			Namespace: namespaceSpec.Name,
 		},
 		Spec: v1alpha3.VirtualService{
 			Hosts: []string{
@@ -221,7 +202,7 @@ func FrontendVirtualService(serviceSpec ServiceSpec, nameNamespaceSpec Namespace
 	}
 }
 
-func FrontendDestinationRule(serviceSpec ServiceSpec, nameNamespaceSpec NamespaceSpec, traffic Traffic) istioclient.DestinationRule {
+func FrontendDestinationRule(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.DestinationRule {
 	subsets := []*v1alpha3.Subset{
 		{
 			Name: "v1",
@@ -247,7 +228,7 @@ func FrontendDestinationRule(serviceSpec ServiceSpec, nameNamespaceSpec Namespac
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      serviceSpec.Name,
-			Namespace: nameNamespaceSpec.Name,
+			Namespace: namespaceSpec.Name,
 		},
 		Spec: v1alpha3.DestinationRule{
 			Host:    serviceSpec.Name,
