@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 
@@ -55,10 +56,16 @@ func (Server) PostDevFlow(ctx context.Context, request api.PostDevFlowRequestObj
 		}
 	})
 
+	frontendService, found := lo.Find(serviceSpecs, func(service types.ServiceSpec) bool { return service.Name == "voting-app-ui" })
+	if !found {
+		log.Fatalf("Frontend service not found")
+		return nil, errors.New("Frontend service not found")
+	}
+
 	cluster := types.Cluster{
 		Services:            serviceSpecs,
 		ServiceDependencies: []types.ServiceDependency{},
-		FrontdoorService:    &serviceSpecs[0],
+		FrontdoorService:    &frontendService,
 		TrafficSource: types.Traffic{
 			HasMirroring:     false,
 			MirrorPercentage: 0,

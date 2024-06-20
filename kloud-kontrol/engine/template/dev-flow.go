@@ -18,6 +18,12 @@ import (
 )
 
 func RenderClusterResources(cluster types.Cluster) types.ClusterResources {
+	backendServices := lo.Filter(cluster.Services, func(service types.ServiceSpec, _ int) bool { return &service != cluster.FrontdoorService })
+	backendVSs := lo.Map(backendServices, func(service types.ServiceSpec, _ int) istioclient.VirtualService {
+		return BackendVirtualService(service, cluster.Namespace, cluster.TrafficSource)
+	})
+	frontendVS := FrontendVirtualService(*cluster.FrontdoorService, cluster.Namespace, cluster.TrafficSource)
+
 	return types.ClusterResources{
 		Services: lo.Map(cluster.Services, func(service types.ServiceSpec, _ int) v1.Service {
 			return Service(service, cluster.Namespace)
@@ -29,9 +35,7 @@ func RenderClusterResources(cluster types.Cluster) types.ClusterResources {
 
 		Gateway: Gateway(cluster.Namespace),
 
-		VirtualServices: lo.Map(cluster.Services, func(service types.ServiceSpec, _ int) istioclient.VirtualService {
-			return FrontendVirtualService(service, cluster.Namespace, cluster.TrafficSource)
-		}),
+		VirtualServices: append(backendVSs, frontendVS),
 
 		DestinationRules: lo.Map(cluster.Services, func(service types.ServiceSpec, _ int) istioclient.DestinationRule {
 			return FrontendDestinationRule(service, cluster.Namespace, cluster.TrafficSource)
@@ -131,10 +135,11 @@ func Deployment(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec
 				Spec: v1.PodSpec{
 					Containers: []v1.Container{
 						{
-							Name:  serviceSpec.Config.ContainerName,
-							Image: serviceSpec.Config.Image,
-							Env:   envVars,
-							Ports: containerPorts,
+							Name:            serviceSpec.Config.ContainerName,
+							Image:           serviceSpec.Config.Image,
+							ImagePullPolicy: "IfNotPresent",
+							Env:             envVars,
+							Ports:           containerPorts,
 						},
 					},
 				},
@@ -170,8 +175,7 @@ func Gateway(namespaceSpec types.NamespaceSpec) istioclient.Gateway {
 						Protocol: "HTTP",
 					},
 					Hosts: []string{
-						"gateway.localhost",
-						"dev.gateway.localhost",
+						"prod.app.localhost",
 					},
 				},
 			},
@@ -225,12 +229,50 @@ func FrontendVirtualService(serviceSpec types.ServiceSpec, namespaceSpec types.N
 	}
 }
 
+// Define the VirtualService
+func BackendVirtualService(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.VirtualService {
+	mainRoute := v1alpha3.TCPRoute{
+		Match: []*v1alpha3.L4MatchAttributes{{
+			Port: uint32(serviceSpec.Port),
+		}},
+		Route: []*v1alpha3.RouteDestination{
+			{
+				Destination: &v1alpha3.Destination{
+					Host:   serviceSpec.Name,
+					Subset: serviceSpec.Version,
+					Port: &v1alpha3.PortSelector{
+						Number: uint32(serviceSpec.Port),
+					},
+				},
+				Weight: 100,
+			},
+		},
+	}
+
+	return istioclient.VirtualService{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "networking.istio.io/v1alpha3",
+			Kind:       "VirtualService",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      serviceSpec.Name,
+			Namespace: namespaceSpec.Name,
+		},
+		Spec: v1alpha3.VirtualService{
+			Hosts: []string{
+				serviceSpec.Name,
+			},
+			Tcp: []*v1alpha3.TCPRoute{&mainRoute},
+		},
+	}
+}
+
 func FrontendDestinationRule(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.DestinationRule {
 	subsets := []*v1alpha3.Subset{
 		{
-			Name: "v1",
+			Name: "prod",
 			Labels: map[string]string{
-				"version": "v1",
+				"version": "prod",
 			},
 		},
 	}
