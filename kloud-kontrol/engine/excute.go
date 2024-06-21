@@ -7,6 +7,7 @@ import (
 
 	"github.com/samber/lo"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 
 	istioclient "istio.io/client-go/pkg/apis/networking/v1alpha3"
@@ -18,7 +19,7 @@ import (
 	"kardinal.kloud-kontrol/types"
 )
 
-func ApplyClusterResources(clusterResources *types.ClusterResources) {
+func ConnectToCluster() *rest.Config {
 	kubeconfig := os.Getenv("KUBECONFIG")
 
 	if len(kubeconfig) == 0 {
@@ -29,7 +30,10 @@ func ApplyClusterResources(clusterResources *types.ClusterResources) {
 	if err != nil {
 		log.Fatalf("Failed to create k8s rest client: %s", err)
 	}
+	return restConfig
+}
 
+func ApplyClusterResources(restConfig *rest.Config, clusterResources *types.ClusterResources) {
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		panic(err.Error())
@@ -122,6 +126,120 @@ func ApplyClusterResources(clusterResources *types.ClusterResources) {
 		_, err = ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Update(context.TODO(), gateway, metav1.UpdateOptions{})
 		if err != nil {
 			log.Fatalf("Failed to update gateway: %s", err)
+		}
+	}
+}
+
+func CleanUpClusterResources(restConfig *rest.Config, clusterResources *types.ClusterResources) {
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		log.Fatalf("Failed to connect to kubernetes: %s", err)
+	}
+
+	ic, err := versionedclient.NewForConfig(restConfig)
+	if err != nil {
+		log.Fatalf("Failed to create istio client: %s", err)
+	}
+
+	// Clean up services
+	servicesByNS := lo.GroupBy(clusterResources.Services, func(item v1.Service) string {
+		return item.Namespace
+	})
+	lo.MapEntries(servicesByNS, func(namespace string, services []v1.Service) (string, []v1.Service) {
+		serviceClient := clientset.CoreV1().Services(namespace)
+		allServices, err := serviceClient.List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			log.Fatalf("Failed to list services: %s", err)
+		}
+		for _, service := range allServices.Items {
+			_, exists := lo.Find(services, func(item v1.Service) bool { return (item.Name == service.Name) })
+			if !exists {
+				err := serviceClient.Delete(context.TODO(), service.Name, metav1.DeleteOptions{})
+				if err != nil {
+					log.Printf("Failed to delete service: %s", err)
+				}
+			}
+		}
+		return namespace, services
+	})
+
+	// Clean up deployments
+	deploymentsByNS := lo.GroupBy(clusterResources.Deployments, func(item apps.Deployment) string {
+		return item.Namespace
+	})
+	lo.MapEntries(deploymentsByNS, func(namespace string, deployments []apps.Deployment) (string, []apps.Deployment) {
+		deploymentClient := clientset.AppsV1().Deployments(namespace)
+		allDeployments, err := deploymentClient.List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			log.Fatalf("Failed to list deployments: %s", err)
+		}
+		for _, deployment := range allDeployments.Items {
+			_, exists := lo.Find(deployments, func(item apps.Deployment) bool { return item.Name == deployment.Name })
+			if !exists {
+				err := deploymentClient.Delete(context.TODO(), deployment.Name, metav1.DeleteOptions{})
+				if err != nil {
+					log.Printf("Failed to delete deployment: %s", err)
+				}
+			}
+		}
+		return namespace, deployments
+	})
+
+	// Clean up virtual services
+	virtualServicesByNS := lo.GroupBy(clusterResources.VirtualServices, func(item istioclient.VirtualService) string {
+		return item.Namespace
+	})
+	lo.MapEntries(virtualServicesByNS, func(namespace string, virtualServices []istioclient.VirtualService) (string, []istioclient.VirtualService) {
+		virtServiceClient := ic.NetworkingV1alpha3().VirtualServices(namespace)
+		allVirtServices, err := virtServiceClient.List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			log.Fatalf("Failed to list virtual services: %s", err)
+		}
+		for _, virtService := range allVirtServices.Items {
+			_, exists := lo.Find(virtualServices, func(item istioclient.VirtualService) bool { return item.Name == virtService.Name })
+			if !exists {
+				err := virtServiceClient.Delete(context.TODO(), virtService.Name, metav1.DeleteOptions{})
+				if err != nil {
+					log.Printf("Failed to delete virtual service: %s", err)
+				}
+			}
+		}
+		return namespace, virtualServices
+	})
+
+	// Clean up destination rules
+	destinationRulesByNS := lo.GroupBy(clusterResources.DestinationRules, func(item istioclient.DestinationRule) string {
+		return item.Namespace
+	})
+	lo.MapEntries(destinationRulesByNS, func(namespace string, destinationRules []istioclient.DestinationRule) (string, []istioclient.DestinationRule) {
+		destRuleClient := ic.NetworkingV1alpha3().DestinationRules(namespace)
+		allDestRules, err := destRuleClient.List(context.TODO(), metav1.ListOptions{})
+		if err != nil {
+			log.Fatalf("Failed to list destination rules: %s", err)
+		}
+		for _, destRule := range allDestRules.Items {
+			_, exists := lo.Find(destinationRules, func(item istioclient.DestinationRule) bool { return item.Name == destRule.Name })
+			if !exists {
+				err := destRuleClient.Delete(context.TODO(), destRule.Name, metav1.DeleteOptions{})
+				if err != nil {
+					log.Printf("Failed to delete destination rule: %s", err)
+				}
+			}
+		}
+		return namespace, destinationRules
+	})
+
+	// Clean up gateway
+	gateway := clusterResources.Gateway
+	gatewayClient := ic.NetworkingV1alpha3().Gateways(gateway.Namespace)
+	existingGateway, err := gatewayClient.Get(context.TODO(), gateway.Name, metav1.GetOptions{})
+	if err == nil {
+		_, exists := lo.Find([]istioclient.Gateway{gateway}, func(item istioclient.Gateway) bool { return item.Name == existingGateway.Name })
+		if !exists {
+			err := gatewayClient.Delete(context.TODO(), gateway.Name, metav1.DeleteOptions{})
+			if err != nil {
+				log.Printf("Failed to delete gateway: %s", err)
+			}
 		}
 	}
 }

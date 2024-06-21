@@ -81,8 +81,10 @@ func (Server) PostDevFlow(ctx context.Context, request api.PostDevFlowRequestObj
 		Namespace: types.NamespaceSpec{Name: "prod"},
 	}
 
-	template.RenderClusterResources(cluster)
-	// engine.ApplyClusterResources(&cluserResources)
+	clusterResources := template.RenderClusterResources(cluster)
+	restConn := engine.ConnectToCluster()
+	engine.ApplyClusterResources(restConn, &clusterResources)
+	engine.CleanUpClusterResources(restConn, &clusterResources)
 
 	// ============================================================================================================
 
@@ -170,7 +172,8 @@ func (Server) PostDevFlow(ctx context.Context, request api.PostDevFlowRequestObj
 	}
 
 	cluserDevResources := template.RenderClusterResources(clusterDev)
-	engine.ApplyClusterResources(&cluserDevResources)
+	// engine.ApplyClusterResources(&cluserDevResources)
+	fmt.Println(cluserDevResources)
 
 	resp := "ok"
 	return api.PostDevFlow200JSONResponse(resp), nil
