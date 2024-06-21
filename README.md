@@ -77,7 +77,17 @@ To build and run the service directly:
 
 ```bash
 nix run ./#redis-proxy-overlay
+```
 
+## Publishing multi-arch images
+
+Too publish multi-arch images, you can use the following command:
+
+```bash
+$(nix build .#publish-<SERVICE_NAME>-container --no-link --print-out-paths)/bin/push
+
+# For instance, to publish the redis proxy overlay image:
+$(nix build .#publish-redis-proxy-overlay-container --no-link --print-out-paths)/bin/push
 ```
 
 ## Demos
