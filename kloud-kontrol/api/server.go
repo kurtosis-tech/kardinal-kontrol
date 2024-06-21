@@ -38,24 +38,39 @@ func NewStrictHandler(si api.StrictServerInterface) api.ServerInterface {
 	return api.NewStrictHandler(si, nil)
 }
 
+func (Server) PostDeploy(ctx context.Context, request api.PostDeployRequestObject) (api.PostDeployResponseObject, error) {
+	restConn := engine.ConnectToCluster()
+	err := applyProdOnlyFlow(restConn, *request.Body.DockerCompose)
+	if err != nil {
+		return nil, err
+	}
+	resp := "ok"
+	return api.PostDeploy200JSONResponse(resp), nil
+}
+
+func (Server) PostFlowDelete(ctx context.Context, request api.PostFlowDeleteRequestObject) (api.PostFlowDeleteResponseObject, error) {
+	restConn := engine.ConnectToCluster()
+	err := applyProdOnlyFlow(restConn, *request.Body.DockerCompose)
+	if err != nil {
+		return nil, err
+	}
+	resp := "ok"
+	return api.PostFlowDelete200JSONResponse(resp), nil
+}
+
 // (POST /dev-flow)
-func (Server) PostDevFlow(ctx context.Context, request api.PostDevFlowRequestObject) (api.PostDevFlowResponseObject, error) {
+func (Server) PostFlowCreate(ctx context.Context, request api.PostFlowCreateRequestObject) (api.PostFlowCreateResponseObject, error) {
 	serviceName := *request.Body.ServiceName
 	imageLocator := *request.Body.ImageLocator
-
-	// TODO: get it from the cli
-	serviceName = "voting-app-ui"
-	imageLocator = "voting-app-ui-v2"
 	log.Printf("Starting new dev flow for service %v on image %v", serviceName, imageLocator)
 
 	restConn := engine.ConnectToCluster()
-	// err := applyProdOnlyFlow(restConn, *request.Body.DockerCompose)
 	err := applyProdDevFlow(restConn, *request.Body.DockerCompose, serviceName, imageLocator)
 	if err != nil {
 		return nil, err
 	}
 	resp := "ok"
-	return api.PostDevFlow200JSONResponse(resp), nil
+	return api.PostFlowCreate200JSONResponse(resp), nil
 }
 
 // ============================================================================================================

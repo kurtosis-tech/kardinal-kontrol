@@ -3,10 +3,10 @@ info:
   title: CLI/Kloud-Kontrol API
   version: 1.0.0
 paths:
-  /dev-flow:
+  /flow/create:
     post:
       requestBody:
-        description: Dev flow spec
+        description: Create a dev flow
         required: true
         content:
           application/json:
@@ -19,9 +19,51 @@ paths:
             application/json:
               schema:
                 type: string
+  /flow/delete:
+    post:
+      requestBody:
+        description: Delete dev flow (revert back to prod only)
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProdFlowSpec"
+      responses:
+        "200":
+          description: Dev flow creation status
+          content:
+            application/json:
+              schema:
+                type: string
+  /deploy:
+    post:
+      requestBody:
+        description: Deploy a prod only cluster
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProdFlowSpec"
+      responses:
+        "200":
+          description: Dev flow creation status
+          content:
+            application/json:
+              schema:
+                type: string
 
 components:
   schemas:
+    ProdFlowSpec:
+      type: object
+      properties:
+        docker-compose:
+          type: array
+          items:
+            x-go-type: compose.ServiceConfig
+            x-go-type-import:
+              path: github.com/compose-spec/compose-go/types
+              name: compose
     DevFlowSpec:
       type: object
       properties:

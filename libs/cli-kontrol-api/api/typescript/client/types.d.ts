@@ -5,12 +5,48 @@
 
 
 export interface paths {
-  "/dev-flow": {
+  "/flow/create": {
     post: {
-      /** @description Dev flow spec */
+      /** @description Create a dev flow */
       requestBody: {
         content: {
           "application/json": components["schemas"]["DevFlowSpec"];
+        };
+      };
+      responses: {
+        /** @description Dev flow creation status */
+        200: {
+          content: {
+            "application/json": string;
+          };
+        };
+      };
+    };
+  };
+  "/flow/delete": {
+    post: {
+      /** @description Delete dev flow (revert back to prod only) */
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ProdFlowSpec"];
+        };
+      };
+      responses: {
+        /** @description Dev flow creation status */
+        200: {
+          content: {
+            "application/json": string;
+          };
+        };
+      };
+    };
+  };
+  "/deploy": {
+    post: {
+      /** @description Deploy a prod only cluster */
+      requestBody: {
+        content: {
+          "application/json": components["schemas"]["ProdFlowSpec"];
         };
       };
       responses: {
@@ -29,6 +65,9 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    ProdFlowSpec: {
+      "docker-compose"?: unknown[];
+    };
     DevFlowSpec: {
       /** @example backend-a:latest */
       "image-locator"?: string;
