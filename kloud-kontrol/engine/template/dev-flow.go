@@ -33,7 +33,7 @@ func RenderClusterResources(cluster types.Cluster) types.ClusterResources {
 			return Deployment(service, cluster.Namespace)
 		}),
 
-		Gateway: Gateway(cluster.Namespace),
+		Gateway: Gateway(cluster.Namespace, cluster.TrafficSource),
 
 		VirtualServices: append(backendVSs, frontendVS),
 
@@ -149,7 +149,7 @@ func Deployment(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec
 }
 
 // TODO: split prod and and dev flows
-func Gateway(namespaceSpec types.NamespaceSpec) istioclient.Gateway {
+func Gateway(namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.Gateway {
 	return istioclient.Gateway{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking.istio.io/v1alpha3",
@@ -175,7 +175,7 @@ func Gateway(namespaceSpec types.NamespaceSpec) istioclient.Gateway {
 						Protocol: "HTTP",
 					},
 					Hosts: []string{
-						"prod.app.localhost",
+						traffic.ExternalHostname,
 					},
 				},
 			},
