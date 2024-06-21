@@ -9,7 +9,6 @@ import (
 	api "kardinal/cli-kontrol-api/api/golang/server"
 
 	compose "github.com/compose-spec/compose-go/types"
-	"gopkg.in/yaml.v2"
 	"k8s.io/client-go/rest"
 	"kardinal.kloud-kontrol/engine"
 	"kardinal.kloud-kontrol/engine/template"
@@ -39,6 +38,7 @@ func NewStrictHandler(si api.StrictServerInterface) api.ServerInterface {
 }
 
 func (Server) PostDeploy(ctx context.Context, request api.PostDeployRequestObject) (api.PostDeployResponseObject, error) {
+	log.Printf("Deploying prod cluster")
 	restConn := engine.ConnectToCluster()
 	err := applyProdOnlyFlow(restConn, *request.Body.DockerCompose)
 	if err != nil {
@@ -49,6 +49,7 @@ func (Server) PostDeploy(ctx context.Context, request api.PostDeployRequestObjec
 }
 
 func (Server) PostFlowDelete(ctx context.Context, request api.PostFlowDeleteRequestObject) (api.PostFlowDeleteResponseObject, error) {
+	log.Printf("Deleting dev flow")
 	restConn := engine.ConnectToCluster()
 	err := applyProdOnlyFlow(restConn, *request.Body.DockerCompose)
 	if err != nil {
@@ -58,7 +59,6 @@ func (Server) PostFlowDelete(ctx context.Context, request api.PostFlowDeleteRequ
 	return api.PostFlowDelete200JSONResponse(resp), nil
 }
 
-// (POST /dev-flow)
 func (Server) PostFlowCreate(ctx context.Context, request api.PostFlowCreateRequestObject) (api.PostFlowCreateResponseObject, error) {
 	serviceName := *request.Body.ServiceName
 	imageLocator := *request.Body.ImageLocator
@@ -75,11 +75,6 @@ func (Server) PostFlowCreate(ctx context.Context, request api.PostFlowCreateRequ
 
 // ============================================================================================================
 func applyProdOnlyFlow(restConn *rest.Config, project []compose.ServiceConfig) error {
-	lo.ForEach(project, func(service compose.ServiceConfig, _ int) {
-		serviceStr, _ := yaml.Marshal(service)
-		fmt.Println(string(serviceStr))
-	})
-
 	serviceSpecs := lo.Map(project, func(service compose.ServiceConfig, _ int) *types.ServiceSpec {
 		version := "prod"
 		return &types.ServiceSpec{
@@ -203,6 +198,5 @@ func applyProdDevFlow(restConn *rest.Config, project []compose.ServiceConfig, de
 	clusterDevResources := template.RenderClusterResources(clusterDev)
 	engine.ApplyClusterResources(restConn, &clusterDevResources)
 	engine.CleanUpClusterResources(restConn, &clusterDevResources)
-	fmt.Println(clusterDevResources)
 	return nil
 }

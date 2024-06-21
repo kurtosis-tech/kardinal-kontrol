@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/labstack/gommon/log"
 	"github.com/samber/lo"
 	"istio.io/api/networking/v1alpha3"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -23,7 +22,6 @@ func RenderClusterResources(cluster types.Cluster) types.ClusterResources {
 	backendVSs := lo.Map(backendServices, func(service *types.ServiceSpec, _ int) istioclient.VirtualService {
 		return BackendVirtualService(service, cluster.Namespace, cluster.TrafficSource)
 	})
-	log.Printf("---->>>>> %d", len(cluster.FrontdoorService))
 	frontendVS := lo.Map(cluster.FrontdoorService, func(service *types.ServiceSpec, _ int) istioclient.VirtualService {
 		return FrontendVirtualService(service, cluster.Namespace, cluster.TrafficSource)
 	})

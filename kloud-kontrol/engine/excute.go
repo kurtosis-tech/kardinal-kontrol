@@ -200,7 +200,7 @@ func CleanUpClusterResources(restConfig *rest.Config, clusterResources *types.Cl
 			if !exists {
 				err := serviceClient.Delete(context.TODO(), service.Name, metav1.DeleteOptions{})
 				if err != nil {
-					log.Printf("Failed to delete service: %s", err)
+					log.Fatalf("Failed to delete service: %s", err)
 				}
 			}
 		}
@@ -222,7 +222,7 @@ func CleanUpClusterResources(restConfig *rest.Config, clusterResources *types.Cl
 			if !exists {
 				err := deploymentClient.Delete(context.TODO(), deployment.Name, metav1.DeleteOptions{})
 				if err != nil {
-					log.Printf("Failed to delete deployment: %s", err)
+					log.Fatalf("Failed to delete deployment: %s", err)
 				}
 			}
 		}
@@ -244,7 +244,7 @@ func CleanUpClusterResources(restConfig *rest.Config, clusterResources *types.Cl
 			if !exists {
 				err := virtServiceClient.Delete(context.TODO(), virtService.Name, metav1.DeleteOptions{})
 				if err != nil {
-					log.Printf("Failed to delete virtual service: %s", err)
+					log.Fatalf("Failed to delete virtual service: %s", err)
 				}
 			}
 		}
@@ -266,7 +266,7 @@ func CleanUpClusterResources(restConfig *rest.Config, clusterResources *types.Cl
 			if !exists {
 				err := destRuleClient.Delete(context.TODO(), destRule.Name, metav1.DeleteOptions{})
 				if err != nil {
-					log.Printf("Failed to delete destination rule: %s", err)
+					log.Fatalf("Failed to delete destination rule: %s", err)
 				}
 			}
 		}
@@ -282,7 +282,7 @@ func CleanUpClusterResources(restConfig *rest.Config, clusterResources *types.Cl
 		if !exists {
 			err := gatewayClient.Delete(context.TODO(), gateway.Name, metav1.DeleteOptions{})
 			if err != nil {
-				log.Printf("Failed to delete gateway: %s", err)
+				log.Fatalf("Failed to delete gateway: %s", err)
 			}
 		}
 	}
