@@ -19,6 +19,10 @@ import (
 	"kardinal.kloud-kontrol/types"
 )
 
+const (
+	istioLabel = "istio-injection"
+)
+
 func ConnectToCluster() *rest.Config {
 	kubeconfig := os.Getenv("KUBECONFIG")
 
@@ -33,11 +37,51 @@ func ConnectToCluster() *rest.Config {
 	return restConfig
 }
 
+func EnsureNamespace(restConfig *rest.Config, namespace string) {
+	clientset, err := kubernetes.NewForConfig(restConfig)
+	if err != nil {
+		panic(err.Error())
+	}
+	existingNamespace, err := clientset.CoreV1().Namespaces().Get(context.TODO(), namespace, metav1.GetOptions{})
+	if err == nil && existingNamespace != nil {
+		value, found := existingNamespace.Labels[istioLabel]
+		if !found || value != "enabled" {
+			existingNamespace.Labels[istioLabel] = "enabled"
+			clientset.CoreV1().Namespaces().Update(context.TODO(), existingNamespace, metav1.UpdateOptions{})
+		}
+	} else {
+		newNamespace := v1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespace,
+				Labels: map[string]string{
+					istioLabel: "enabled",
+				},
+			},
+		}
+		_, err := clientset.CoreV1().Namespaces().Create(context.TODO(), &newNamespace, metav1.CreateOptions{})
+		if err != nil {
+			log.Panicf("Failed to create Namespace: %v", err)
+			panic(err.Error())
+		}
+	}
+}
+
 func ApplyClusterResources(restConfig *rest.Config, clusterResources *types.ClusterResources) {
 	clientset, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
 		panic(err.Error())
 	}
+
+	allNSs := [][]string{
+		lo.Uniq(lo.Map(clusterResources.Services, func(item v1.Service, _ int) string { return item.Namespace })),
+		lo.Uniq(lo.Map(clusterResources.Deployments, func(item apps.Deployment, _ int) string { return item.Namespace })),
+		lo.Uniq(lo.Map(clusterResources.VirtualServices, func(item istioclient.VirtualService, _ int) string { return item.Namespace })),
+		lo.Uniq(lo.Map(clusterResources.DestinationRules, func(item istioclient.DestinationRule, _ int) string { return item.Namespace })),
+		{clusterResources.Gateway.Namespace},
+	}
+
+	uniqueNamespaces := lo.Uniq(lo.Flatten(allNSs))
+	lo.ForEach(uniqueNamespaces, func(namespace string, _ int) { EnsureNamespace(restConfig, namespace) })
 
 	lo.ForEach(clusterResources.Services, func(service v1.Service, _ int) {
 		serviceClient := clientset.CoreV1().Services(service.Namespace)
