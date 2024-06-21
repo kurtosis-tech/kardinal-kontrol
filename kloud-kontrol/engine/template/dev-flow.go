@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/labstack/gommon/log"
 	"github.com/samber/lo"
 	"istio.io/api/networking/v1alpha3"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -18,33 +19,36 @@ import (
 )
 
 func RenderClusterResources(cluster types.Cluster) types.ClusterResources {
-	backendServices := lo.Filter(cluster.Services, func(service types.ServiceSpec, _ int) bool { return &service != cluster.FrontdoorService })
-	backendVSs := lo.Map(backendServices, func(service types.ServiceSpec, _ int) istioclient.VirtualService {
+	backendServices := lo.Filter(cluster.Services, func(service *types.ServiceSpec, _ int) bool { return lo.Contains(cluster.FrontdoorService, service) })
+	backendVSs := lo.Map(backendServices, func(service *types.ServiceSpec, _ int) istioclient.VirtualService {
 		return BackendVirtualService(service, cluster.Namespace, cluster.TrafficSource)
 	})
-	frontendVS := FrontendVirtualService(*cluster.FrontdoorService, cluster.Namespace, cluster.TrafficSource)
+	log.Printf("---->>>>> %d", len(cluster.FrontdoorService))
+	frontendVS := lo.Map(cluster.FrontdoorService, func(service *types.ServiceSpec, _ int) istioclient.VirtualService {
+		return FrontendVirtualService(service, cluster.Namespace, cluster.TrafficSource)
+	})
 
 	return types.ClusterResources{
-		Services: lo.Map(cluster.Services, func(service types.ServiceSpec, _ int) v1.Service {
+		Services: lo.Map(cluster.Services, func(service *types.ServiceSpec, _ int) v1.Service {
 			return Service(service, cluster.Namespace)
 		}),
 
-		Deployments: lo.Map(cluster.Services, func(service types.ServiceSpec, _ int) apps.Deployment {
+		Deployments: lo.Map(cluster.Services, func(service *types.ServiceSpec, _ int) apps.Deployment {
 			return Deployment(service, cluster.Namespace)
 		}),
 
 		Gateway: Gateway(cluster.Namespace, cluster.TrafficSource),
 
-		VirtualServices: append(backendVSs, frontendVS),
+		VirtualServices: append(backendVSs, frontendVS...),
 
-		DestinationRules: lo.Map(cluster.Services, func(service types.ServiceSpec, _ int) istioclient.DestinationRule {
-			return FrontendDestinationRule(service, cluster.Namespace, cluster.TrafficSource)
-		}),
+		DestinationRules: []istioclient.DestinationRule{
+			FrontendDestinationRule(cluster.FrontdoorService, cluster.Namespace, cluster.TrafficSource),
+		},
 	}
 }
 
 // Define the Service
-func Service(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec) v1.Service {
+func Service(serviceSpec *types.ServiceSpec, namespaceSpec types.NamespaceSpec) v1.Service {
 	return v1.Service{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
@@ -54,8 +58,8 @@ func Service(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec) v
 			Name:      serviceSpec.Name,
 			Namespace: namespaceSpec.Name,
 			Labels: map[string]string{
-				"app":     serviceSpec.Name,
-				"version": serviceSpec.Version,
+				"app": serviceSpec.Name,
+				// "version": serviceSpec.Version,
 			},
 		},
 		Spec: v1.ServiceSpec{
@@ -74,7 +78,7 @@ func Service(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec) v
 	}
 }
 
-func Deployment(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec) apps.Deployment {
+func Deployment(serviceSpec *types.ServiceSpec, namespaceSpec types.NamespaceSpec) apps.Deployment {
 	vol25pct := intstr.FromString("25%")
 	numReplicas := int32(1)
 	configPorts := serviceSpec.Config.Ports
@@ -150,6 +154,13 @@ func Deployment(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec
 
 // TODO: split prod and and dev flows
 func Gateway(namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.Gateway {
+	extHosts := []string{
+		traffic.ExternalHostname,
+	}
+	if traffic.HasMirroring {
+		extHosts = append(extHosts, traffic.MirrorExternalHostname)
+	}
+
 	return istioclient.Gateway{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking.istio.io/v1alpha3",
@@ -174,9 +185,7 @@ func Gateway(namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclie
 						Name:     "http",
 						Protocol: "HTTP",
 					},
-					Hosts: []string{
-						traffic.ExternalHostname,
-					},
+					Hosts: extHosts,
 				},
 			},
 		},
@@ -184,7 +193,7 @@ func Gateway(namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclie
 }
 
 // Define the VirtualService
-func FrontendVirtualService(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.VirtualService {
+func FrontendVirtualService(serviceSpec *types.ServiceSpec, namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.VirtualService {
 	mainRoute := v1alpha3.HTTPRoute{
 		Route: []*v1alpha3.HTTPRouteDestination{
 			{
@@ -197,7 +206,14 @@ func FrontendVirtualService(serviceSpec types.ServiceSpec, namespaceSpec types.N
 		},
 	}
 
-	if traffic.HasMirroring {
+	// TODO: Remove hardcoded prod, too fragile :(
+	extHost := traffic.ExternalHostname
+	if serviceSpec.Version != "prod" {
+		extHost = traffic.MirrorExternalHostname
+	}
+
+	// TODO: Remove hardcoded prod, too fragile :(
+	if traffic.HasMirroring && serviceSpec.Version == "prod" {
 		mainRoute.Mirror = &v1alpha3.Destination{
 			Host:   serviceSpec.Name,
 			Subset: traffic.MirrorToVersion,
@@ -205,7 +221,6 @@ func FrontendVirtualService(serviceSpec types.ServiceSpec, namespaceSpec types.N
 		mainRoute.MirrorPercentage = &v1alpha3.Percent{
 			Value: 10,
 		}
-
 	}
 
 	return istioclient.VirtualService{
@@ -214,12 +229,12 @@ func FrontendVirtualService(serviceSpec types.ServiceSpec, namespaceSpec types.N
 			Kind:       "VirtualService",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      serviceSpec.Name,
+			Name:      fmt.Sprintf("%s-%s", serviceSpec.Name, serviceSpec.Version),
 			Namespace: namespaceSpec.Name,
 		},
 		Spec: v1alpha3.VirtualService{
 			Hosts: []string{
-				traffic.ExternalHostname,
+				extHost,
 			},
 			Gateways: []string{
 				traffic.GatewayName,
@@ -230,7 +245,7 @@ func FrontendVirtualService(serviceSpec types.ServiceSpec, namespaceSpec types.N
 }
 
 // Define the VirtualService
-func BackendVirtualService(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.VirtualService {
+func BackendVirtualService(serviceSpec *types.ServiceSpec, namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.VirtualService {
 	mainRoute := v1alpha3.TCPRoute{
 		Match: []*v1alpha3.L4MatchAttributes{{
 			Port: uint32(serviceSpec.Port),
@@ -238,8 +253,7 @@ func BackendVirtualService(serviceSpec types.ServiceSpec, namespaceSpec types.Na
 		Route: []*v1alpha3.RouteDestination{
 			{
 				Destination: &v1alpha3.Destination{
-					Host:   serviceSpec.Name,
-					Subset: serviceSpec.Version,
+					Host: serviceSpec.Name,
 					Port: &v1alpha3.PortSelector{
 						Number: uint32(serviceSpec.Port),
 					},
@@ -267,15 +281,20 @@ func BackendVirtualService(serviceSpec types.ServiceSpec, namespaceSpec types.Na
 	}
 }
 
-func FrontendDestinationRule(serviceSpec types.ServiceSpec, namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.DestinationRule {
-	subsets := []*v1alpha3.Subset{
-		{
-			Name: "prod",
-			Labels: map[string]string{
-				"version": "prod",
-			},
-		},
+func FrontendDestinationRule(services []*types.ServiceSpec, namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.DestinationRule {
+	name := "frontendRule"
+
+	if len(services) > 0 && services[0] != nil {
+		name = services[0].Name
 	}
+	subsets := lo.Map(services, func(service *types.ServiceSpec, _ int) *v1alpha3.Subset {
+		return &v1alpha3.Subset{
+			Name: service.Version,
+			Labels: map[string]string{
+				"version": service.Version,
+			},
+		}
+	})
 
 	if traffic.HasMirroring {
 		devSubset := v1alpha3.Subset{
@@ -292,11 +311,11 @@ func FrontendDestinationRule(serviceSpec types.ServiceSpec, namespaceSpec types.
 			Kind:       "DestinationRule",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      serviceSpec.Name,
+			Name:      name,
 			Namespace: namespaceSpec.Name,
 		},
 		Spec: v1alpha3.DestinationRule{
-			Host:    serviceSpec.Name,
+			Host:    name,
 			Subsets: subsets,
 		},
 	}

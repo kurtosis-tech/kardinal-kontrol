@@ -5,11 +5,12 @@ import (
 )
 
 type Traffic struct {
-	HasMirroring     bool
-	MirrorPercentage uint
-	MirrorToVersion  string
-	ExternalHostname string
-	GatewayName      string
+	HasMirroring           bool
+	MirrorPercentage       uint
+	MirrorToVersion        string
+	MirrorExternalHostname string
+	ExternalHostname       string
+	GatewayName            string
 }
 
 // TODO: Needs to: 1) Validate/restrict version and name, 2) assume just on port on TCP
@@ -32,9 +33,9 @@ type ServiceDependency struct {
 }
 
 type Cluster struct {
-	Services            []ServiceSpec
-	ServiceDependencies []ServiceDependency
-	FrontdoorService    *ServiceSpec
+	Services            []*ServiceSpec
+	ServiceDependencies []*ServiceDependency
+	FrontdoorService    []*ServiceSpec
 	TrafficSource       Traffic
 	Namespace           NamespaceSpec
 }
