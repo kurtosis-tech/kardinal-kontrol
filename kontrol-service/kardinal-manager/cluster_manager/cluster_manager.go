@@ -5,16 +5,20 @@ import (
 	"context"
 	"errors"
 	"github.com/kurtosis-tech/stacktrace"
+	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	yamlV3 "gopkg.in/yaml.v3"
 	"io"
+	istioclient "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	versionedclient "istio.io/client-go/pkg/clientset/versioned"
+	apps "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/rest"
 	"kardinal.kontrol/kardinal-manager/cluster_manager/istio_manager"
+	"kardinal.kontrol/kardinal-manager/types"
 	"time"
 )
 
@@ -22,6 +26,7 @@ const (
 	listOptionsTimeoutSeconds       int64 = 10
 	fieldManager                          = "kardinal-manager"
 	deleteOptionsGracePeriodSeconds int64 = 0
+	istioLabel                            = "istio-injection"
 )
 
 var (
@@ -272,3 +277,140 @@ func buildListOptionsFromLabels(labelsMap map[string]string) metav1.ListOptions 
 }
 
 func int64Ptr(i int64) *int64 { return &i }
+
+func (manager *ClusterManager) createOrUpdateService(ctx context.Context, service apiv1.Service) error {
+	serviceClient := manager.kubernetesClient.GetClientSet().CoreV1().Services(service.Namespace)
+	existingService, err := serviceClient.Get(ctx, service.Name, metav1.GetOptions{})
+	if err != nil {
+		// Resource does not exist, create new one
+		_, err = serviceClient.Create(ctx, &service, metav1.CreateOptions{})
+		if err != nil {
+			return stacktrace.Propagate(err, "Failed to create service: %s", service.GetName())
+		}
+	} else {
+		// Update the resource version to the latest before updating
+		service.ResourceVersion = existingService.ResourceVersion
+		_, err = serviceClient.Update(ctx, &service, metav1.UpdateOptions{})
+		if err != nil {
+			return stacktrace.Propagate(err, "Failed to update service: %s", service.GetName())
+		}
+	}
+
+	return nil
+}
+
+func (manager *ClusterManager) ApplyClusterResources(ctx context.Context, clusterResources *types.ClusterResources) {
+
+	allNSs := [][]string{
+		lo.Uniq(lo.Map(clusterResources.Services, func(item apiv1.Service, _ int) string { return item.Namespace })),
+		lo.Uniq(lo.Map(clusterResources.Deployments, func(item apps.Deployment, _ int) string { return item.Namespace })),
+		lo.Uniq(lo.Map(clusterResources.VirtualServices, func(item istioclient.VirtualService, _ int) string { return item.Namespace })),
+		lo.Uniq(lo.Map(clusterResources.DestinationRules, func(item istioclient.DestinationRule, _ int) string { return item.Namespace })),
+		{clusterResources.Gateway.Namespace},
+	}
+
+	uniqueNamespaces := lo.Uniq(lo.Flatten(allNSs))
+	lo.ForEach(uniqueNamespaces, func(namespace string, _ int) { manager.EnsureNamespace(ctx, namespace) })
+
+	lo.ForEach(clusterResources.Services, func(service apiv1.Service, _ int) {
+		if err := manager.createOrUpdateService(ctx, service); err != nil {
+		}
+	})
+
+	lo.ForEach(clusterResources.Deployments, func(deployment apps.Deployment, _ int) {
+		deploymentClient := manager.kubernetesClient.GetClientSet().AppsV1().Deployments(deployment.Namespace)
+		existingDeployment, err := deploymentClient.Get(ctx, deployment.Name, metav1.GetOptions{})
+		if err != nil {
+			_, err = deploymentClient.Create(ctx, &deployment, metav1.CreateOptions{})
+			if err != nil {
+				logrus.Fatalf("Failed to create deployment: %s", err)
+			}
+		} else {
+			deployment.ResourceVersion = existingDeployment.ResourceVersion
+			_, err = deploymentClient.Update(ctx, &deployment, metav1.UpdateOptions{})
+			if err != nil {
+				logrus.Fatalf("Failed to update deployment: %s", err)
+			}
+		}
+	})
+
+	ic, err := versionedclient.NewForConfig(manager.kubernetesClient.GetConfig())
+	if err != nil {
+		logrus.Fatalf("Failed to create istio client: %s", err)
+	}
+
+	lo.ForEach(clusterResources.VirtualServices, func(virtService istioclient.VirtualService, _ int) {
+		virtServicesClient := ic.NetworkingV1alpha3().VirtualServices(virtService.Namespace)
+		existingVirtService, err := virtServicesClient.Get(ctx, virtService.Name, metav1.GetOptions{})
+		if err != nil {
+			_, err = virtServicesClient.Create(ctx, &virtService, metav1.CreateOptions{})
+			if err != nil {
+				logrus.Fatalf("Failed to create virtual service: %s", err)
+			}
+		} else {
+			virtService.ResourceVersion = existingVirtService.ResourceVersion
+			_, err = virtServicesClient.Update(ctx, &virtService, metav1.UpdateOptions{})
+			if err != nil {
+				logrus.Fatalf("Failed to update virtual service: %s", err)
+			}
+		}
+	})
+
+	lo.ForEach(clusterResources.DestinationRules, func(destRule istioclient.DestinationRule, _ int) {
+		destRulesClient := ic.NetworkingV1alpha3().DestinationRules(destRule.Namespace)
+		existingDestRule, err := destRulesClient.Get(ctx, destRule.Name, metav1.GetOptions{})
+		if err != nil {
+			_, err = destRulesClient.Create(ctx, &destRule, metav1.CreateOptions{})
+			if err != nil {
+				logrus.Fatalf("Failed to create destination rule: %s", err)
+			}
+		} else {
+			destRule.ResourceVersion = existingDestRule.ResourceVersion
+			_, err = destRulesClient.Update(ctx, &destRule, metav1.UpdateOptions{})
+			if err != nil {
+				logrus.Fatalf("Failed to update destination rule: %s", err)
+			}
+		}
+	})
+
+	gateway := &clusterResources.Gateway
+	existingGateway, err := ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Get(ctx, gateway.Name, metav1.GetOptions{})
+	if err != nil {
+		_, err = ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Create(ctx, gateway, metav1.CreateOptions{})
+		if err != nil {
+			logrus.Fatalf("Failed to create gateway: %s", err)
+		}
+	} else {
+		gateway.ResourceVersion = existingGateway.ResourceVersion
+		_, err = ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Update(ctx, gateway, metav1.UpdateOptions{})
+		if err != nil {
+			logrus.Fatalf("Failed to update gateway: %s", err)
+		}
+	}
+}
+
+func (manager *ClusterManager) EnsureNamespace(ctx context.Context, namespace string) {
+
+	existingNamespace, err := manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Get(ctx, namespace, metav1.GetOptions{})
+	if err == nil && existingNamespace != nil {
+		value, found := existingNamespace.Labels[istioLabel]
+		if !found || value != "enabled" {
+			existingNamespace.Labels[istioLabel] = "enabled"
+			manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Update(ctx, existingNamespace, metav1.UpdateOptions{})
+		}
+	} else {
+		newNamespace := apiv1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: namespace,
+				Labels: map[string]string{
+					istioLabel: "enabled",
+				},
+			},
+		}
+		_, err = manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Create(ctx, &newNamespace, metav1.CreateOptions{})
+		if err != nil {
+			logrus.Panicf("Failed to create Namespace: %v", err)
+			panic(err.Error())
+		}
+	}
+}

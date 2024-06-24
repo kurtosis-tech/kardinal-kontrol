@@ -13,7 +13,7 @@ func TestVotingAppDemoProdAndDevCase(t *testing.T) {
 	clusterManager, err := cluster_manager.CreateClusterManager()
 	require.NoError(t, err)
 
-	prodOnlyDemoConfigEndpoint := "https://gist.githubusercontent.com/leoporoli/d9afda02795f18abef04fa74afe3b555/raw/ac5123344a4cf2da26b747d69fb8ad6185a03723/prod-only-demo.json"
+	prodOnlyDemoConfigEndpoint := "https://gist.githubusercontent.com/leoporoli/477b9b95238ffa994fb62849debb9abc/raw/b911cbe28df8cb65bf84834f666f94488937c364/cluster-resources-examples.json"
 
 	prodFetcher := NewFetcher(clusterManager, prodOnlyDemoConfigEndpoint)
 
@@ -25,7 +25,7 @@ func TestVotingAppDemoProdAndDevCase(t *testing.T) {
 	// Sleep to check the Cluster topology in Minikube and Kiali, prod topology should be created in voting-app namespace
 	time.Sleep(2 * time.Minute)
 
-	devInProdEndpoint := "https://gist.githubusercontent.com/leoporoli/565e55949c976d25eaedfa7433dd8a0e/raw/4b252105fcc5ab8b07e4a8bb183428253c304268/dev-in-prod-demo.json"
+	devInProdEndpoint := "https://gist.githubusercontent.com/leoporoli/d3e3afb29fa0dcc12738df558b263154/raw/5758f73dea30c94715e58bd1fd5be927fa4e4434/cluster-resources-for-dev.json"
 
 	devInProdFetcher := NewFetcher(clusterManager, devInProdEndpoint)
 

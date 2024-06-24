@@ -7,9 +7,9 @@ import (
 	"github.com/sirupsen/logrus"
 	"io"
 	"kardinal.kontrol/kardinal-manager/cluster_manager"
+	"kardinal.kontrol/kardinal-manager/types"
 	"kardinal.kontrol/kardinal-manager/utils"
 	"net/http"
-	"sigs.k8s.io/yaml"
 	"time"
 )
 
@@ -70,43 +70,23 @@ func (fetcher *fetcher) Run(ctx context.Context) error {
 }
 
 func (fetcher *fetcher) fetchAndApply(ctx context.Context) error {
-	configResponseObj, err := fetcher.getConfigResponseFromEndpoint()
+	clusterResources, err := fetcher.getClusterResourcesFromCloud()
 	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred fetching config from endpoint")
+		return stacktrace.Propagate(err, "An error occurred fetching cluster resources from cloud")
 	}
 
-	kubernetesResources := configResponseObj.KubernetesResources
-	namespace := configResponseObj.Namespace
-	labels := configResponseObj.PruneLabels
+	logrus.Debugf("Cluster resources %+v", clusterResources)
 
-	yamlFileContent, err := fetcher.getYamlContentFromKubernetesResources(kubernetesResources)
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred getting the YAML content from kubernetes resources")
-	}
-
-	if configResponseObj.CreateNamespace && configResponseObj.Namespace != "" {
-		if err = fetcher.clusterManager.CreateNamespaceIfNotExists(ctx, configResponseObj.Namespace); err != nil {
-			return stacktrace.Propagate(err, "An error occurred creating namespace '%s'", namespace)
-		}
-	}
-
-	if err = fetcher.clusterManager.ApplyYamlFileContentInNamespace(ctx, namespace, yamlFileContent); err != nil {
-		return stacktrace.Propagate(err, "An error occurred applying the config in the cluster!")
-	}
-
-	if configResponseObj.PruneLabels != nil {
-		if err := fetcher.clusterManager.RemoveNamespaceResourcesByLabels(ctx, namespace, *labels); err != nil {
-			return stacktrace.Propagate(err, "An error occurred removing the namespace resources in '%s' with labels '%+v'", namespace, labels)
-		}
-	}
+	//TODO handle error
+	fetcher.clusterManager.ApplyClusterResources(ctx, clusterResources)
 
 	return nil
 }
 
-func (fetcher *fetcher) getConfigResponseFromEndpoint() (*configResponse, error) {
+func (fetcher *fetcher) getClusterResourcesFromCloud() (*types.ClusterResources, error) {
 	resp, err := http.Get(fetcher.configEndpoint)
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "Error fetching configuration from endpoint '%s'", fetcher.configEndpoint)
+		return nil, stacktrace.Propagate(err, "Error fetching cluster resources from endpoint '%s'", fetcher.configEndpoint)
 	}
 	defer resp.Body.Close()
 
@@ -115,38 +95,11 @@ func (fetcher *fetcher) getConfigResponseFromEndpoint() (*configResponse, error)
 		return nil, stacktrace.Propagate(err, "Error reading the response from '%v'", fetcher.configEndpoint)
 	}
 
-	var configResponseObj *configResponse
+	var clusterResources *types.ClusterResources
 
-	if err = json.Unmarshal(responseBodyBytes, &configResponseObj); err != nil {
+	if err = json.Unmarshal(responseBodyBytes, &clusterResources); err != nil {
 		return nil, stacktrace.Propagate(err, "And error occurred unmarshalling the response to a config response object")
 	}
 
-	if configResponseObj.Namespace == "" {
-		return nil, stacktrace.Propagate(err, "An error occurred fetching configuration from endpoint, namespace is empty")
-	}
-
-	return configResponseObj, nil
-}
-
-func (fetcher *fetcher) getYamlContentFromKubernetesResources(kubernetesResources []interface{}) ([]byte, error) {
-
-	var concatenatedYamlContent []byte
-	for _, jsonData := range kubernetesResources {
-		jsonDataMap, ok := jsonData.(map[string]interface{})
-		if !ok {
-			return nil, stacktrace.NewError("An error occurred while casting the JSON data to a map[string]interface{}")
-		}
-		jsonByte, err := json.Marshal(jsonDataMap)
-		if err != nil {
-			return nil, stacktrace.Propagate(err, "An error occurred marshalling the JSON data map")
-		}
-		yamlData, err := yaml.JSONToYAML(jsonByte)
-		if err != nil {
-			return nil, stacktrace.Propagate(err, "An error occurred converting the JSON content to YAML")
-		}
-		concatenatedYamlContent = append(concatenatedYamlContent, yamlDelimiter...)
-		concatenatedYamlContent = append(concatenatedYamlContent, yamlData...)
-	}
-
-	return concatenatedYamlContent, nil
+	return clusterResources, nil
 }
