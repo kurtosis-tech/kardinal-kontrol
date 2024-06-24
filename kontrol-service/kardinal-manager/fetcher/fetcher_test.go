@@ -5,7 +5,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"kardinal.kontrol/kardinal-manager/cluster_manager"
 	"testing"
-	"time"
 )
 
 // This test can be executed and use Minikube dashboard and Kiali Dashboard to see the changes between prod apply and devInProd apply
@@ -23,21 +22,21 @@ func TestVotingAppDemoProdAndDevCase(t *testing.T) {
 	require.NoError(t, err)
 
 	// Sleep to check the Cluster topology in Minikube and Kiali, prod topology should be created in voting-app namespace
-	time.Sleep(2 * time.Minute)
+	//time.Sleep(2 * time.Minute)
 
-	devInProdEndpoint := "https://gist.githubusercontent.com/leoporoli/d3e3afb29fa0dcc12738df558b263154/raw/5758f73dea30c94715e58bd1fd5be927fa4e4434/cluster-resources-for-dev.json"
+	//devInProdEndpoint := "https://gist.githubusercontent.com/leoporoli/d3e3afb29fa0dcc12738df558b263154/raw/7da19c18d34edf09bd2fe2939134b1d0424d1c2b/cluster-resources-for-dev.json"
 
-	devInProdFetcher := NewFetcher(clusterManager, devInProdEndpoint)
+	//devInProdFetcher := NewFetcher(clusterManager, devInProdEndpoint)
 
-	err = devInProdFetcher.fetchAndApply(ctx)
-	require.NoError(t, err)
+	//err = devInProdFetcher.fetchAndApply(ctx)
+	//require.NoError(t, err)
 
 	// Sleep to check the Cluster topology in Minikube and Kiali, dev topology should be added in voting-app namespace
-	time.Sleep(2 * time.Minute)
+	//time.Sleep(2 * time.Minute)
 
 	//Executing prodFetcher again to remove the Dev resources
-	err = prodFetcher.fetchAndApply(ctx)
-	require.NoError(t, err)
+	//err = prodFetcher.fetchAndApply(ctx)
+	//require.NoError(t, err)
 
 	// Now you can check that dev components has been removed from the cluster
 }

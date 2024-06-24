@@ -18,21 +18,6 @@ const (
 	fetcherJobDurationSecondsEnvVarKey = "FETCHER_JOB_DURATION_SECONDS"
 )
 
-var (
-	yamlDelimiter = []byte("---\n")
-)
-
-type configResponse struct {
-	// the main namespace where the workflow will be applied
-	Namespace string `json:"namespace,omitempty"`
-	// Create or not the namespace
-	CreateNamespace bool `json:"create_namespace,omitempty"`
-	// these labels identify resources to remove from the cluster
-	PruneLabels *map[string]string `json:"prune_labels,omitempty"`
-	// the Kubernetes resources to apply in the cluster
-	KubernetesResources []interface{} `json:"kubernetes_resources"`
-}
-
 type fetcher struct {
 	clusterManager *cluster_manager.ClusterManager
 	configEndpoint string
@@ -77,8 +62,13 @@ func (fetcher *fetcher) fetchAndApply(ctx context.Context) error {
 
 	logrus.Debugf("Cluster resources %+v", clusterResources)
 
-	//TODO handle error
-	fetcher.clusterManager.ApplyClusterResources(ctx, clusterResources)
+	if err = fetcher.clusterManager.ApplyClusterResources(ctx, clusterResources); err != nil {
+		return stacktrace.Propagate(err, "Failed to apply cluster resources '%+v'", clusterResources)
+	}
+
+	if err = fetcher.clusterManager.CleanUpClusterResources(ctx, clusterResources); err != nil {
+		return stacktrace.Propagate(err, "Failed to clean up cluster resources '%+v'", clusterResources)
+	}
 
 	return nil
 }
