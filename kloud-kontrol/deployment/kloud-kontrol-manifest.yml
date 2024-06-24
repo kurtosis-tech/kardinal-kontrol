@@ -19,7 +19,7 @@ spec:
             - containerPort: 8080
           env:
             - name: KUBECONFIG
-              value: """
+              value: ""
 ---
 apiVersion: v1
 kind: Service
