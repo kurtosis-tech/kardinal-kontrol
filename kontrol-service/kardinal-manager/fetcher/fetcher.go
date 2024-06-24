@@ -60,8 +60,6 @@ func (fetcher *fetcher) fetchAndApply(ctx context.Context) error {
 		return stacktrace.Propagate(err, "An error occurred fetching cluster resources from cloud")
 	}
 
-	logrus.Debugf("Cluster resources %+v", clusterResources)
-
 	if err = fetcher.clusterManager.ApplyClusterResources(ctx, clusterResources); err != nil {
 		return stacktrace.Propagate(err, "Failed to apply cluster resources '%+v'", clusterResources)
 	}

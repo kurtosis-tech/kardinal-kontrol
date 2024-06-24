@@ -24,12 +24,12 @@ func TestVotingAppDemoProdAndDevCase(t *testing.T) {
 	// Sleep to check the Cluster topology in Minikube and Kiali, prod topology should be created in voting-app namespace
 	//time.Sleep(2 * time.Minute)
 
-	//devInProdEndpoint := "https://gist.githubusercontent.com/leoporoli/d3e3afb29fa0dcc12738df558b263154/raw/7da19c18d34edf09bd2fe2939134b1d0424d1c2b/cluster-resources-for-dev.json"
+	devInProdEndpoint := "https://gist.githubusercontent.com/leoporoli/d3e3afb29fa0dcc12738df558b263154/raw/7da19c18d34edf09bd2fe2939134b1d0424d1c2b/cluster-resources-for-dev.json"
 
-	//devInProdFetcher := NewFetcher(clusterManager, devInProdEndpoint)
+	devInProdFetcher := NewFetcher(clusterManager, devInProdEndpoint)
 
-	//err = devInProdFetcher.fetchAndApply(ctx)
-	//require.NoError(t, err)
+	err = devInProdFetcher.fetchAndApply(ctx)
+	require.NoError(t, err)
 
 	// Sleep to check the Cluster topology in Minikube and Kiali, dev topology should be added in voting-app namespace
 	//time.Sleep(2 * time.Minute)
