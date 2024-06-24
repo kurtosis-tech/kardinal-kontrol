@@ -30,7 +30,9 @@ type Server struct {
 }
 
 func NewServer() Server {
-	return Server{}
+	return Server{
+		composes: make(map[string][]compose.ServiceConfig),
+	}
 }
 
 func RegisterHandlers(router api.EchoRouter, si api.ServerInterface) {
