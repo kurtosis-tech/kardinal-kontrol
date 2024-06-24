@@ -8,10 +8,12 @@
     };
   kontrol_shell = pkgs.callPackage ./kontrol-service/shell.nix {inherit pkgs;};
   frontend_shell = pkgs.callPackage ./kontrol-frontend/shell.nix {inherit pkgs;};
-  cli_shell = pkgs.callPackage ./voting-app-demo/shell.nix {inherit pkgs;};
+  demo_shell = pkgs.callPackage ./voting-app-demo/shell.nix {inherit pkgs;};
+  cli_shell = pkgs.callPackage ./kardinal-cli/shell.nix {inherit pkgs;};
+  cli_kontrol_api_shell = pkgs.callPackage ./libs/cli-kontrol-api/shell.nix {inherit pkgs;};
   kardinal_shell = with pkgs;
     pkgs.mkShell {
-      buildInputs = [k3d kubectl kustomize argo-rollouts kubernetes-helm minikube istioctl tilt];
+      buildInputs = [k3d kubectl kustomize argo-rollouts kubernetes-helm minikube istioctl tilt reflex];
       shellHook = ''
         source <(kubectl completion bash)
         source <(kubectl-argo-rollouts completion bash)
@@ -48,4 +50,4 @@
       '';
     };
 in
-  mergeShells [kontrol_shell frontend_shell cli_shell kardinal_shell]
+  mergeShells [kontrol_shell frontend_shell cli_shell kardinal_shell demo_shell cli_kontrol_api_shell]

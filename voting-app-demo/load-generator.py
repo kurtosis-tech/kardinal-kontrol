@@ -2,11 +2,13 @@ import requests
 import time
 
 # The URL to send the POST requests to
-url = "http://voting-app.localhost/"
+host = "prod.app.localhost"
+url = "http://127.0.0.1/"
 
 # Headers to be included in the POST requests
 headers = {
-    "Origin": "http://localhost",
+    "Origin": f"http://{host}",
+    "Host": host,
 }
 
 # Data to be sent in the POST requests
