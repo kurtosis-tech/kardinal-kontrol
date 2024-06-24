@@ -13,7 +13,7 @@ import (
 	"net/url"
 	"strings"
 
-	. "kardinal/cli-kontrol-api/api/golang/types"
+	. "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 )
 
 // RequestEditorFn  is the function signature for the RequestEditor callback function

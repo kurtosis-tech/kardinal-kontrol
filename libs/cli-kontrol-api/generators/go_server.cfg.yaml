@@ -4,6 +4,6 @@ generate:
   echo-server: true
   strict-server: true
 additional-imports:
-  - package: kardinal/cli-kontrol-api/api/golang/types
+  - package: github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types
     alias: .
 output: api/golang/server/server.gen.go

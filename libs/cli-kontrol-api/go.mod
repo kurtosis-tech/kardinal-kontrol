@@ -1,4 +1,4 @@
-module kardinal/cli-kontrol-api
+module github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api
 
 go 1.22
 

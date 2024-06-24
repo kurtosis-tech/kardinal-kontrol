@@ -15,9 +15,8 @@ import (
 	"path"
 	"strings"
 
-	. "kardinal/cli-kontrol-api/api/golang/types"
-
 	"github.com/getkin/kin-openapi/openapi3"
+	. "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	"github.com/labstack/echo/v4"
 	strictecho "github.com/oapi-codegen/runtime/strictmiddleware/echo"
 )

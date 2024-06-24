@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log"
 
-	api "kardinal/cli-kontrol-api/api/golang/server"
+	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 
 	compose "github.com/compose-spec/compose-go/types"
 	"k8s.io/client-go/rest"

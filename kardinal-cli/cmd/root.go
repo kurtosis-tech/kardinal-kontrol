@@ -11,8 +11,8 @@ import (
 	"github.com/compose-spec/compose-go/types"
 	"github.com/spf13/cobra"
 
-	api "kardinal/cli-kontrol-api/api/golang/client"
-	api_types "kardinal/cli-kontrol-api/api/golang/types"
+	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/client"
+	api_types "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 )
 
 const projectName = "kardinal"
