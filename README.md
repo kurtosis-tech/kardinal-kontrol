@@ -90,7 +90,7 @@ nix run ./#kloud-kontrol
 
 To build and run the service directly:
 
-````bash
+```bash
 nix run ./#kardinal-cli
 ```
 
@@ -105,7 +105,7 @@ You can either:
 
 ```bash
 go generate ./kontrol-service/kardinal-manager/api/http_rest/generate.go
-````
+```
 
 ### Regenerate gomod2nix.toml
 
