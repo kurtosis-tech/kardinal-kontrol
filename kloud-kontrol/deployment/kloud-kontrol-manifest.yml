@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kloud-kontrol-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kloud-kontrol-server
+  template:
+    metadata:
+      labels:
+        app: kloud-kontrol-server
+    spec:
+      containers:
+        - name: kloud-kontrol-server
+          image: kurtosistech/kloud-kontrol:latest
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kloud-kontrol-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: kloud-kontrol-server
+  ports:
+    - protocol: TCP
+      port: 8080
+      targetPort: 8080
