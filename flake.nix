@@ -67,63 +67,70 @@
           containers = let
             architectures = ["amd64" "arm64"];
             os = "linux";
-            all = pkgs.lib.lists.crossLists (arch: service_name: {
-              "${service_name}" = {
-                "${toString arch}" = let
-                  nix_arch =
-                    builtins.replaceStrings
-                    ["arm64" "amd64"] ["aarch64" "x86_64"]
-                    arch;
+            all =
+              pkgs.lib.mapCartesianProduct ({
+                arch,
+                service_name,
+              }: {
+                "${service_name}" = {
+                  "${toString arch}" = let
+                    nix_arch =
+                      builtins.replaceStrings
+                      ["arm64" "amd64"] ["aarch64" "x86_64"]
+                      arch;
 
-                  container_pkgs = import nixpkgs {
-                    system = "${nix_arch}-${os}";
-                  };
-
-                  # if running from linux no cross-compilation is needed to palce the service in a container
-                  needsCrossCompilation =
-                    "${nix_arch}-${os}"
-                    != system;
-
-                  service =
-                    if !needsCrossCompilation
-                    then
-                      packages.${service_name}.overrideAttrs
-                      (old: old // {doCheck = false;})
-                    else
-                      packages.${service_name}.overrideAttrs (old:
-                        old
-                        // {
-                          GOOS = os;
-                          GOARCH = arch;
-                          # CGO_ENABLED = disabled breaks the CLI compilation
-                          # CGO_ENABLED = 0;
-                          doCheck = false;
-                        });
-                in
-                  builtins.trace "${service}/bin" pkgs.dockerTools.buildImage {
-                    name = "kurtosistech/${service_name}";
-                    tag = "latest";
-                    # tag = commit_hash;
-                    created = "now";
-                    copyToRoot = pkgs.buildEnv {
-                      name = "image-root";
-                      paths = [
-                        service
-                        container_pkgs.bashInteractive
-                        container_pkgs.nettools
-                        container_pkgs.gnugrep
-                        container_pkgs.coreutils
-                      ];
-                      pathsToLink = ["/bin"];
+                    container_pkgs = import nixpkgs {
+                      system = "${nix_arch}-${os}";
                     };
-                    architecture = arch;
-                    config.Cmd =
+
+                    # if running from linux no cross-compilation is needed to palce the service in a container
+                    needsCrossCompilation =
+                      "${nix_arch}-${os}"
+                      != system;
+
+                    service =
                       if !needsCrossCompilation
-                      then ["${service}/bin/${service.pname}"]
-                      else ["${service}/bin/${os}_${arch}/${service.pname}"];
-                  };
+                      then
+                        packages.${service_name}.overrideAttrs
+                        (old: old // {doCheck = false;})
+                      else
+                        packages.${service_name}.overrideAttrs (old:
+                          old
+                          // {
+                            GOOS = os;
+                            GOARCH = arch;
+                            # CGO_ENABLED = disabled breaks the CLI compilation
+                            # CGO_ENABLED = 0;
+                            doCheck = false;
+                          });
+                  in
+                    builtins.trace "${service}/bin" pkgs.dockerTools.buildImage {
+                      name = "kurtosistech/${service_name}";
+                      tag = "latest";
+                      # tag = commit_hash;
+                      created = "now";
+                      copyToRoot = pkgs.buildEnv {
+                        name = "image-root";
+                        paths = [
+                          service
+                          container_pkgs.bashInteractive
+                          container_pkgs.nettools
+                          container_pkgs.gnugrep
+                          container_pkgs.coreutils
+                        ];
+                        pathsToLink = ["/bin"];
+                      };
+                      architecture = arch;
+                      config.Cmd =
+                        if !needsCrossCompilation
+                        then ["${service}/bin/${service.pname}"]
+                        else ["${service}/bin/${os}_${arch}/${service.pname}"];
+                    };
+                };
+              }) {
+                arch = architectures;
+                service_name = service_names;
               };
-            }) [architectures service_names];
           in
             pkgs.lib.foldl' (set: acc: pkgs.lib.recursiveUpdate acc set) {}
             all;
