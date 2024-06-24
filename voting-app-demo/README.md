@@ -81,7 +81,7 @@ After some time, you can access the Kiali dashboard to see the traffic flow betw
 you enter the dev mode and start to test with the Redis proxy overlay.
 
 ```bash
-kardinal create-dev-flow voting-app test
+kardinal create-dev-flow voting-app
 ```
 
 You can now access the dev path at [http://dev.voting-app.localhost](http://dev.voting-app.localhost) and the Kiali dashboard will reflect the new traffic flow.

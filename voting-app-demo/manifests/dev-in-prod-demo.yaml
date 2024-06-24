@@ -272,7 +272,7 @@ spec:
     spec:
       containers:
         - name: proxy
-          image: docker.io/kurtosistech/redis-proxy-overlay:latest
+          image: kurtosistech/redis-proxy-overlay:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6379

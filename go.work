@@ -1,6 +1,9 @@
-go 1.21.9
+go 1.22.3
 
 use (
+	./kardinal-cli
+	./kloud-kontrol
 	./kontrol-service
+	./libs/cli-kontrol-api
 	./redis-overlay-service
 )
