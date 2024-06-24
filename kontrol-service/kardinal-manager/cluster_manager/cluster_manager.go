@@ -1,25 +1,17 @@
 package cluster_manager
 
 import (
-	"bytes"
 	"context"
-	"errors"
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
-	yamlV3 "gopkg.in/yaml.v3"
-	"io"
 	istioclient "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	versionedclient "istio.io/client-go/pkg/clientset/versioned"
 	apps "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/client-go/rest"
 	"kardinal.kontrol/kardinal-manager/cluster_manager/istio_manager"
 	"kardinal.kontrol/kardinal-manager/types"
-	"time"
 )
 
 const (
@@ -31,6 +23,23 @@ const (
 )
 
 var (
+	globalListOptions = metav1.ListOptions{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "",
+			APIVersion: "",
+		},
+		LabelSelector:        "",
+		FieldSelector:        "",
+		Watch:                false,
+		AllowWatchBookmarks:  false,
+		ResourceVersion:      "",
+		ResourceVersionMatch: "",
+		TimeoutSeconds:       int64Ptr(listOptionsTimeoutSeconds),
+		Limit:                0,
+		Continue:             "",
+		SendInitialEvents:    nil,
+	}
+
 	globalCreateOptions = metav1.CreateOptions{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "",
@@ -40,6 +49,31 @@ var (
 		// We need every object to have this field manager so that the Kurtosis objects can all seamlessly modify Kubernetes resources
 		FieldManager:    fieldManager,
 		FieldValidation: "",
+	}
+
+	globalUpdateOptions = metav1.UpdateOptions{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "",
+			APIVersion: "",
+		},
+		DryRun: nil,
+		// We need every object to have this field manager so that the Kurtosis objects can all seamlessly modify Kubernetes resources
+		FieldManager:    fieldManager,
+		FieldValidation: "",
+	}
+
+	globalDeletePolicy = metav1.DeletePropagationForeground
+
+	globalDeleteOptions = metav1.DeleteOptions{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "",
+			APIVersion: "",
+		},
+		GracePeriodSeconds: int64Ptr(deleteOptionsGracePeriodSeconds),
+		Preconditions:      nil,
+		OrphanDependents:   nil,
+		PropagationPolicy:  &globalDeletePolicy,
+		DryRun:             nil,
 	}
 )
 
@@ -51,233 +85,6 @@ type ClusterManager struct {
 func NewClusterManager(kubernetesClient *kubernetesClient, istioManager *istio_manager.IstioManager) *ClusterManager {
 	return &ClusterManager{kubernetesClient: kubernetesClient, istioManager: istioManager}
 }
-
-// TODO remove this method once IstioManager (or IstioClient) has been migrated inside the cluster manager
-func (manager *ClusterManager) GetKubernetesClientConfig() *rest.Config {
-	return manager.kubernetesClient.GetConfig()
-}
-
-func (manager *ClusterManager) GetPodsByLabels(ctx context.Context, namespace string, podLabels map[string]string) (*apiv1.PodList, error) {
-	namespacePodClient := manager.kubernetesClient.GetClientSet().CoreV1().Pods(namespace)
-
-	opts := buildListOptionsFromLabels(podLabels)
-	pods, err := namespacePodClient.List(ctx, opts)
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "Expected to be able to get pods with labels '%+v', instead a non-nil error was returned", podLabels)
-	}
-
-	// Only return objects not tombstoned by Kubernetes
-	var podsNotMarkedForDeletionList []apiv1.Pod
-	for _, pod := range pods.Items {
-		deletionTimestamp := pod.GetObjectMeta().GetDeletionTimestamp()
-		if deletionTimestamp == nil {
-			podsNotMarkedForDeletionList = append(podsNotMarkedForDeletionList, pod)
-		}
-	}
-	podsNotMarkedForDeletionPodList := apiv1.PodList{
-		Items:    podsNotMarkedForDeletionList,
-		TypeMeta: pods.TypeMeta,
-		ListMeta: pods.ListMeta,
-	}
-	return &podsNotMarkedForDeletionPodList, nil
-}
-
-func (manager *ClusterManager) CreateNamespaceIfNotExists(ctx context.Context, namespace string) error {
-	_, err := manager.GetNamespace(ctx, namespace)
-	if err != nil {
-		//TODO improve err check, create only when statusError.ErrStatus.Coded == 404 or Reason == "NotFound"
-		namespaceLabels := map[string]string{
-			"istio-injection": "enabled",
-		}
-
-		namespaceAnnotations := map[string]string{}
-
-		_, err = manager.CreateNamespace(ctx, namespace, namespaceLabels, namespaceAnnotations)
-		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred creating namespace '%s' with labels '%+v'", namespace, namespaceLabels)
-		}
-	}
-
-	return nil
-}
-
-func (manager *ClusterManager) GetNamespace(ctx context.Context, name string) (*apiv1.Namespace, error) {
-
-	namespace, err := manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "",
-			APIVersion: "",
-		},
-		ResourceVersion: "",
-	})
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "Failed to get namespace with name '%s'", name)
-	}
-	deletionTimestamp := namespace.GetObjectMeta().GetDeletionTimestamp()
-	if deletionTimestamp != nil {
-		return nil, stacktrace.Propagate(err, "Namespace with name '%s' has been marked for deletion", namespace)
-	}
-	return namespace, nil
-}
-
-func (manager *ClusterManager) CreateNamespace(
-	ctx context.Context,
-	name string,
-	namespaceLabels map[string]string,
-	namespaceAnnotations map[string]string,
-) (*apiv1.Namespace, error) {
-
-	namespace := &apiv1.Namespace{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "",
-			APIVersion: "",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:            name,
-			GenerateName:    "",
-			Namespace:       "",
-			SelfLink:        "",
-			UID:             "",
-			ResourceVersion: "",
-			Generation:      0,
-			CreationTimestamp: metav1.Time{
-				Time: time.Time{},
-			},
-			DeletionTimestamp:          nil,
-			DeletionGracePeriodSeconds: nil,
-			Labels:                     namespaceLabels,
-			Annotations:                namespaceAnnotations,
-			OwnerReferences:            nil,
-			Finalizers:                 nil,
-			ManagedFields:              nil,
-		},
-		Spec: apiv1.NamespaceSpec{
-			Finalizers: nil,
-		},
-		Status: apiv1.NamespaceStatus{
-			Phase:      "",
-			Conditions: nil,
-		},
-	}
-
-	namespaceResult, err := manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Create(ctx, namespace, globalCreateOptions)
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "Failed to create namespace with name '%s'", name)
-	}
-
-	return namespaceResult, nil
-}
-
-func (manager *ClusterManager) ApplyYamlFileContentInNamespace(ctx context.Context, namespace string, yamlFileContent []byte) error {
-	yamlReader := bytes.NewReader(yamlFileContent)
-
-	dec := yamlV3.NewDecoder(yamlReader)
-
-	for {
-		unstructuredObject := &unstructured.Unstructured{Object: map[string]interface{}{}}
-		err := dec.Decode(unstructuredObject.Object)
-		if errors.Is(err, io.EOF) {
-			return nil
-		}
-		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred decoding the unstructured object")
-		}
-		if unstructuredObject.Object == nil {
-			return stacktrace.NewError("Expected to find the object value after decoding the unstructured object but it was not found")
-		}
-
-		groupVersionKind := unstructuredObject.GroupVersionKind()
-		restMapping, err := manager.kubernetesClient.GetDiscoveryMapper().RESTMapping(groupVersionKind.GroupKind(), groupVersionKind.Version)
-		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred getting the rest mapping for GVK")
-		}
-
-		groupVersionResource := restMapping.Resource
-
-		if namespace != unstructuredObject.GetNamespace() {
-			return stacktrace.NewError(
-				"The namespace '%s' in resource '%s' kind '%s' is different from the main namespace '%s'",
-				unstructuredObject.GetNamespace(),
-				unstructuredObject.GetName(),
-				unstructuredObject.GetKind(),
-				namespace,
-			)
-		}
-
-		applyOpts := metav1.ApplyOptions{FieldManager: fieldManager}
-		namespaceResource := manager.kubernetesClient.GetDynamicClient().Resource(groupVersionResource).Namespace(namespace)
-
-		_, err = namespaceResource.Apply(ctx, unstructuredObject.GetName(), unstructuredObject, applyOpts)
-		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred applying the k8s resource with name '%s' in namespace '%s'", unstructuredObject.GetName(), unstructuredObject.GetNamespace())
-		}
-	}
-}
-
-func (manager *ClusterManager) RemoveNamespaceResourcesByLabels(ctx context.Context, namespace string, labels map[string]string) error {
-	clientset := manager.kubernetesClient.GetClientSet()
-
-	opts := buildListOptionsFromLabels(labels)
-
-	deleteOptions := metav1.NewDeleteOptions(deleteOptionsGracePeriodSeconds)
-
-	// Delete deployments
-	if err := clientset.AppsV1().Deployments(namespace).DeleteCollection(ctx, *deleteOptions, opts); err != nil {
-		return stacktrace.Propagate(err, "An error occurred removing deployments in namespace '%s'", namespace)
-	}
-
-	// Delete services one by one because there is not DeleteCollection function for services
-	servicesToRemove, err := clientset.CoreV1().Services(namespace).List(ctx, opts)
-	if err != nil {
-		return stacktrace.Propagate(err, "An error occurred listing services")
-	}
-
-	for _, service := range servicesToRemove.Items {
-		if err := clientset.CoreV1().Services(namespace).Delete(ctx, service.GetName(), *deleteOptions); err != nil {
-			return stacktrace.Propagate(err, "An error occurred removing service '%s' from namespace '%s'", service.GetName(), namespace)
-		}
-	}
-
-	// Istio Client
-	//TODO Use the internal manager.Istio field instead of creating the client again
-	ic, err := versionedclient.NewForConfig(manager.kubernetesClient.GetConfig())
-	if err != nil {
-		logrus.Fatalf("Failed to create istio client: %s", err)
-	}
-
-	// Delete VirtualServices
-	if err = ic.NetworkingV1alpha3().VirtualServices(namespace).DeleteCollection(ctx, *deleteOptions, opts); err != nil {
-		return stacktrace.Propagate(err, "An error occurred removing virtual services in namespace '%s'", namespace)
-	}
-
-	// Delete DestinationRules
-	if err = ic.NetworkingV1alpha3().DestinationRules(namespace).DeleteCollection(ctx, *deleteOptions, opts); err != nil {
-		return stacktrace.Propagate(err, "An error occurred removing destination rules in namespace '%s'", namespace)
-	}
-
-	return nil
-}
-
-func buildListOptionsFromLabels(labelsMap map[string]string) metav1.ListOptions {
-	return metav1.ListOptions{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "",
-			APIVersion: "",
-		},
-		LabelSelector:        labels.SelectorFromSet(labelsMap).String(),
-		FieldSelector:        "",
-		Watch:                false,
-		AllowWatchBookmarks:  false,
-		ResourceVersion:      "",
-		ResourceVersionMatch: "",
-		TimeoutSeconds:       int64Ptr(listOptionsTimeoutSeconds),
-		Limit:                0,
-		Continue:             "",
-		SendInitialEvents:    nil,
-	}
-}
-
-func int64Ptr(i int64) *int64 { return &i }
 
 func (manager *ClusterManager) ApplyClusterResources(ctx context.Context, clusterResources *types.ClusterResources) error {
 
@@ -415,7 +222,7 @@ func (manager *ClusterManager) ensureNamespace(ctx context.Context, name string)
 		value, found := existingNamespace.Labels[istioLabel]
 		if !found || value != enabledIstioValue {
 			existingNamespace.Labels[istioLabel] = enabledIstioValue
-			manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Update(ctx, existingNamespace, metav1.UpdateOptions{})
+			manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Update(ctx, existingNamespace, globalUpdateOptions)
 		}
 	} else {
 		newNamespace := apiv1.Namespace{
@@ -426,7 +233,7 @@ func (manager *ClusterManager) ensureNamespace(ctx context.Context, name string)
 				},
 			},
 		}
-		_, err = manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Create(ctx, &newNamespace, metav1.CreateOptions{})
+		_, err = manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Create(ctx, &newNamespace, globalCreateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to create Namespace: %s", name)
 		}
@@ -440,14 +247,14 @@ func (manager *ClusterManager) createOrUpdateService(ctx context.Context, servic
 	existingService, err := serviceClient.Get(ctx, service.Name, metav1.GetOptions{})
 	if err != nil {
 		// Resource does not exist, create new one
-		_, err = serviceClient.Create(ctx, service, metav1.CreateOptions{})
+		_, err = serviceClient.Create(ctx, service, globalCreateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to create service: %s", service.GetName())
 		}
 	} else {
 		// Update the resource version to the latest before updating
 		service.ResourceVersion = existingService.ResourceVersion
-		_, err = serviceClient.Update(ctx, service, metav1.UpdateOptions{})
+		_, err = serviceClient.Update(ctx, service, globalUpdateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to update service: %s", service.GetName())
 		}
@@ -460,13 +267,13 @@ func (manager *ClusterManager) createOrUpdateDeployment(ctx context.Context, dep
 	deploymentClient := manager.kubernetesClient.GetClientSet().AppsV1().Deployments(deployment.Namespace)
 	existingDeployment, err := deploymentClient.Get(ctx, deployment.Name, metav1.GetOptions{})
 	if err != nil {
-		_, err = deploymentClient.Create(ctx, deployment, metav1.CreateOptions{})
+		_, err = deploymentClient.Create(ctx, deployment, globalCreateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to create deployment: %s", deployment.GetName())
 		}
 	} else {
 		deployment.ResourceVersion = existingDeployment.ResourceVersion
-		_, err = deploymentClient.Update(ctx, deployment, metav1.UpdateOptions{})
+		_, err = deploymentClient.Update(ctx, deployment, globalUpdateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to update deployment: %s", deployment.GetName())
 		}
@@ -487,13 +294,13 @@ func (manager *ClusterManager) createOrUpdateVirtualService(ctx context.Context,
 	virtServicesClient := ic.NetworkingV1alpha3().VirtualServices(virtualService.Namespace)
 	existingVirtService, err := virtServicesClient.Get(ctx, virtualService.Name, metav1.GetOptions{})
 	if err != nil {
-		_, err = virtServicesClient.Create(ctx, virtualService, metav1.CreateOptions{})
+		_, err = virtServicesClient.Create(ctx, virtualService, globalCreateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to create virtual service: %s", virtualService.GetName())
 		}
 	} else {
 		virtualService.ResourceVersion = existingVirtService.ResourceVersion
-		_, err = virtServicesClient.Update(ctx, virtualService, metav1.UpdateOptions{})
+		_, err = virtServicesClient.Update(ctx, virtualService, globalUpdateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to update virtual service: %s", virtualService.GetName())
 		}
@@ -514,13 +321,13 @@ func (manager *ClusterManager) createOrUpdateDestinationRule(ctx context.Context
 	destRulesClient := ic.NetworkingV1alpha3().DestinationRules(destinationRule.Namespace)
 	existingDestRule, err := destRulesClient.Get(ctx, destinationRule.Name, metav1.GetOptions{})
 	if err != nil {
-		_, err = destRulesClient.Create(ctx, destinationRule, metav1.CreateOptions{})
+		_, err = destRulesClient.Create(ctx, destinationRule, globalCreateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to create destination rule: %s", destinationRule.GetName())
 		}
 	} else {
 		destinationRule.ResourceVersion = existingDestRule.ResourceVersion
-		_, err = destRulesClient.Update(ctx, destinationRule, metav1.UpdateOptions{})
+		_, err = destRulesClient.Update(ctx, destinationRule, globalUpdateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to update destination rule: %s", destinationRule.GetName())
 		}
@@ -540,13 +347,13 @@ func (manager *ClusterManager) createOrUpdateGateway(ctx context.Context, gatewa
 
 	existingGateway, err := ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Get(ctx, gateway.Name, metav1.GetOptions{})
 	if err != nil {
-		_, err = ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Create(ctx, gateway, metav1.CreateOptions{})
+		_, err = ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Create(ctx, gateway, globalCreateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to create gateway: %s", gateway.GetName())
 		}
 	} else {
 		gateway.ResourceVersion = existingGateway.ResourceVersion
-		_, err = ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Update(ctx, gateway, metav1.UpdateOptions{})
+		_, err = ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Update(ctx, gateway, globalUpdateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to update gateway: %s", gateway.GetName())
 		}
@@ -557,14 +364,14 @@ func (manager *ClusterManager) createOrUpdateGateway(ctx context.Context, gatewa
 
 func (manager *ClusterManager) cleanUpServicesInNamespace(ctx context.Context, namespace string, servicesToKeep []apiv1.Service) error {
 	serviceClient := manager.kubernetesClient.GetClientSet().CoreV1().Services(namespace)
-	allServices, err := serviceClient.List(ctx, metav1.ListOptions{})
+	allServices, err := serviceClient.List(ctx, globalListOptions)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to list services in namespace %s", namespace)
 	}
 	for _, service := range allServices.Items {
 		_, exists := lo.Find(servicesToKeep, func(item apiv1.Service) bool { return item.Name == service.Name })
 		if !exists {
-			err = serviceClient.Delete(ctx, service.Name, metav1.DeleteOptions{})
+			err = serviceClient.Delete(ctx, service.Name, globalDeleteOptions)
 			if err != nil {
 				return stacktrace.Propagate(err, "Failed to delete service %s", service.GetName())
 			}
@@ -575,14 +382,14 @@ func (manager *ClusterManager) cleanUpServicesInNamespace(ctx context.Context, n
 
 func (manager *ClusterManager) cleanUpDeploymentsInNamespace(ctx context.Context, namespace string, deploymentsToKeep []apps.Deployment) error {
 	deploymentClient := manager.kubernetesClient.GetClientSet().AppsV1().Deployments(namespace)
-	allDeployments, err := deploymentClient.List(ctx, metav1.ListOptions{})
+	allDeployments, err := deploymentClient.List(ctx, globalListOptions)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to list deployments in namespace %s", namespace)
 	}
 	for _, deployment := range allDeployments.Items {
 		_, exists := lo.Find(deploymentsToKeep, func(item apps.Deployment) bool { return item.Name == deployment.Name })
 		if !exists {
-			err = deploymentClient.Delete(ctx, deployment.Name, metav1.DeleteOptions{})
+			err = deploymentClient.Delete(ctx, deployment.Name, globalDeleteOptions)
 			if err != nil {
 				return stacktrace.Propagate(err, "Failed to delete deployment %s", deployment.GetName())
 			}
@@ -601,14 +408,14 @@ func (manager *ClusterManager) cleanUpVirtualServicesInNamespace(ctx context.Con
 	}
 
 	virtServiceClient := ic.NetworkingV1alpha3().VirtualServices(namespace)
-	allVirtServices, err := virtServiceClient.List(ctx, metav1.ListOptions{})
+	allVirtServices, err := virtServiceClient.List(ctx, globalListOptions)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to list virtual services in namespace %s", namespace)
 	}
 	for _, virtService := range allVirtServices.Items {
 		_, exists := lo.Find(virtualServicesToKeep, func(item istioclient.VirtualService) bool { return item.Name == virtService.Name })
 		if !exists {
-			err = virtServiceClient.Delete(ctx, virtService.Name, metav1.DeleteOptions{})
+			err = virtServiceClient.Delete(ctx, virtService.Name, globalDeleteOptions)
 			if err != nil {
 				return stacktrace.Propagate(err, "Failed to delete virtual service %s", virtService.GetName())
 			}
@@ -628,14 +435,14 @@ func (manager *ClusterManager) cleanUpDestinationRulesInNamespace(ctx context.Co
 	}
 
 	destRuleClient := ic.NetworkingV1alpha3().DestinationRules(namespace)
-	allDestRules, err := destRuleClient.List(ctx, metav1.ListOptions{})
+	allDestRules, err := destRuleClient.List(ctx, globalListOptions)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to list destination rules in namespace %s", namespace)
 	}
 	for _, destRule := range allDestRules.Items {
 		_, exists := lo.Find(destinationRulesToKeep, func(item istioclient.DestinationRule) bool { return item.Name == destRule.Name })
 		if !exists {
-			err = destRuleClient.Delete(ctx, destRule.Name, metav1.DeleteOptions{})
+			err = destRuleClient.Delete(ctx, destRule.Name, globalDeleteOptions)
 			if err != nil {
 				return stacktrace.Propagate(err, "Failed to delete destination rule %s", destRule.GetName())
 			}
@@ -654,14 +461,14 @@ func (manager *ClusterManager) cleanUpGatewaysInNamespace(ctx context.Context, n
 	}
 
 	gatewayClient := ic.NetworkingV1alpha3().Gateways(namespace)
-	allGateways, err := gatewayClient.List(ctx, metav1.ListOptions{})
+	allGateways, err := gatewayClient.List(ctx, globalListOptions)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to list gateways in namespace %s", namespace)
 	}
 	for _, gateway := range allGateways.Items {
 		_, exists := lo.Find(gatewaysToKeep, func(item istioclient.Gateway) bool { return item.Name == gateway.Name })
 		if !exists {
-			err = gatewayClient.Delete(ctx, gateway.Name, metav1.DeleteOptions{})
+			err = gatewayClient.Delete(ctx, gateway.Name, globalDeleteOptions)
 			if err != nil {
 				return stacktrace.Propagate(err, "Failed to delete gateway %s", gateway.GetName())
 			}
@@ -670,3 +477,5 @@ func (manager *ClusterManager) cleanUpGatewaysInNamespace(ctx context.Context, n
 
 	return nil
 }
+
+func int64Ptr(i int64) *int64 { return &i }
