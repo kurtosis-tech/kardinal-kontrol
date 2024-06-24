@@ -18,6 +18,7 @@ spec:
           ports:
             - containerPort: 8080
           env:
+            # TODO: figure out how to get server kubeconfig information
             - name: KUBECONFIG
               value: ""
 ---
