@@ -26,6 +26,8 @@
         };
 
         service_names = ["kardinal-manager" "kloud-kontrol" "redis-proxy-overlay"];
+        architectures = ["amd64" "arm64"];
+        imageRegistry = "kurtosistech";
 
         matchingContainerArch =
           if builtins.match "aarch64-.*" system != null
@@ -37,6 +39,54 @@
         mergeContainerPackages = acc: service:
           pkgs.lib.recursiveUpdate acc {
             packages."${service}-container" = self.containers.${system}.${service}.${matchingContainerArch};
+          };
+
+        multiPlatformDockerPusher = acc: service:
+          pkgs.lib.recursiveUpdate acc {
+            packages."publish-${service}-container" = let
+              name = "${imageRegistry}/${service}";
+              tagBase = "latest";
+              images =
+                map (
+                  arch: rec {
+                    inherit arch;
+                    image = self.containers.${system}.${service}.${arch};
+                    tag = "${tagBase}-${arch}";
+                  }
+                )
+                architectures;
+              loadAndPush = builtins.concatStringsSep "\n" (pkgs.lib.concatMap
+                ({
+                  arch,
+                  image,
+                  tag,
+                }: [
+                  "$docker load -i ${image}"
+                  "$docker push ${name}:${tag}"
+                ])
+                images);
+              imageNames =
+                builtins.concatStringsSep " "
+                (map ({
+                  arch,
+                  image,
+                  tag,
+                }: "${name}:${tag}")
+                images);
+            in
+              pkgs.writeTextFile {
+                inherit name;
+                text = ''
+                  #!${pkgs.stdenv.shell}
+                  set -euxo pipefail
+                  docker=${pkgs.docker}/bin/docker
+                  ${loadAndPush}
+                  $docker manifest create --amend ${name}:${tagBase} ${imageNames}
+                  $docker manifest push ${name}:${tagBase}
+                '';
+                executable = true;
+                destination = "/bin/push";
+              };
           };
 
         systemOutput = rec {
@@ -65,7 +115,6 @@
           };
 
           containers = let
-            architectures = ["amd64" "arm64"];
             os = "linux";
             all =
               pkgs.lib.mapCartesianProduct ({
@@ -105,8 +154,8 @@
                           });
                   in
                     builtins.trace "${service}/bin" pkgs.dockerTools.buildImage {
-                      name = "kurtosistech/${service_name}";
-                      tag = "latest";
+                      name = "${imageRegistry}/${service_name}";
+                      tag = "latest-${arch}";
                       # tag = commit_hash;
                       created = "now";
                       copyToRoot = pkgs.buildEnv {
@@ -135,10 +184,12 @@
             pkgs.lib.foldl' (set: acc: pkgs.lib.recursiveUpdate acc set) {}
             all;
         };
-      in
         # Add containers matching architecture with local system as toplevel packages
         # this means calling `nix build .#<SERVICE_NAME>-container` will build the container matching the local system.
         # For cross-compilation use the containers attribute directly: `nix build .containers.<LOCAL_SYSTEM>.<SERVICE_NAME>.<ARCH>`
-        pkgs.lib.foldl' mergeContainerPackages systemOutput service_names
+        outputWithContaniers = pkgs.lib.foldl' mergeContainerPackages systemOutput service_names;
+        outputWithContainersAndPushers = pkgs.lib.foldl' multiPlatformDockerPusher outputWithContaniers service_names;
+      in
+        outputWithContainersAndPushers
     );
 }

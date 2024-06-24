@@ -230,9 +230,9 @@ kind: Service
 metadata:
   labels:
     type: dev
-    app: redis-proxy-overlay
+    app: kardinal-db-sidecar
     version: v1
-  name: redis-proxy-overlay
+  name: kardinal-db-sidecar
   namespace: voting-app
 spec:
   ports:
@@ -241,30 +241,30 @@ spec:
       protocol: TCP
       targetPort: 6379
   selector:
-    app: redis-proxy-overlay
+    app: kardinal-db-sidecar
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: redis-proxy-overlay
+  name: kardinal-db-sidecar
   labels:
     type: dev
-    app: redis-proxy-overlay
+    app: kardinal-db-sidecar
     version: v1
 spec:
   selector:
     matchLabels:
-      app: redis-proxy-overlay
+      app: kardinal-db-sidecar
       version: v1
   template:
     metadata:
       labels:
-        app: redis-proxy-overlay
+        app: kardinal-db-sidecar
         version: v1
     spec:
       containers:
         - name: proxy
-          image: docker.io/kurtosistech/redis-proxy-overlay:latest
+          image: kurtosistech/redis-proxy-overlay:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 6379
@@ -300,17 +300,17 @@ kind: VirtualService
 metadata:
   labels:
     type: dev
-  name: redis-proxy-overlay
+  name: kardinal-db-sidecar
   namespace: voting-app
 spec:
   hosts:
-    - redis-proxy-overlay
+    - kardinal-db-sidecar
   tcp:
     - match:
         - port: 6379
       route:
         - destination:
-            host: redis-proxy-overlay
+            host: kardinal-db-sidecar
             port:
               number: 6379
           weight: 100
@@ -359,4 +359,4 @@ spec:
             - containerPort: 80
           env:
             - name: REDIS
-              value: "redis-proxy-overlay"
+              value: "kardinal-db-sidecar"
