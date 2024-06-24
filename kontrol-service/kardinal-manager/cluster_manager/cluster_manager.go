@@ -4,13 +4,10 @@ import (
 	"context"
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/samber/lo"
-	"github.com/sirupsen/logrus"
 	istioclient "istio.io/client-go/pkg/apis/networking/v1alpha3"
-	versionedclient "istio.io/client-go/pkg/clientset/versioned"
 	apps "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"kardinal.kontrol/kardinal-manager/cluster_manager/istio_manager"
 	"kardinal.kontrol/kardinal-manager/types"
 )
 
@@ -79,11 +76,11 @@ var (
 
 type ClusterManager struct {
 	kubernetesClient *kubernetesClient
-	istioManager     *istio_manager.IstioManager
+	istioClient      *istioClient
 }
 
-func NewClusterManager(kubernetesClient *kubernetesClient, istioManager *istio_manager.IstioManager) *ClusterManager {
-	return &ClusterManager{kubernetesClient: kubernetesClient, istioManager: istioManager}
+func NewClusterManager(kubernetesClient *kubernetesClient, istioClient *istioClient) *ClusterManager {
+	return &ClusterManager{kubernetesClient: kubernetesClient, istioClient: istioClient}
 }
 
 func (manager *ClusterManager) ApplyClusterResources(ctx context.Context, clusterResources *types.ClusterResources) error {
@@ -217,12 +214,12 @@ func (manager *ClusterManager) CleanUpClusterResources(ctx context.Context, clus
 
 func (manager *ClusterManager) ensureNamespace(ctx context.Context, name string) error {
 
-	existingNamespace, err := manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
+	existingNamespace, err := manager.kubernetesClient.clientSet.CoreV1().Namespaces().Get(ctx, name, metav1.GetOptions{})
 	if err == nil && existingNamespace != nil {
 		value, found := existingNamespace.Labels[istioLabel]
 		if !found || value != enabledIstioValue {
 			existingNamespace.Labels[istioLabel] = enabledIstioValue
-			manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Update(ctx, existingNamespace, globalUpdateOptions)
+			manager.kubernetesClient.clientSet.CoreV1().Namespaces().Update(ctx, existingNamespace, globalUpdateOptions)
 		}
 	} else {
 		newNamespace := apiv1.Namespace{
@@ -233,7 +230,7 @@ func (manager *ClusterManager) ensureNamespace(ctx context.Context, name string)
 				},
 			},
 		}
-		_, err = manager.kubernetesClient.GetClientSet().CoreV1().Namespaces().Create(ctx, &newNamespace, globalCreateOptions)
+		_, err = manager.kubernetesClient.clientSet.CoreV1().Namespaces().Create(ctx, &newNamespace, globalCreateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to create Namespace: %s", name)
 		}
@@ -243,7 +240,7 @@ func (manager *ClusterManager) ensureNamespace(ctx context.Context, name string)
 }
 
 func (manager *ClusterManager) createOrUpdateService(ctx context.Context, service *apiv1.Service) error {
-	serviceClient := manager.kubernetesClient.GetClientSet().CoreV1().Services(service.Namespace)
+	serviceClient := manager.kubernetesClient.clientSet.CoreV1().Services(service.Namespace)
 	existingService, err := serviceClient.Get(ctx, service.Name, metav1.GetOptions{})
 	if err != nil {
 		// Resource does not exist, create new one
@@ -264,7 +261,7 @@ func (manager *ClusterManager) createOrUpdateService(ctx context.Context, servic
 }
 
 func (manager *ClusterManager) createOrUpdateDeployment(ctx context.Context, deployment *apps.Deployment) error {
-	deploymentClient := manager.kubernetesClient.GetClientSet().AppsV1().Deployments(deployment.Namespace)
+	deploymentClient := manager.kubernetesClient.clientSet.AppsV1().Deployments(deployment.Namespace)
 	existingDeployment, err := deploymentClient.Get(ctx, deployment.Name, metav1.GetOptions{})
 	if err != nil {
 		_, err = deploymentClient.Create(ctx, deployment, globalCreateOptions)
@@ -284,23 +281,17 @@ func (manager *ClusterManager) createOrUpdateDeployment(ctx context.Context, dep
 
 func (manager *ClusterManager) createOrUpdateVirtualService(ctx context.Context, virtualService *istioclient.VirtualService) error {
 
-	// Istio Client
-	//TODO Use the internal manager.Istio field instead of creating the client again
-	ic, err := versionedclient.NewForConfig(manager.kubernetesClient.GetConfig())
-	if err != nil {
-		logrus.Fatalf("Failed to create istio client: %s", err)
-	}
+	virtServiceClient := manager.istioClient.clientSet.NetworkingV1alpha3().VirtualServices(virtualService.GetNamespace())
 
-	virtServicesClient := ic.NetworkingV1alpha3().VirtualServices(virtualService.Namespace)
-	existingVirtService, err := virtServicesClient.Get(ctx, virtualService.Name, metav1.GetOptions{})
+	existingVirtService, err := virtServiceClient.Get(ctx, virtualService.Name, metav1.GetOptions{})
 	if err != nil {
-		_, err = virtServicesClient.Create(ctx, virtualService, globalCreateOptions)
+		_, err = virtServiceClient.Create(ctx, virtualService, globalCreateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to create virtual service: %s", virtualService.GetName())
 		}
 	} else {
 		virtualService.ResourceVersion = existingVirtService.ResourceVersion
-		_, err = virtServicesClient.Update(ctx, virtualService, globalUpdateOptions)
+		_, err = virtServiceClient.Update(ctx, virtualService, globalUpdateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to update virtual service: %s", virtualService.GetName())
 		}
@@ -311,23 +302,17 @@ func (manager *ClusterManager) createOrUpdateVirtualService(ctx context.Context,
 
 func (manager *ClusterManager) createOrUpdateDestinationRule(ctx context.Context, destinationRule *istioclient.DestinationRule) error {
 
-	// Istio Client
-	//TODO Use the internal manager.Istio field instead of creating the client again
-	ic, err := versionedclient.NewForConfig(manager.kubernetesClient.GetConfig())
-	if err != nil {
-		logrus.Fatalf("Failed to create istio client: %s", err)
-	}
+	destRuleClient := manager.istioClient.clientSet.NetworkingV1alpha3().DestinationRules(destinationRule.GetNamespace())
 
-	destRulesClient := ic.NetworkingV1alpha3().DestinationRules(destinationRule.Namespace)
-	existingDestRule, err := destRulesClient.Get(ctx, destinationRule.Name, metav1.GetOptions{})
+	existingDestRule, err := destRuleClient.Get(ctx, destinationRule.Name, metav1.GetOptions{})
 	if err != nil {
-		_, err = destRulesClient.Create(ctx, destinationRule, globalCreateOptions)
+		_, err = destRuleClient.Create(ctx, destinationRule, globalCreateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to create destination rule: %s", destinationRule.GetName())
 		}
 	} else {
 		destinationRule.ResourceVersion = existingDestRule.ResourceVersion
-		_, err = destRulesClient.Update(ctx, destinationRule, globalUpdateOptions)
+		_, err = destRuleClient.Update(ctx, destinationRule, globalUpdateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to update destination rule: %s", destinationRule.GetName())
 		}
@@ -338,22 +323,16 @@ func (manager *ClusterManager) createOrUpdateDestinationRule(ctx context.Context
 
 func (manager *ClusterManager) createOrUpdateGateway(ctx context.Context, gateway *istioclient.Gateway) error {
 
-	// Istio Client
-	//TODO Use the internal manager.Istio field instead of creating the client again
-	ic, err := versionedclient.NewForConfig(manager.kubernetesClient.GetConfig())
+	gatewayClient := manager.istioClient.clientSet.NetworkingV1alpha3().Gateways(gateway.GetNamespace())
+	existingGateway, err := gatewayClient.Get(ctx, gateway.Name, metav1.GetOptions{})
 	if err != nil {
-		logrus.Fatalf("Failed to create istio client: %s", err)
-	}
-
-	existingGateway, err := ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Get(ctx, gateway.Name, metav1.GetOptions{})
-	if err != nil {
-		_, err = ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Create(ctx, gateway, globalCreateOptions)
+		_, err = gatewayClient.Create(ctx, gateway, globalCreateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to create gateway: %s", gateway.GetName())
 		}
 	} else {
 		gateway.ResourceVersion = existingGateway.ResourceVersion
-		_, err = ic.NetworkingV1alpha3().Gateways(gateway.Namespace).Update(ctx, gateway, globalUpdateOptions)
+		_, err = gatewayClient.Update(ctx, gateway, globalUpdateOptions)
 		if err != nil {
 			return stacktrace.Propagate(err, "Failed to update gateway: %s", gateway.GetName())
 		}
@@ -363,7 +342,7 @@ func (manager *ClusterManager) createOrUpdateGateway(ctx context.Context, gatewa
 }
 
 func (manager *ClusterManager) cleanUpServicesInNamespace(ctx context.Context, namespace string, servicesToKeep []apiv1.Service) error {
-	serviceClient := manager.kubernetesClient.GetClientSet().CoreV1().Services(namespace)
+	serviceClient := manager.kubernetesClient.clientSet.CoreV1().Services(namespace)
 	allServices, err := serviceClient.List(ctx, globalListOptions)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to list services in namespace %s", namespace)
@@ -381,7 +360,7 @@ func (manager *ClusterManager) cleanUpServicesInNamespace(ctx context.Context, n
 }
 
 func (manager *ClusterManager) cleanUpDeploymentsInNamespace(ctx context.Context, namespace string, deploymentsToKeep []apps.Deployment) error {
-	deploymentClient := manager.kubernetesClient.GetClientSet().AppsV1().Deployments(namespace)
+	deploymentClient := manager.kubernetesClient.clientSet.AppsV1().Deployments(namespace)
 	allDeployments, err := deploymentClient.List(ctx, globalListOptions)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to list deployments in namespace %s", namespace)
@@ -400,14 +379,7 @@ func (manager *ClusterManager) cleanUpDeploymentsInNamespace(ctx context.Context
 
 func (manager *ClusterManager) cleanUpVirtualServicesInNamespace(ctx context.Context, namespace string, virtualServicesToKeep []istioclient.VirtualService) error {
 
-	// Istio Client
-	//TODO Use the internal manager.Istio field instead of creating the client again
-	ic, err := versionedclient.NewForConfig(manager.kubernetesClient.GetConfig())
-	if err != nil {
-		logrus.Fatalf("Failed to create istio client: %s", err)
-	}
-
-	virtServiceClient := ic.NetworkingV1alpha3().VirtualServices(namespace)
+	virtServiceClient := manager.istioClient.clientSet.NetworkingV1alpha3().VirtualServices(namespace)
 	allVirtServices, err := virtServiceClient.List(ctx, globalListOptions)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to list virtual services in namespace %s", namespace)
@@ -427,14 +399,7 @@ func (manager *ClusterManager) cleanUpVirtualServicesInNamespace(ctx context.Con
 
 func (manager *ClusterManager) cleanUpDestinationRulesInNamespace(ctx context.Context, namespace string, destinationRulesToKeep []istioclient.DestinationRule) error {
 
-	// Istio Client
-	//TODO Use the internal manager.Istio field instead of creating the client again
-	ic, err := versionedclient.NewForConfig(manager.kubernetesClient.GetConfig())
-	if err != nil {
-		logrus.Fatalf("Failed to create istio client: %s", err)
-	}
-
-	destRuleClient := ic.NetworkingV1alpha3().DestinationRules(namespace)
+	destRuleClient := manager.istioClient.clientSet.NetworkingV1alpha3().DestinationRules(namespace)
 	allDestRules, err := destRuleClient.List(ctx, globalListOptions)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to list destination rules in namespace %s", namespace)
@@ -453,14 +418,8 @@ func (manager *ClusterManager) cleanUpDestinationRulesInNamespace(ctx context.Co
 }
 
 func (manager *ClusterManager) cleanUpGatewaysInNamespace(ctx context.Context, namespace string, gatewaysToKeep []istioclient.Gateway) error {
-	// Istio Client
-	//TODO Use the internal manager.Istio field instead of creating the client again
-	ic, err := versionedclient.NewForConfig(manager.kubernetesClient.GetConfig())
-	if err != nil {
-		logrus.Fatalf("Failed to create istio client: %s", err)
-	}
 
-	gatewayClient := ic.NetworkingV1alpha3().Gateways(namespace)
+	gatewayClient := manager.istioClient.clientSet.NetworkingV1alpha3().Gateways(namespace)
 	allGateways, err := gatewayClient.List(ctx, globalListOptions)
 	if err != nil {
 		return stacktrace.Propagate(err, "Failed to list gateways in namespace %s", namespace)

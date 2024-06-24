@@ -2,6 +2,7 @@ package cluster_manager
 
 import (
 	"github.com/kurtosis-tech/stacktrace"
+	"istio.io/client-go/pkg/clientset/versioned"
 	"k8s.io/client-go/discovery/cached/memory"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -9,6 +10,7 @@ import (
 	"k8s.io/client-go/restmapper"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
+	"kardinal.kontrol/kardinal-manager/topology"
 	"path/filepath"
 )
 
@@ -18,8 +20,12 @@ func CreateClusterManager() (*ClusterManager, error) {
 		return nil, stacktrace.Propagate(err, "An error occurred while creating the Kubernetes client")
 	}
 
-	//TODO insert the Istio client once the namespace is decoupled
-	return NewClusterManager(kubernetesClientObj, nil), nil
+	istioClientObj, err := createIstioClient(kubernetesClientObj.config)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred while creating the Istio client")
+	}
+
+	return NewClusterManager(kubernetesClientObj, istioClientObj), nil
 }
 
 func createKubernetesClient() (*kubernetesClient, error) {
@@ -53,4 +59,15 @@ func createKubernetesClient() (*kubernetesClient, error) {
 	kubernetesClientObj := newKubernetesClient(config, clientSet, dynamicClient, discoveryMapper)
 
 	return kubernetesClientObj, nil
+}
+
+func createIstioClient(k8sConfig *rest.Config) (*istioClient, error) {
+	ic, err := versioned.NewForConfig(k8sConfig)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred creating IstIo client from k8s config: %v", k8sConfig)
+	}
+
+	istioClientObj := newIstioClient(ic, topology.NewTopologyManager(k8sConfig))
+
+	return istioClientObj, nil
 }
