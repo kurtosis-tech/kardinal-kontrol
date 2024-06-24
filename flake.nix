@@ -25,7 +25,7 @@
           ];
         };
 
-        service_names = ["kardinal-manager" "redis-proxy-overlay"];
+        service_names = ["kardinal-manager" "kloud-kontrol" "redis-proxy-overlay"];
 
         matchingContainerArch =
           if builtins.match "aarch64-.*" system != null
@@ -49,6 +49,10 @@
           };
 
           packages.kardinal-manager = pkgs.callPackage ./kontrol-service/default.nix {
+            inherit pkgs;
+          };
+
+          packages.kloud-kontrol = pkgs.callPackage ./kloud-kontrol/default.nix {
             inherit pkgs;
           };
 
