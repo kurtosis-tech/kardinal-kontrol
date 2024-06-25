@@ -20,13 +20,13 @@ func main() {
 		log.Println("Server configuration for pulling.")
 	}
 
-	startServer(*applyLocally)
+	startServer()
 }
 
-func startServer(applyLocally bool) {
+func startServer() {
 	// create a type that satisfies the `api.ServerInterface`, which contains an implementation of every operation from the generated code
 	server := api.NewServer()
-	strictHalder := api.NewStrictHandler(server)
+	strictHalder := api.NewStrictHandler(&server)
 
 	e := echo.New()
 	api.RegisterHandlers(e, strictHalder)
