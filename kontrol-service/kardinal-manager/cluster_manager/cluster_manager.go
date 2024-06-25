@@ -192,43 +192,35 @@ func (manager *ClusterManager) ApplyClusterResources(ctx context.Context, cluste
 	uniqueNamespaces := lo.Uniq(lo.Flatten(allNSs))
 
 	var ensureNamespacesErr error
-	lo.ForEach(uniqueNamespaces, func(namespace string, _ int) {
-		ensureNamespacesErr = manager.ensureNamespace(ctx, namespace)
-	})
-	if ensureNamespacesErr != nil {
-		return stacktrace.Propagate(ensureNamespacesErr, "An error occurred while creating or updating cluster namespaces")
+
+	for _, namespace := range uniqueNamespaces {
+		if err := manager.ensureNamespace(ctx, namespace); err != nil {
+			return stacktrace.Propagate(ensureNamespacesErr, "An error occurred while creating or updating cluster namespace '%s'", namespace)
+		}
 	}
 
-	var createOrUpdateServicesErr error
-	lo.ForEach(clusterResources.Services, func(service apiv1.Service, _ int) {
-		createOrUpdateServicesErr = manager.createOrUpdateService(ctx, &service)
-	})
-	if createOrUpdateServicesErr != nil {
-		return stacktrace.Propagate(createOrUpdateServicesErr, "An error occurred while creating or updating cluster services")
+	for _, service := range clusterResources.Services {
+		if err := manager.createOrUpdateService(ctx, &service); err != nil {
+			return stacktrace.Propagate(err, "An error occurred while creating or updating service '%s'", service.GetName())
+		}
 	}
 
-	var createOrUpdateDeploymentsErr error
-	lo.ForEach(clusterResources.Deployments, func(deployment apps.Deployment, _ int) {
-		createOrUpdateDeploymentsErr = manager.createOrUpdateDeployment(ctx, &deployment)
-	})
-	if createOrUpdateDeploymentsErr != nil {
-		return stacktrace.Propagate(createOrUpdateDeploymentsErr, "An error occurred while creating or updating cluster deployments")
+	for _, deployment := range clusterResources.Deployments {
+		if err := manager.createOrUpdateDeployment(ctx, &deployment); err != nil {
+			return stacktrace.Propagate(err, "An error occurred while creating or updating deployment '%s'", deployment.GetName())
+		}
 	}
 
-	var createOrUpdateVirtualServicesErr error
-	lo.ForEach(clusterResources.VirtualServices, func(virtualService istiov1alpha3.VirtualService, _ int) {
-		createOrUpdateVirtualServicesErr = manager.createOrUpdateVirtualService(ctx, &virtualService)
-	})
-	if createOrUpdateVirtualServicesErr != nil {
-		return stacktrace.Propagate(createOrUpdateVirtualServicesErr, "An error occurred while creating or updating cluster virtual services")
+	for _, virtualService := range clusterResources.VirtualServices {
+		if err := manager.createOrUpdateVirtualService(ctx, &virtualService); err != nil {
+			return stacktrace.Propagate(err, "An error occurred while creating or updating virtual service '%s'", virtualService.GetName())
+		}
 	}
 
-	var createOrUpdateDestinationRulesErr error
-	lo.ForEach(clusterResources.DestinationRules, func(destinationRule istiov1alpha3.DestinationRule, _ int) {
-		createOrUpdateDestinationRulesErr = manager.createOrUpdateDestinationRule(ctx, &destinationRule)
-	})
-	if createOrUpdateDestinationRulesErr != nil {
-		return stacktrace.Propagate(createOrUpdateDestinationRulesErr, "An error occurred while creating or updating cluster destination rules")
+	for _, destinationRule := range clusterResources.DestinationRules {
+		if err := manager.createOrUpdateDestinationRule(ctx, &destinationRule); err != nil {
+			return stacktrace.Propagate(err, "An error occurred while creating or updating destination rule '%s'", destinationRule.GetName())
+		}
 	}
 
 	if err := manager.createOrUpdateGateway(ctx, &clusterResources.Gateway); err != nil {
@@ -244,65 +236,46 @@ func (manager *ClusterManager) CleanUpClusterResources(ctx context.Context, clus
 	servicesByNS := lo.GroupBy(clusterResources.Services, func(item apiv1.Service) string {
 		return item.Namespace
 	})
-	var cleanUpServicesErr error
-	lo.MapEntries(servicesByNS, func(namespace string, services []apiv1.Service) (string, []apiv1.Service) {
-		cleanUpServicesErr = manager.cleanUpServicesInNamespace(ctx, namespace, services)
-		return namespace, services
-	})
-	if cleanUpServicesErr != nil {
-		return stacktrace.Propagate(cleanUpServicesErr, "An error occurred while cleaning up cluster services")
+	for namespace, services := range servicesByNS {
+		if err := manager.cleanUpServicesInNamespace(ctx, namespace, services); err != nil {
+			return stacktrace.Propagate(err, "An error occurred cleaning up services '%+v' in namespace '%s'", services, namespace)
+		}
 	}
 
 	// Clean up deployments
-	deploymentsByNS := lo.GroupBy(clusterResources.Deployments, func(item apps.Deployment) string {
-		return item.Namespace
-	})
-	var cleanUpDeploymentsErr error
-	lo.MapEntries(deploymentsByNS, func(namespace string, deployments []apps.Deployment) (string, []apps.Deployment) {
-		cleanUpDeploymentsErr = manager.cleanUpDeploymentsInNamespace(ctx, namespace, deployments)
-		return namespace, deployments
-	})
-	if cleanUpDeploymentsErr != nil {
-		return stacktrace.Propagate(cleanUpDeploymentsErr, "An error occurred while cleaning up cluster deployments")
+	deploymentsByNS := lo.GroupBy(clusterResources.Deployments, func(item apps.Deployment) string { return item.Namespace })
+	for namespace, deployments := range deploymentsByNS {
+		if err := manager.cleanUpDeploymentsInNamespace(ctx, namespace, deployments); err != nil {
+			return stacktrace.Propagate(err, "An error occurred cleaning up deployments '%+v' in namespace '%s'", deployments, namespace)
+		}
 	}
 
 	// Clean up virtual services
-	virtualServicesByNS := lo.GroupBy(clusterResources.VirtualServices, func(item istiov1alpha3.VirtualService) string {
-		return item.Namespace
-	})
-	var cleanUpVirtualServicesErr error
-	lo.MapEntries(virtualServicesByNS, func(namespace string, virtualServices []istiov1alpha3.VirtualService) (string, []istiov1alpha3.VirtualService) {
-		cleanUpVirtualServicesErr = manager.cleanUpVirtualServicesInNamespace(ctx, namespace, virtualServices)
-		return namespace, virtualServices
-	})
-	if cleanUpVirtualServicesErr != nil {
-		return stacktrace.Propagate(cleanUpVirtualServicesErr, "An error occurred while cleaning up cluster virtual services")
+	virtualServicesByNS := lo.GroupBy(clusterResources.VirtualServices, func(item istiov1alpha3.VirtualService) string { return item.Namespace })
+	for namespace, virtualServices := range virtualServicesByNS {
+		if err := manager.cleanUpVirtualServicesInNamespace(ctx, namespace, virtualServices); err != nil {
+			return stacktrace.Propagate(err, "An error occurred cleaning up virtual services '%+v' in namespace '%s'", virtualServices, namespace)
+		}
 	}
 
 	// Clean up destination rules
 	destinationRulesByNS := lo.GroupBy(clusterResources.DestinationRules, func(item istiov1alpha3.DestinationRule) string {
 		return item.Namespace
 	})
-	var cleanUpDestinationRulesErr error
-	lo.MapEntries(destinationRulesByNS, func(namespace string, destinationRules []istiov1alpha3.DestinationRule) (string, []istiov1alpha3.DestinationRule) {
-		cleanUpDestinationRulesErr = manager.cleanUpDestinationRulesInNamespace(ctx, namespace, destinationRules)
-		return namespace, destinationRules
-	})
-	if cleanUpDestinationRulesErr != nil {
-		return stacktrace.Propagate(cleanUpDestinationRulesErr, "An error occurred while cleaning up cluster destination rules")
+	for namespace, destinationRules := range destinationRulesByNS {
+		if err := manager.cleanUpDestinationRulesInNamespace(ctx, namespace, destinationRules); err != nil {
+			return stacktrace.Propagate(err, "An error occurred cleaning up destination rules '%+v' in namespace '%s'", destinationRules, namespace)
+		}
 	}
 
 	// Clean up gateway
 	gatewaysByNs := map[string][]istiov1alpha3.Gateway{
 		clusterResources.Gateway.GetNamespace(): {clusterResources.Gateway},
 	}
-	var cleanUpGatewaysErr error
-	lo.MapEntries(gatewaysByNs, func(namespace string, gateways []istiov1alpha3.Gateway) (string, []istiov1alpha3.Gateway) {
-		cleanUpGatewaysErr = manager.cleanUpGatewaysInNamespace(ctx, namespace, gateways)
-		return namespace, gateways
-	})
-	if cleanUpGatewaysErr != nil {
-		return stacktrace.Propagate(cleanUpGatewaysErr, "An error occurred while cleaning up cluster gateways")
+	for namespace, gateways := range gatewaysByNs {
+		if err := manager.cleanUpGatewaysInNamespace(ctx, namespace, gateways); err != nil {
+			return stacktrace.Propagate(err, "An error occurred cleaning up gateways '%+v' in namespace '%s'", gateways, namespace)
+		}
 	}
 
 	return nil
