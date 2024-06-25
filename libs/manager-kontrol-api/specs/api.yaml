@@ -1,0 +1,416 @@
+openapi: 3.0.0
+info:
+  title: Manager/Kloud-Kontrol API
+  version: 1.0.0
+paths:
+  /cluster-resources/{identifier}:
+    get:
+      tags:
+        - cluster-resources
+      summary: Cluster resource definition
+      parameters:
+        - $ref: "#/components/parameters/identifier"
+      responses:
+        default:
+          $ref: "#/components/responses/NotOk"
+        "200":
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ClusterResource"
+
+components:
+  parameters:
+    identifier:
+      name: identifier
+      in: path
+      required: true
+      description: the resource ID
+      schema:
+        type: string
+
+  responses:
+    NotOk:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ResponseInfo"
+            required: true
+  schemas:
+    ResponseInfo:
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/ResponseType"
+        message:
+          type: string
+        code:
+          type: integer
+          format: uint32
+      required:
+        - type
+        - message
+        - code
+
+    ResponseType:
+      type: string
+      enum:
+        - ERROR
+        - INFO
+        - WARNING
+
+    ClusterResource:
+      type: object
+      properties:
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/Service"
+        deployments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Deployment"
+        virtual_services:
+          type: array
+          items:
+            $ref: "#/components/schemas/VirtualService"
+        destination_rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/DestinationRule"
+        gateway:
+          $ref: "#/components/schemas/Gateway"
+
+    Service:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: Service
+        api_version:
+          type: string
+          example: v1
+        metadata:
+          $ref: "#/components/schemas/Metadata"
+        spec:
+          $ref: '#/components/schemas/ServiceSpec'
+        status:
+          $ref: '#/components/schemas/ServiceStatus'
+
+    Metadata:
+      type: object
+      properties:
+        name:
+          type: string
+        namespace:
+          type: string
+        creation_time_stamp:
+          type: string
+          format: date-time
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            app: app-name
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            sidecar.istio.io/inject: true
+
+    ServiceSpec:
+      type: object
+      properties:
+        ports:
+          type: array
+          items:
+            $ref: '#/components/schemas/Port'
+        selector:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            app: app-name
+
+    Port:
+      type: object
+      properties:
+        name:
+          type: string
+        protocol:
+          type: string
+        port:
+          type: integer
+        targetPort:
+          type: integer
+
+    ServerPort:
+      type: object
+      properties:
+        name:
+          type: string
+        number:
+          type: integer
+        protocol:
+          type: string
+
+    ServiceStatus:
+      type: object
+      properties:
+        load_balancer:
+          type: object
+
+    Deployment:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: Deployment
+        api_version:
+          type: string
+          example: v1
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        spec:
+          $ref: '#/components/schemas/DeploymentSpec'
+        status:
+          type: object
+
+    DeploymentSpec:
+      type: object
+      properties:
+        replicas:
+          type: integer
+        selector:
+          type: object
+          properties:
+            match_labels:
+              type: object
+              additionalProperties:
+                type: string
+              example:
+                app: app-name
+        template:
+          $ref: '#/components/schemas/PodTemplateSpec'
+        strategy:
+          $ref: '#/components/schemas/DeploymentStrategy'
+
+    PodTemplateSpec:
+      type: object
+      properties:
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        spec:
+          $ref: '#/components/schemas/PodSpec'
+
+    PodSpec:
+      type: object
+      properties:
+        containers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Container'
+
+    Container:
+      type: object
+      properties:
+        name:
+          type: string
+        image:
+          type: string
+        ports:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContainerPort'
+        env:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnvVar'
+        resources:
+          type: object
+        image_pull_policy:
+          type: string
+
+    ContainerPort:
+      type: object
+      properties:
+        name:
+          type: string
+        container_port:
+          type: integer
+        protocol:
+          type: string
+
+    EnvVar:
+      type: object
+      additionalProperties:
+        type: string
+      example:
+        name: REDIS
+        value: redis-prod
+
+    DeploymentStrategy:
+      type: object
+      properties:
+        type:
+          type: string
+        rolling_update:
+          $ref: '#/components/schemas/RollingUpdateStrategy'
+
+    RollingUpdateStrategy:
+      type: object
+      properties:
+        max_unavailable:
+          type: string
+          example: 25%
+        max_surge:
+          type: string
+          example: 25%
+
+    VirtualService:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: VirtualService
+        api_version:
+          type: string
+          example: networking.istio.io/v1alpha3
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        spec:
+          $ref: '#/components/schemas/VirtualServiceSpec'
+        status:
+          type: object
+
+    VirtualServiceSpec:
+      type: object
+      properties:
+        hosts:
+          type: array
+          items:
+            type: string
+        gateways:
+          type: array
+          items:
+            type: string
+        http:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchRoute'
+        tcp:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchRoute'
+
+    MatchRoute:
+      type: object
+      properties:
+        match:
+          type: array
+          items:
+            $ref: '#/components/schemas/MatchData'
+        route:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteDestination'
+
+    MatchData:
+      type: object
+      properties:
+        port:
+          type: integer
+
+    RouteDestination:
+      type: object
+      properties:
+        destination:
+          type: object
+          properties:
+            host:
+              type: string
+            subset:
+              type: string
+        weight:
+          type: integer
+
+    DestinationRule:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: DestinationRule
+        api_version:
+          type: string
+          example: networking.istio.io/v1alpha3
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        spec:
+          $ref: '#/components/schemas/DestinationRuleSpec'
+        status:
+          type: object
+
+    DestinationRuleSpec:
+      type: object
+      properties:
+        host:
+          type: string
+        subsets:
+          type: array
+          items:
+            $ref: '#/components/schemas/Subset'
+
+    Subset:
+      type: object
+      properties:
+        name:
+          type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            version: prod
+
+    Gateway:
+      type: object
+      properties:
+        kind:
+          type: string
+          example: Gateway
+        api_version:
+          type: string
+          example: networking.istio.io/v1alpha3
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        spec:
+          $ref: '#/components/schemas/GatewaySpec'
+        status:
+          type: object
+
+    GatewaySpec:
+      type: object
+      properties:
+        servers:
+          type: array
+          items:
+            $ref: '#/components/schemas/Server'
+        selector:
+          type: object
+          properties:
+            istio:
+              type: string
+
+    Server:
+      type: object
+      properties:
+        port:
+          $ref: '#/components/schemas/ServerPort'
+        hosts:
+          type: array
+          items:
+            type: string
