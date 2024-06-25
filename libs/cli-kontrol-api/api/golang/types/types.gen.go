@@ -7,6 +7,12 @@ import (
 	compose "github.com/compose-spec/compose-go/types"
 )
 
+// ClusterTopology defines model for ClusterTopology.
+type ClusterTopology struct {
+	Edges []Edge `json:"edges"`
+	Nodes []Node `json:"nodes"`
+}
+
 // DevFlowSpec defines model for DevFlowSpec.
 type DevFlowSpec struct {
 	DockerCompose *[]compose.ServiceConfig `json:"docker-compose,omitempty"`
@@ -14,27 +20,30 @@ type DevFlowSpec struct {
 	ServiceName   *string                  `json:"service-name,omitempty"`
 }
 
-// Graph defines model for Graph.
-type Graph struct {
-	Nodes *[]Node `json:"nodes,omitempty"`
+// Edge defines model for Edge.
+type Edge struct {
+	// Label Label for the edge.
+	Label *string `json:"label,omitempty"`
+
+	// Source The identifier of the source node of the edge.
+	Source string `json:"source"`
+
+	// Target The identifier of the target node of the edge.
+	Target string `json:"target"`
 }
 
 // Node defines model for Node.
 type Node struct {
-	Id             *string   `json:"id,omitempty"`
-	ServiceName    *string   `json:"serviceName,omitempty"`
-	ServiceVersion *string   `json:"serviceVersion,omitempty"`
-	TalksTo        *[]string `json:"talks_to,omitempty"`
+	// Id Unique identifier for the node.
+	Id string `json:"id"`
+
+	// Label Label for the node.
+	Label *string `json:"label,omitempty"`
 }
 
 // ProdFlowSpec defines model for ProdFlowSpec.
 type ProdFlowSpec struct {
 	DockerCompose *[]compose.ServiceConfig `json:"docker-compose,omitempty"`
-}
-
-// Topology defines model for Topology.
-type Topology struct {
-	Graph *Graph `json:"graph,omitempty"`
 }
 
 // GetTopologyParams defines parameters for GetTopology.

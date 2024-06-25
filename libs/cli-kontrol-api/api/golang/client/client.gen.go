@@ -493,7 +493,7 @@ func (r PostFlowDeleteResponse) StatusCode() int {
 type GetTopologyResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *Topology
+	JSON200      *ClusterTopology
 }
 
 // Status returns HTTPResponse.Status
@@ -665,7 +665,7 @@ func ParseGetTopologyResponse(rsp *http.Response) (*GetTopologyResponse, error) 
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest Topology
+		var dest ClusterTopology
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

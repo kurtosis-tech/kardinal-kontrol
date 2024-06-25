@@ -66,7 +66,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Topology"
+                $ref: "#/components/schemas/ClusterTopology"
 
 components:
   schemas:
@@ -80,6 +80,7 @@ components:
             x-go-type-import:
               path: github.com/compose-spec/compose-go/types
               name: compose
+
     DevFlowSpec:
       type: object
       properties:
@@ -96,32 +97,46 @@ components:
             x-go-type-import:
               path: github.com/compose-spec/compose-go/types
               name: compose
-    Topology:
+
+    Node:
       type: object
       properties:
-        graph:
-          $ref: "#/components/schemas/Graph"
-    Graph:
+        id:
+          type: string
+          description: Unique identifier for the node.
+        label:
+          type: string
+          description: Label for the node.
+      required:
+        - id
+
+    Edge:
+      type: object
+      properties:
+        source:
+          type: string
+          description: The identifier of the source node of the edge.
+        target:
+          type: string
+          description: The identifier of the target node of the edge.
+        label:
+          type: string
+          description: Label for the edge.
+      required:
+        - source
+        - target
+
+    ClusterTopology:
       type: object
       properties:
         nodes:
           type: array
           items:
             $ref: "#/components/schemas/Node"
-    Node:
-      type: object
-      properties:
-        serviceName:
-          type: string
-          example: backend-service-a
-        serviceVersion:
-          type: string
-          example: 1.0.0
-        id:
-          type: string
-          example: node-1
-        talks_to:
+        edges:
           type: array
           items:
-            type: string
-          example: [node-2, node-3]
+            $ref: "#/components/schemas/Edge"
+      required:
+        - nodes
+        - edges

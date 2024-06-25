@@ -1,39 +1,62 @@
 package topology
 
 import (
-	compose "github.com/compose-spec/compose-go/types"
-	"github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
+	"fmt"
+
+	apiTypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
+	"github.com/samber/lo"
+
+	"kardinal.kloud-kontrol/types"
 )
 
-func ComposeToTopology(services *[]compose.ServiceConfig) *types.Topology {
-	var nodes []types.Node
-
-	for _, service := range *services {
-		serviceName := service.ContainerName
-		serviceVersion := service.Image
-		serviceID := service.Name
-		talksTo := service.GetDependencies()
-
-		node := types.Node{
-			Id:             &serviceID,
-			ServiceName:    &serviceName,
-			ServiceVersion: &serviceVersion,
-			TalksTo:        &talksTo,
+func ClusterTopology(cluster *types.Cluster) *apiTypes.ClusterTopology {
+	nodes := lo.Map(cluster.Services, func(service *types.ServiceSpec, _ int) apiTypes.Node {
+		label := fmt.Sprintf("%s (%s)", service.Name, service.Version)
+		return apiTypes.Node{
+			Id:    fmt.Sprintf("%s (%s)", service.Name, service.Version),
+			Label: &label,
 		}
+	})
 
-		nodes = append(nodes, node)
+	gwLabel := "gateway"
+	gateway := apiTypes.Node{
+		Id:    "gateway",
+		Label: &gwLabel,
 	}
 
-	if len(nodes) == 0 {
-		emptyTopology := types.Topology{}
-		return &emptyTopology
-	}
-
-	topology := types.Topology{
-		Graph: &types.Graph{
-			Nodes: &nodes,
+	edges := []apiTypes.Edge{
+		{
+			Source: "gateway",
+			Target: "voting-app-ui (prod)",
+		},
+		{
+			Source: "voting-app-ui (prod)",
+			Target: "redis-prod (prod)",
+		},
+		{
+			Source: "gateway",
+			Target: "voting-app-ui (dev)",
+		},
+		{
+			Source: "voting-app-ui (dev)",
+			Target: "kardinal-db-sidecar (dev)",
+		},
+		{
+			Source: "kardinal-db-sidecar (dev)",
+			Target: "redis-prod (prod)",
 		},
 	}
 
-	return &topology
+	return &apiTypes.ClusterTopology{
+		Nodes: append(nodes, gateway),
+		Edges: lo.Filter(edges, func(edge apiTypes.Edge, _ int) bool {
+			_, hasSource := lo.Find(cluster.Services, func(service *types.ServiceSpec) bool {
+				return edge.Source == fmt.Sprintf("%s (%s)", service.Name, service.Version)
+			})
+			_, hasTarget := lo.Find(cluster.Services, func(service *types.ServiceSpec) bool {
+				return edge.Target == fmt.Sprintf("%s (%s)", service.Name, service.Version)
+			})
+			return hasSource && hasTarget
+		}),
+	}
 }

@@ -1,9 +1,11 @@
 package topology
 
 import (
+	"testing"
+
 	"github.com/compose-spec/compose-go/types"
 	"github.com/stretchr/testify/require"
-	"testing"
+	"kardinal.kloud-kontrol/engine"
 )
 
 const (
@@ -56,6 +58,10 @@ func TestComposeToTopology(t *testing.T) {
 		},
 	})
 
-	topo := ComposeToTopology(&testCompose)
+	cluster, err := engine.GenerateProdOnlyCluster(testCompose)
+	if err != nil {
+		t.Errorf("Error generating cluster: %s", err)
+	}
+	topo := ClusterTopology(cluster)
 	require.NotNil(t, topo)
 }
