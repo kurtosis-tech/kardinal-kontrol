@@ -4,10 +4,12 @@ import (
 	"context"
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/samber/lo"
-	istioclient "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	istio "istio.io/api/networking/v1alpha3"
+	istiov1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	apps "k8s.io/api/apps/v1"
 	apiv1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"kardinal.kontrol/kardinal-manager/topology"
 	"kardinal.kontrol/kardinal-manager/types"
 )
 
@@ -35,6 +37,14 @@ var (
 		Limit:                0,
 		Continue:             "",
 		SendInitialEvents:    nil,
+	}
+
+	globalGetOptions = metav1.GetOptions{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "",
+			APIVersion: "",
+		},
+		ResourceVersion: "",
 	}
 
 	globalCreateOptions = metav1.CreateOptions{
@@ -83,13 +93,99 @@ func NewClusterManager(kubernetesClient *kubernetesClient, istioClient *istioCli
 	return &ClusterManager{kubernetesClient: kubernetesClient, istioClient: istioClient}
 }
 
+func (manager *ClusterManager) GetVirtualServices(ctx context.Context, namespace string) ([]*istiov1alpha3.VirtualService, error) {
+	virtServiceClient := manager.istioClient.clientSet.NetworkingV1alpha3().VirtualServices(namespace)
+
+	virtualServiceList, err := virtServiceClient.List(ctx, globalListOptions)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred retrieving virtual services from IstIo client.")
+	}
+	return virtualServiceList.Items, nil
+}
+
+func (manager *ClusterManager) GetVirtualService(ctx context.Context, namespace string, name string) (*istiov1alpha3.VirtualService, error) {
+	virtServiceClient := manager.istioClient.clientSet.NetworkingV1alpha3().VirtualServices(namespace)
+
+	virtualService, err := virtServiceClient.Get(ctx, name, globalGetOptions)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred retrieving virtual service '%s' from IstIo client", name)
+	}
+	return virtualService, nil
+}
+
+func (manager *ClusterManager) GetDestinationRules(ctx context.Context, namespace string) ([]*istiov1alpha3.DestinationRule, error) {
+	destRuleClient := manager.istioClient.clientSet.NetworkingV1alpha3().DestinationRules(namespace)
+
+	destinationRules, err := destRuleClient.List(ctx, globalListOptions)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred retrieving destination rules.")
+	}
+	return destinationRules.Items, nil
+}
+
+func (manager *ClusterManager) GetDestinationRule(ctx context.Context, namespace string, rule string) (*istiov1alpha3.DestinationRule, error) {
+	destRuleClient := manager.istioClient.clientSet.NetworkingV1alpha3().DestinationRules(namespace)
+
+	destinationRule, err := destRuleClient.Get(ctx, rule, globalGetOptions)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred retrieving destination rule '%s' from IstIo client", rule)
+	}
+	return destinationRule, nil
+}
+
+// how to expose API to configure ordering of routing rule? https://istio.io/latest/docs/concepts/traffic-management/#routing-rule-precedence
+func (manager *ClusterManager) AddRoutingRule(ctx context.Context, namespace string, vsName string, routingRule *istio.HTTPRoute) error {
+	virtServiceClient := manager.istioClient.clientSet.NetworkingV1alpha3().VirtualServices(namespace)
+
+	vs, err := virtServiceClient.Get(ctx, vsName, globalGetOptions)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred retrieving virtual service '%s'", vsName)
+	}
+	// always prepend routing rules due to routing rule precedence
+	vs.Spec.Http = append([]*istio.HTTPRoute{routingRule}, vs.Spec.Http...)
+	_, err = virtServiceClient.Update(ctx, vs, metav1.UpdateOptions{})
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred updating virtual service '%s' with routing rule: %v", vsName, routingRule)
+	}
+	return nil
+}
+
+func (manager *ClusterManager) AddSubset(ctx context.Context, namespace string, drName string, subset *istio.Subset) error {
+	destRuleClient := manager.istioClient.clientSet.NetworkingV1alpha3().DestinationRules(namespace)
+
+	dr, err := destRuleClient.Get(ctx, drName, globalGetOptions)
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred retrieving destination rule '%s'", drName)
+	}
+	// if there already exists a subset for the same, just update it
+	shouldAddNewSubset := true
+	for _, s := range dr.Spec.Subsets {
+		if s.Name == subset.Name {
+			s = subset
+			shouldAddNewSubset = false
+		}
+	}
+	if shouldAddNewSubset {
+		dr.Spec.Subsets = append(dr.Spec.Subsets, subset)
+	}
+	_, err = destRuleClient.Update(ctx, dr, metav1.UpdateOptions{})
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred updating destination rule '%s' with subset: %v", drName, subset)
+	}
+	return nil
+}
+
+func (manager *ClusterManager) GetTopologyForNameSpace(namespace string) (map[string]*topology.Node, error) {
+	return manager.istioClient.topologyManager.FetchTopology(namespace)
+}
+
 func (manager *ClusterManager) ApplyClusterResources(ctx context.Context, clusterResources *types.ClusterResources) error {
 
 	allNSs := [][]string{
 		lo.Uniq(lo.Map(clusterResources.Services, func(item apiv1.Service, _ int) string { return item.Namespace })),
 		lo.Uniq(lo.Map(clusterResources.Deployments, func(item apps.Deployment, _ int) string { return item.Namespace })),
-		lo.Uniq(lo.Map(clusterResources.VirtualServices, func(item istioclient.VirtualService, _ int) string { return item.Namespace })),
-		lo.Uniq(lo.Map(clusterResources.DestinationRules, func(item istioclient.DestinationRule, _ int) string { return item.Namespace })),
+		lo.Uniq(lo.Map(clusterResources.VirtualServices, func(item istiov1alpha3.VirtualService, _ int) string { return item.Namespace })),
+		lo.Uniq(lo.Map(clusterResources.DestinationRules, func(item istiov1alpha3.DestinationRule, _ int) string { return item.Namespace })),
 		{clusterResources.Gateway.Namespace},
 	}
 
@@ -120,7 +216,7 @@ func (manager *ClusterManager) ApplyClusterResources(ctx context.Context, cluste
 	}
 
 	var createOrUpdateVirtualServicesErr error
-	lo.ForEach(clusterResources.VirtualServices, func(virtualService istioclient.VirtualService, _ int) {
+	lo.ForEach(clusterResources.VirtualServices, func(virtualService istiov1alpha3.VirtualService, _ int) {
 		createOrUpdateVirtualServicesErr = manager.createOrUpdateVirtualService(ctx, &virtualService)
 	})
 	if createOrUpdateVirtualServicesErr != nil {
@@ -128,7 +224,7 @@ func (manager *ClusterManager) ApplyClusterResources(ctx context.Context, cluste
 	}
 
 	var createOrUpdateDestinationRulesErr error
-	lo.ForEach(clusterResources.DestinationRules, func(destinationRule istioclient.DestinationRule, _ int) {
+	lo.ForEach(clusterResources.DestinationRules, func(destinationRule istiov1alpha3.DestinationRule, _ int) {
 		createOrUpdateDestinationRulesErr = manager.createOrUpdateDestinationRule(ctx, &destinationRule)
 	})
 	if createOrUpdateDestinationRulesErr != nil {
@@ -171,11 +267,11 @@ func (manager *ClusterManager) CleanUpClusterResources(ctx context.Context, clus
 	}
 
 	// Clean up virtual services
-	virtualServicesByNS := lo.GroupBy(clusterResources.VirtualServices, func(item istioclient.VirtualService) string {
+	virtualServicesByNS := lo.GroupBy(clusterResources.VirtualServices, func(item istiov1alpha3.VirtualService) string {
 		return item.Namespace
 	})
 	var cleanUpVirtualServicesErr error
-	lo.MapEntries(virtualServicesByNS, func(namespace string, virtualServices []istioclient.VirtualService) (string, []istioclient.VirtualService) {
+	lo.MapEntries(virtualServicesByNS, func(namespace string, virtualServices []istiov1alpha3.VirtualService) (string, []istiov1alpha3.VirtualService) {
 		cleanUpVirtualServicesErr = manager.cleanUpVirtualServicesInNamespace(ctx, namespace, virtualServices)
 		return namespace, virtualServices
 	})
@@ -184,11 +280,11 @@ func (manager *ClusterManager) CleanUpClusterResources(ctx context.Context, clus
 	}
 
 	// Clean up destination rules
-	destinationRulesByNS := lo.GroupBy(clusterResources.DestinationRules, func(item istioclient.DestinationRule) string {
+	destinationRulesByNS := lo.GroupBy(clusterResources.DestinationRules, func(item istiov1alpha3.DestinationRule) string {
 		return item.Namespace
 	})
 	var cleanUpDestinationRulesErr error
-	lo.MapEntries(destinationRulesByNS, func(namespace string, destinationRules []istioclient.DestinationRule) (string, []istioclient.DestinationRule) {
+	lo.MapEntries(destinationRulesByNS, func(namespace string, destinationRules []istiov1alpha3.DestinationRule) (string, []istiov1alpha3.DestinationRule) {
 		cleanUpDestinationRulesErr = manager.cleanUpDestinationRulesInNamespace(ctx, namespace, destinationRules)
 		return namespace, destinationRules
 	})
@@ -197,11 +293,11 @@ func (manager *ClusterManager) CleanUpClusterResources(ctx context.Context, clus
 	}
 
 	// Clean up gateway
-	gatewaysByNs := map[string][]istioclient.Gateway{
+	gatewaysByNs := map[string][]istiov1alpha3.Gateway{
 		clusterResources.Gateway.GetNamespace(): {clusterResources.Gateway},
 	}
 	var cleanUpGatewaysErr error
-	lo.MapEntries(gatewaysByNs, func(namespace string, gateways []istioclient.Gateway) (string, []istioclient.Gateway) {
+	lo.MapEntries(gatewaysByNs, func(namespace string, gateways []istiov1alpha3.Gateway) (string, []istiov1alpha3.Gateway) {
 		cleanUpGatewaysErr = manager.cleanUpGatewaysInNamespace(ctx, namespace, gateways)
 		return namespace, gateways
 	})
@@ -279,7 +375,7 @@ func (manager *ClusterManager) createOrUpdateDeployment(ctx context.Context, dep
 	return nil
 }
 
-func (manager *ClusterManager) createOrUpdateVirtualService(ctx context.Context, virtualService *istioclient.VirtualService) error {
+func (manager *ClusterManager) createOrUpdateVirtualService(ctx context.Context, virtualService *istiov1alpha3.VirtualService) error {
 
 	virtServiceClient := manager.istioClient.clientSet.NetworkingV1alpha3().VirtualServices(virtualService.GetNamespace())
 
@@ -300,7 +396,7 @@ func (manager *ClusterManager) createOrUpdateVirtualService(ctx context.Context,
 	return nil
 }
 
-func (manager *ClusterManager) createOrUpdateDestinationRule(ctx context.Context, destinationRule *istioclient.DestinationRule) error {
+func (manager *ClusterManager) createOrUpdateDestinationRule(ctx context.Context, destinationRule *istiov1alpha3.DestinationRule) error {
 
 	destRuleClient := manager.istioClient.clientSet.NetworkingV1alpha3().DestinationRules(destinationRule.GetNamespace())
 
@@ -321,7 +417,7 @@ func (manager *ClusterManager) createOrUpdateDestinationRule(ctx context.Context
 	return nil
 }
 
-func (manager *ClusterManager) createOrUpdateGateway(ctx context.Context, gateway *istioclient.Gateway) error {
+func (manager *ClusterManager) createOrUpdateGateway(ctx context.Context, gateway *istiov1alpha3.Gateway) error {
 
 	gatewayClient := manager.istioClient.clientSet.NetworkingV1alpha3().Gateways(gateway.GetNamespace())
 	existingGateway, err := gatewayClient.Get(ctx, gateway.Name, metav1.GetOptions{})
@@ -377,7 +473,7 @@ func (manager *ClusterManager) cleanUpDeploymentsInNamespace(ctx context.Context
 	return nil
 }
 
-func (manager *ClusterManager) cleanUpVirtualServicesInNamespace(ctx context.Context, namespace string, virtualServicesToKeep []istioclient.VirtualService) error {
+func (manager *ClusterManager) cleanUpVirtualServicesInNamespace(ctx context.Context, namespace string, virtualServicesToKeep []istiov1alpha3.VirtualService) error {
 
 	virtServiceClient := manager.istioClient.clientSet.NetworkingV1alpha3().VirtualServices(namespace)
 	allVirtServices, err := virtServiceClient.List(ctx, globalListOptions)
@@ -385,7 +481,7 @@ func (manager *ClusterManager) cleanUpVirtualServicesInNamespace(ctx context.Con
 		return stacktrace.Propagate(err, "Failed to list virtual services in namespace %s", namespace)
 	}
 	for _, virtService := range allVirtServices.Items {
-		_, exists := lo.Find(virtualServicesToKeep, func(item istioclient.VirtualService) bool { return item.Name == virtService.Name })
+		_, exists := lo.Find(virtualServicesToKeep, func(item istiov1alpha3.VirtualService) bool { return item.Name == virtService.Name })
 		if !exists {
 			err = virtServiceClient.Delete(ctx, virtService.Name, globalDeleteOptions)
 			if err != nil {
@@ -397,7 +493,7 @@ func (manager *ClusterManager) cleanUpVirtualServicesInNamespace(ctx context.Con
 	return nil
 }
 
-func (manager *ClusterManager) cleanUpDestinationRulesInNamespace(ctx context.Context, namespace string, destinationRulesToKeep []istioclient.DestinationRule) error {
+func (manager *ClusterManager) cleanUpDestinationRulesInNamespace(ctx context.Context, namespace string, destinationRulesToKeep []istiov1alpha3.DestinationRule) error {
 
 	destRuleClient := manager.istioClient.clientSet.NetworkingV1alpha3().DestinationRules(namespace)
 	allDestRules, err := destRuleClient.List(ctx, globalListOptions)
@@ -405,7 +501,7 @@ func (manager *ClusterManager) cleanUpDestinationRulesInNamespace(ctx context.Co
 		return stacktrace.Propagate(err, "Failed to list destination rules in namespace %s", namespace)
 	}
 	for _, destRule := range allDestRules.Items {
-		_, exists := lo.Find(destinationRulesToKeep, func(item istioclient.DestinationRule) bool { return item.Name == destRule.Name })
+		_, exists := lo.Find(destinationRulesToKeep, func(item istiov1alpha3.DestinationRule) bool { return item.Name == destRule.Name })
 		if !exists {
 			err = destRuleClient.Delete(ctx, destRule.Name, globalDeleteOptions)
 			if err != nil {
@@ -417,7 +513,7 @@ func (manager *ClusterManager) cleanUpDestinationRulesInNamespace(ctx context.Co
 	return nil
 }
 
-func (manager *ClusterManager) cleanUpGatewaysInNamespace(ctx context.Context, namespace string, gatewaysToKeep []istioclient.Gateway) error {
+func (manager *ClusterManager) cleanUpGatewaysInNamespace(ctx context.Context, namespace string, gatewaysToKeep []istiov1alpha3.Gateway) error {
 
 	gatewayClient := manager.istioClient.clientSet.NetworkingV1alpha3().Gateways(namespace)
 	allGateways, err := gatewayClient.List(ctx, globalListOptions)
@@ -425,7 +521,7 @@ func (manager *ClusterManager) cleanUpGatewaysInNamespace(ctx context.Context, n
 		return stacktrace.Propagate(err, "Failed to list gateways in namespace %s", namespace)
 	}
 	for _, gateway := range allGateways.Items {
-		_, exists := lo.Find(gatewaysToKeep, func(item istioclient.Gateway) bool { return item.Name == gateway.Name })
+		_, exists := lo.Find(gatewaysToKeep, func(item istiov1alpha3.Gateway) bool { return item.Name == gateway.Name })
 		if !exists {
 			err = gatewayClient.Delete(ctx, gateway.Name, globalDeleteOptions)
 			if err != nil {

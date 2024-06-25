@@ -1,53 +1,54 @@
-package istio_manager
+package cluster_manager
 
 import (
 	"context"
 	"github.com/stretchr/testify/require"
 	istio "istio.io/api/networking/v1alpha3"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
-	"path/filepath"
 	"testing"
 )
 
-func TestIstioManager(t *testing.T) {
+const (
+	defaultNamespace = "default"
+)
+
+func TestClusterManager_GetVirtualServices(t *testing.T) {
 	ctx := context.Background()
-	istioManager, err := getIstioManagerForTesting()
+	clusterManager, err := getClusterManagerForTesting(t)
 	require.NoError(t, err)
 
-	virtualServices, err := istioManager.GetVirtualServices(ctx)
+	virtualServices, err := clusterManager.GetVirtualServices(ctx, defaultNamespace)
 	require.NoError(t, err)
 	require.NotEmpty(t, virtualServices)
 }
 
-func TestIstioManager_GetTopologyForNameSpace(t *testing.T) {
-	istioManager, err := getIstioManagerForTesting()
+func TestClusterManager_GetTopologyForNameSpace(t *testing.T) {
+	clusterManager, err := getClusterManagerForTesting(t)
 	require.NoError(t, err)
 
-	graph, err := istioManager.GetTopologyForNameSpace("ms-demo")
+	graph, err := clusterManager.GetTopologyForNameSpace("ms-demo")
 	require.Empty(t, err)
 	require.NotNil(t, graph)
 }
 
-// This test is to demonstrate using the IstioManager to accomplish certain workflows
+// This test is to demonstrate using the ClusterManager to accomplish certain workflows
 // assumes
 // - default k8s namespace contains the services from the sample bookinfo application: https://istio.io/latest/docs/examples/bookinfo/, run
 // - a destination rule for reviews service has been preconfigured with one version of reviews
 // - a virtual service for reviews service has been preconfigured with one routing rule
-func TestIstioManagerWorkflows(t *testing.T) {
+func TestClusterManagerWorkflows(t *testing.T) {
 	ctx := context.Background()
-	istioManager, err := getIstioManagerForTesting()
+	clusterManager, err := getClusterManagerForTesting(t)
 	require.NoError(t, err)
 
 	// verify that there exists a destination rule for the "reviews" service that only sends traffic to v1
-	reviewsDestinationRule, err := istioManager.GetDestinationRule(ctx, "reviews")
+	reviewsDestinationRule, err := clusterManager.GetDestinationRule(ctx, defaultNamespace, "reviews")
 	require.NoError(t, err)
 	require.NotEmpty(t, reviewsDestinationRule)
 	require.NotEmpty(t, reviewsDestinationRule.Spec.Subsets)
 	require.Equal(t, reviewsDestinationRule.Spec.Subsets[0].Name, "v1")
 
 	// verify that there exists a virtual service for the "reviews" service
-	reviewsVirtualService, err := istioManager.GetVirtualService(ctx, "reviews")
+	reviewsVirtualService, err := clusterManager.GetVirtualService(ctx, defaultNamespace, "reviews")
 	require.NoError(t, err)
 	require.NotEmpty(t, reviewsVirtualService)
 	require.NotEmpty(t, reviewsVirtualService.Spec.Http)
@@ -63,7 +64,7 @@ func TestIstioManagerWorkflows(t *testing.T) {
 		},
 		TrafficPolicy: nil,
 	}
-	err = istioManager.AddSubset(ctx, "reviews", v2subset)
+	err = clusterManager.AddSubset(ctx, defaultNamespace, "reviews", v2subset)
 	require.NoError(t, err)
 
 	// add a routing rule that splits traffic between v1 and v2
@@ -87,22 +88,14 @@ func TestIstioManagerWorkflows(t *testing.T) {
 			},
 		},
 	}
-	// can consider adjusting the AddRoutingRule api to only take in params we care about to make the api easier to use but again for now, KISS till we know more about usecases
-	err = istioManager.AddRoutingRule(ctx, "reviews", splitTraffic5050Rule)
+	// can consider adjusting the AddRoutingRule api to only take in params we care about to make the api easier to use but again for now, KISS till we know more about use cases
+	err = clusterManager.AddRoutingRule(ctx, defaultNamespace, "reviews", splitTraffic5050Rule)
 }
 
 // Note: test will only work if kubeconfig is available locally and a cluster is running
 // these code is meant for local iteration for now and less for unit testing
-func getIstioManagerForTesting() (*IstioManager, error) {
-	// for now pick up local k8s config and err if it doesn't exist
-	kubeconfig := filepath.Join(homedir.HomeDir(), ".kube", "config")
-	k8sConfig, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		return nil, err
-	}
-	istioManager, err := CreateIstIoManager(k8sConfig, "default")
-	if err != nil {
-		return nil, err
-	}
-	return istioManager, nil
+func getClusterManagerForTesting(t *testing.T) (*ClusterManager, error) {
+	clusterManager, err := CreateClusterManager()
+	require.NoError(t, err)
+	return clusterManager, nil
 }

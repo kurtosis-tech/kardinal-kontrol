@@ -8,6 +8,7 @@ import (
 )
 
 // This test can be executed and use Minikube dashboard and Kiali Dashboard to see the changes between prod apply and devInProd apply
+// these code is meant for local iteration for now and less for unit testing
 func TestVotingAppDemoProdAndDevCase(t *testing.T) {
 	clusterManager, err := cluster_manager.CreateClusterManager()
 	require.NoError(t, err)
