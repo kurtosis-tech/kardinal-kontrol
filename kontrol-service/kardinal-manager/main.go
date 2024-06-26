@@ -2,100 +2,48 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"github.com/sirupsen/logrus"
-	"kardinal.kontrol/kardinal-manager/server"
+	"kardinal.kontrol/kardinal-manager/cluster_manager"
+	"kardinal.kontrol/kardinal-manager/fetcher"
+	"kardinal.kontrol/kardinal-manager/logger"
+	"kardinal.kontrol/kardinal-manager/utils"
 	"os"
-	"path/filepath"
-
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/rest"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/client-go/util/homedir"
-
-	versionedclient "istio.io/client-go/pkg/clientset/versioned"
 )
 
 const (
-	successExitCode = 0
+	successExitCode                = 0
+	clusterConfigEndpointEnvVarKey = "CLUSTER_CONFIG_ENDPOINT"
 )
 
 func main() {
 
-	if err := basicInteractionWithK8sAndIstio(); err != nil {
-		logrus.Fatalf("An error occurred while calling basicInteractionWithK8sAndIstio()!\nError was: %s", err)
-	}
-
-	if err := server.CreateAndStartRestAPIServer(); err != nil {
-		logrus.Fatalf("The REST API server is down, exiting!\nError was: %s", err)
-	}
-
-	os.Exit(successExitCode)
-}
-
-func basicInteractionWithK8sAndIstio() error {
-	var config *rest.Config
-	var err error
-
-	// Load in-cluster configuration
-	config, err = rest.InClusterConfig()
-	if err != nil {
-		// Fallback to out-of-cluster configuration (for local development)
-		home := homedir.HomeDir()
-		kubeconfig := filepath.Join(home, ".kube", "config")
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-		if err != nil {
-			panic(err.Error())
-		}
-	}
-
-	// Create the clientset
-	clientset, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		panic(err.Error())
-	}
-
 	// Create context
 	ctx := context.Background()
 
-	// List pods
-	pods, err := clientset.CoreV1().Pods("").List(ctx, metav1.ListOptions{})
+	if err := logger.ConfigureLogger(); err != nil {
+		logrus.Fatal("An error occurred configuring the logger!\nError was: %s", err)
+	}
+
+	configEndpoint, err := utils.GetFromEnvVar(clusterConfigEndpointEnvVarKey, "the config endpoint")
 	if err != nil {
-		panic(err.Error())
-	}
-	fmt.Printf("There are %d pods in the cluster\n", len(pods.Items))
-	for _, pod := range pods.Items {
-		fmt.Printf("Pod Name: %s\n", pod.Name)
+		logrus.Fatal("An error occurred getting the config endpoint from the env vars!\nError was: %s", err)
 	}
 
-	// Istio Client
-	ic, err := versionedclient.NewForConfig(config)
+	clusterManager, err := cluster_manager.CreateClusterManager()
 	if err != nil {
-		logrus.Fatalf("Failed to create istio client: %s", err)
+		logrus.Fatal("An error occurred while creating the cluster manager!\nError was: %s", err)
 	}
 
-	// Test VirtualServices
-	vsList, err := ic.NetworkingV1alpha3().VirtualServices("").List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		logrus.Errorf("Failed to get VirtualService in %s namespace: %s", "default", err)
+	fetcher := fetcher.NewFetcher(clusterManager, configEndpoint)
+
+	if err = fetcher.Run(ctx); err != nil {
+		logrus.Fatalf("An error occurred while running the fetcher!\nError was: %s", err)
 	}
 
-	for i := range vsList.Items {
-		vs := vsList.Items[i]
-		logrus.Printf("Index: %d VirtualService Hosts: %+v\n", i, vs.Spec.GetHosts())
-	}
+	// No external clients connection so-far
+	//if err := server.CreateAndStartRestAPIServer(); err != nil {
+	//	logrus.Fatalf("The REST API server is down, exiting!\nError was: %s", err)
+	//}
 
-	// Test DestinationRules
-	drList, err := ic.NetworkingV1alpha3().DestinationRules("").List(context.TODO(), metav1.ListOptions{})
-	if err != nil {
-		logrus.Errorf("Failed to get DestinationRule in %s namespace: %s", "", err)
-	}
-
-	for i := range drList.Items {
-		dr := drList.Items[i]
-		logrus.Printf("Index: %d DestinationRule Host: %+v\n", i, dr.Spec.GetHost())
-	}
-
-	return nil
+	os.Exit(successExitCode)
 }

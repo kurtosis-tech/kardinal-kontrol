@@ -5,5 +5,7 @@ use (
 	./kloud-kontrol
 	./kontrol-service
 	./libs/cli-kontrol-api
-	./redis-overlay-service
+	./libs/manager-kontrol-api
+	./sidecars/redis-overlay-service
+	./demos/voting-app
 )

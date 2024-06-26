@@ -60,7 +60,7 @@ nix run ./#redis-proxy-overlay
 
 ## Publishing multi-arch images
 
-Too publish multi-arch images, you can use the following command:
+To publish multi-arch images, you can use the following command:
 
 ```bash
 $(nix build .#publish-<SERVICE_NAME>-container --no-link --print-out-paths)/bin/push
