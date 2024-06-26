@@ -295,13 +295,18 @@ func FrontendDestinationRule(services []*types.ServiceSpec, namespaceSpec types.
 	})
 
 	if traffic.HasMirroring {
-		devSubset := v1alpha3.Subset{
-			Name: traffic.MirrorToVersion,
-			Labels: map[string]string{
-				"version": traffic.MirrorToVersion,
-			},
+		isMirrorVersionAlreadySet := lo.ContainsBy(subsets, func(item *v1alpha3.Subset) bool {
+			return item.Name == traffic.MirrorToVersion
+		})
+		if !isMirrorVersionAlreadySet {
+			devSubset := v1alpha3.Subset{
+				Name: traffic.MirrorToVersion,
+				Labels: map[string]string{
+					"version": traffic.MirrorToVersion,
+				},
+			}
+			subsets = append(subsets, &devSubset)
 		}
-		subsets = append(subsets, &devSubset)
 	}
 	return istioclient.DestinationRule{
 		TypeMeta: metav1.TypeMeta{
