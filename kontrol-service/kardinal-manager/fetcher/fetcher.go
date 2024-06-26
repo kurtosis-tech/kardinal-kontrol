@@ -71,7 +71,7 @@ func (fetcher *fetcher) fetchAndApply(ctx context.Context) error {
 	return nil
 }
 
-func (fetcher *fetcher) getClusterResourcesFromCloud() (*types.ClusterResource, error) {
+func (fetcher *fetcher) getClusterResourcesFromCloud() (*types.ClusterResources, error) {
 	resp, err := http.Get(fetcher.configEndpoint)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error fetching cluster resources from endpoint '%s'", fetcher.configEndpoint)
@@ -83,7 +83,7 @@ func (fetcher *fetcher) getClusterResourcesFromCloud() (*types.ClusterResource, 
 		return nil, stacktrace.Propagate(err, "Error reading the response from '%v'", fetcher.configEndpoint)
 	}
 
-	var clusterResources *types.ClusterResource
+	var clusterResources *types.ClusterResources
 
 	if err = json.Unmarshal(responseBodyBytes, &clusterResources); err != nil {
 		return nil, stacktrace.Propagate(err, "And error occurred unmarshalling the response to a config response object")

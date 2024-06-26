@@ -6,5 +6,5 @@ use (
 	./kontrol-service
 	./libs/cli-kontrol-api
 	./libs/manager-kontrol-api
-	./redis-overlay-service
+	./sidecars/redis-overlay-service
 )

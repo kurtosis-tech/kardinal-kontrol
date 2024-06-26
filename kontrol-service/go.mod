@@ -8,14 +8,14 @@ replace github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api => ../libs/ma
 
 require (
 	github.com/deepmap/oapi-codegen/v2 v2.2.1-0.20240604070534-2f0ff757704b
-	github.com/getkin/kin-openapi v0.124.0
+	github.com/getkin/kin-openapi v0.125.0
+	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-00010101000000-000000000000
 	github.com/kurtosis-tech/stacktrace v0.0.0-20211028211901-1c67a77b5409
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/oapi-codegen/runtime v1.1.1
 	github.com/samber/lo v1.39.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.9.0
-	gopkg.in/yaml.v3 v3.0.1
 	istio.io/api v1.22.1-0.20240524024004-b6815be0740d
 	istio.io/client-go v1.22.1
 	k8s.io/api v0.30.2
@@ -70,6 +70,7 @@ require (
 	google.golang.org/protobuf v1.33.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 	k8s.io/klog/v2 v2.120.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
