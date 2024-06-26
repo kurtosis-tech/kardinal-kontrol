@@ -98,7 +98,7 @@
             inherit pkgs;
           };
 
-          packages.kardinal-manager = pkgs.callPackage ./kontrol-service/default.nix {
+          packages.kardinal-manager = pkgs.callPackage ./kardinal-manager/default.nix {
             inherit pkgs;
           };
 
