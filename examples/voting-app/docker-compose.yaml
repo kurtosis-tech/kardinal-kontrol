@@ -16,3 +16,5 @@ services:
       REDIS: redis-prod
     ports:
       - "80:80"
+    depends_on:
+      - azure-vote-back

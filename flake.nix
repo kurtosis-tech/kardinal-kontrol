@@ -106,7 +106,7 @@
             inherit pkgs;
           };
 
-          packages.redis-proxy-overlay = pkgs.callPackage ./redis-overlay-service/default.nix {
+          packages.redis-proxy-overlay = pkgs.callPackage ./sidecars/redis-overlay-service/default.nix {
             inherit pkgs;
           };
 
