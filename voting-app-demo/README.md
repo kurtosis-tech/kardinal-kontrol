@@ -64,13 +64,13 @@ sudo nano /private/etc/hosts
 And include these lines at the end and save the host file
 
 ```bash
-127.0.0.1	voting-app.localhost
-127.0.0.1	dev.voting-app.localhost
+127.0.0.1	prod.app.localhost
+127.0.0.1	dev.app.localhost
 ```
 
 ## Demo
 
-After deploying the application, you can access the Azure voting app at [http://voting-app.localhost](http://voting-app.localhost). And
+After deploying the application, you can access the Azure voting app at [http://prod.app.localhost](http://prod.app.localhost). And
 can also start some artificial load with the following command (`nix develop` will make them available in the shell):
 
 ```bash
@@ -84,7 +84,7 @@ you enter the dev mode and start to test with the Redis proxy overlay.
 kardinal create-dev-flow voting-app
 ```
 
-You can now access the dev path at [http://dev.voting-app.localhost](http://dev.voting-app.localhost) and the Kiali dashboard will reflect the new traffic flow.
+You can now access the dev path at [http://dev.app.localhost](http://dev.app.localhost) and the Kiali dashboard will reflect the new traffic flow.
 Use the following command to reset the state (replace the pod) on Redis proxy overlay:
 
 ```bash
