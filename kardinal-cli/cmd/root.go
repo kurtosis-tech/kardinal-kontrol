@@ -15,7 +15,12 @@ import (
 	api_types "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 )
 
-const projectName = "kardinal"
+const (
+	projectName        = "kardinal"
+	devMode            = true
+	kloudKontrolApiUrl = "ad718d90d54d54dd084dea50a9f011af-1140086995.us-east-1.elb.amazonaws.com"
+	kloudKontrolPort   = 8080
+)
 
 var composeFile string
 
@@ -137,15 +142,15 @@ func parseComposeFile(composeFile string) ([]types.ServiceConfig, error) {
 func createDevFlow(services []types.ServiceConfig, imageLocator, serviceName string) {
 	ctx := context.Background()
 
+	//fmt.Printf("Services:\n%v", services)
+	//fmt.Printf("%v", serviceName)
+	//fmt.Printf("%v", imageLocator)
 	body := api_types.PostFlowCreateJSONRequestBody{
 		DockerCompose: &services,
 		ServiceName:   &serviceName,
 		ImageLocator:  &imageLocator,
 	}
-	client, err := api.NewClientWithResponses("http://localhost:8080", api.WithHTTPClient(http.DefaultClient))
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-	}
+	client := getKloudKontrolClient()
 
 	resp, err := client.PostFlowCreateWithResponse(ctx, body)
 	if err != nil {
@@ -153,6 +158,7 @@ func createDevFlow(services []types.ServiceConfig, imageLocator, serviceName str
 	}
 
 	fmt.Printf("Response: %s\n", string(resp.Body))
+	fmt.Printf("Response: %s\n", resp)
 }
 
 func deploy(services []types.ServiceConfig) {
@@ -161,10 +167,7 @@ func deploy(services []types.ServiceConfig) {
 	body := api_types.PostDeployJSONRequestBody{
 		DockerCompose: &services,
 	}
-	client, err := api.NewClientWithResponses("http://localhost:8080", api.WithHTTPClient(http.DefaultClient))
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-	}
+	client := getKloudKontrolClient()
 
 	resp, err := client.PostDeployWithResponse(ctx, body)
 	if err != nil {
@@ -180,10 +183,7 @@ func deleteFlow(services []types.ServiceConfig) {
 	body := api_types.PostFlowDeleteJSONRequestBody{
 		DockerCompose: &services,
 	}
-	client, err := api.NewClientWithResponses("http://localhost:8080", api.WithHTTPClient(http.DefaultClient))
-	if err != nil {
-		log.Fatalf("Failed to create client: %v", err)
-	}
+	client := getKloudKontrolClient()
 
 	resp, err := client.PostFlowDeleteWithResponse(ctx, body)
 	if err != nil {
@@ -191,4 +191,20 @@ func deleteFlow(services []types.ServiceConfig) {
 	}
 
 	fmt.Printf("Response: %s\n", string(resp.Body))
+}
+
+func getKloudKontrolClient() *api.ClientWithResponses {
+	if devMode {
+		client, err := api.NewClientWithResponses("http://localhost:8080", api.WithHTTPClient(http.DefaultClient))
+		if err != nil {
+			log.Fatalf("Failed to create client: %v", err)
+		}
+		return client
+	} else {
+		client, err := api.NewClientWithResponses(fmt.Sprintf("http://%s:%v", kloudKontrolApiUrl, kloudKontrolPort))
+		if err != nil {
+			log.Fatalf("Failed to create client: %v", err)
+		}
+		return client
+	}
 }
