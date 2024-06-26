@@ -7,4 +7,5 @@ use (
 	./libs/cli-kontrol-api
 	./libs/manager-kontrol-api
 	./sidecars/redis-overlay-service
+	./demos/voting-app
 )
