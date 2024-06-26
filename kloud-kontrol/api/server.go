@@ -6,8 +6,9 @@ import (
 
 	compose "github.com/compose-spec/compose-go/types"
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
+	managerapi "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/server"
+	managerapitypes "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/types"
 
-	"k8s.io/client-go/rest"
 	"kardinal.kloud-kontrol/engine"
 	"kardinal.kloud-kontrol/engine/template"
 	"kardinal.kloud-kontrol/topology"
@@ -15,7 +16,10 @@ import (
 )
 
 // TODO:find a better way to find the frontend
-const frontendServiceName = "voting-app-ui"
+const (
+	frontendServiceName = "voting-app-ui"
+	defaultNamespace    = "default"
+)
 
 // optional code omitted
 var _ api.StrictServerInterface = (*Server)(nil)
@@ -30,19 +34,18 @@ func NewServer() Server {
 	}
 }
 
-func RegisterHandlers(router api.EchoRouter, si api.ServerInterface) {
-	api.RegisterHandlers(router, si)
-}
+func (sv *Server) RegisterExternalAndInternalApi(router api.EchoRouter) {
+	externalHandlers := api.NewStrictHandler(sv, nil)
+	internalHandlers := managerapi.NewStrictHandler(sv, nil)
 
-func NewStrictHandler(si api.StrictServerInterface) api.ServerInterface {
-	return api.NewStrictHandler(si, nil)
+	api.RegisterHandlers(router, externalHandlers)
+	managerapi.RegisterHandlers(router, internalHandlers)
 }
 
 func (sv *Server) PostDeploy(ctx context.Context, request api.PostDeployRequestObject) (api.PostDeployResponseObject, error) {
 	log.Printf("Deploying prod cluster")
-	restConn := engine.ConnectToCluster()
 	project := *request.Body.DockerCompose
-	err := applyProdOnlyFlow(sv, restConn, project)
+	err := applyProdOnlyFlow(sv, project)
 	if err != nil {
 		return nil, err
 	}
@@ -52,9 +55,8 @@ func (sv *Server) PostDeploy(ctx context.Context, request api.PostDeployRequestO
 
 func (sv *Server) PostFlowDelete(ctx context.Context, request api.PostFlowDeleteRequestObject) (api.PostFlowDeleteResponseObject, error) {
 	log.Printf("Deleting dev flow")
-	restConn := engine.ConnectToCluster()
 	project := *request.Body.DockerCompose
-	err := applyProdOnlyFlow(sv, restConn, project)
+	err := applyProdOnlyFlow(sv, project)
 	if err != nil {
 		return nil, err
 	}
@@ -67,9 +69,8 @@ func (sv *Server) PostFlowCreate(ctx context.Context, request api.PostFlowCreate
 	imageLocator := *request.Body.ImageLocator
 	log.Printf("Starting new dev flow for service %v on image %v", serviceName, imageLocator)
 
-	restConn := engine.ConnectToCluster()
 	project := *request.Body.DockerCompose
-	err := applyProdDevFlow(sv, restConn, project, serviceName, imageLocator)
+	err := applyProdDevFlow(sv, project, serviceName, imageLocator)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +80,7 @@ func (sv *Server) PostFlowCreate(ctx context.Context, request api.PostFlowCreate
 
 func (sv *Server) GetTopology(ctx context.Context, request api.GetTopologyRequestObject) (api.GetTopologyResponseObject, error) {
 	namespaceParam := request.Params.Namespace
-	namespace := "default"
+	namespace := defaultNamespace
 
 	if namespaceParam != nil && len(*namespaceParam) != 0 {
 		namespace = *namespaceParam
@@ -93,30 +94,53 @@ func (sv *Server) GetTopology(ctx context.Context, request api.GetTopologyReques
 	return nil, nil
 }
 
+func (sv *Server) GetClusterResources(ctx context.Context, request managerapi.GetClusterResourcesRequestObject) (managerapi.GetClusterResourcesResponseObject, error) {
+	log.Printf("Getting cluster resources")
+	namespaceParam := request.Params.Namespace
+	namespace := defaultNamespace
+
+	if namespaceParam != nil && len(*namespaceParam) != 0 {
+		namespace = *namespaceParam
+	}
+
+	if cluster, found := sv.composes[namespace]; found {
+		clusterResources := template.RenderClusterResources(cluster)
+		managerAPIClusterResources := newManagerAPIClusterResources(clusterResources)
+
+		return managerapi.GetClusterResources200JSONResponse(managerAPIClusterResources), nil
+	}
+
+	return nil, nil
+}
+
 // ============================================================================================================
-func applyProdOnlyFlow(sv *Server, restConn *rest.Config, project []compose.ServiceConfig) error {
+func applyProdOnlyFlow(sv *Server, project []compose.ServiceConfig) error {
 	cluster, err := engine.GenerateProdOnlyCluster(project)
 	if err != nil {
 		return err
 	}
 
 	sv.composes["default"] = *cluster
-	clusterResources := template.RenderClusterResources(*cluster)
-	engine.ApplyClusterResources(restConn, &clusterResources)
-	engine.CleanUpClusterResources(restConn, &clusterResources)
 	return nil
 }
 
 // ============================================================================================================
-func applyProdDevFlow(sv *Server, restConn *rest.Config, project []compose.ServiceConfig, devServiceName string, devImage string) error {
+func applyProdDevFlow(sv *Server, project []compose.ServiceConfig, devServiceName string, devImage string) error {
 	cluster, err := engine.GenerateProdDevCluster(project, devServiceName, devImage)
 	if err != nil {
 		return err
 	}
 
 	sv.composes["default"] = *cluster
-	clusterResources := template.RenderClusterResources(*cluster)
-	engine.ApplyClusterResources(restConn, &clusterResources)
-	engine.CleanUpClusterResources(restConn, &clusterResources)
 	return nil
+}
+
+func newManagerAPIClusterResources(clusterResources types.ClusterResources) managerapitypes.ClusterResources {
+	return managerapitypes.ClusterResources{
+		Deployments:      &clusterResources.Deployments,
+		Services:         &clusterResources.Services,
+		VirtualServices:  &clusterResources.VirtualServices,
+		DestinationRules: &clusterResources.DestinationRules,
+		Gateway:          &clusterResources.Gateway,
+	}
 }

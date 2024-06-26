@@ -25,8 +25,8 @@ import (
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
 	// Cluster resource definition
-	// (GET /cluster-resources/{identifier})
-	GetClusterResourcesIdentifier(ctx echo.Context, identifier Identifier) error
+	// (GET /cluster-resources)
+	GetClusterResources(ctx echo.Context, params GetClusterResourcesParams) error
 }
 
 // ServerInterfaceWrapper converts echo contexts to parameters.
@@ -34,19 +34,21 @@ type ServerInterfaceWrapper struct {
 	Handler ServerInterface
 }
 
-// GetClusterResourcesIdentifier converts echo context to params.
-func (w *ServerInterfaceWrapper) GetClusterResourcesIdentifier(ctx echo.Context) error {
+// GetClusterResources converts echo context to params.
+func (w *ServerInterfaceWrapper) GetClusterResources(ctx echo.Context) error {
 	var err error
-	// ------------- Path parameter "identifier" -------------
-	var identifier Identifier
 
-	err = runtime.BindStyledParameterWithOptions("simple", "identifier", ctx.Param("identifier"), &identifier, runtime.BindStyledParameterOptions{ParamLocation: runtime.ParamLocationPath, Explode: false, Required: true})
+	// Parameter object where we will unmarshal all parameters from the context
+	var params GetClusterResourcesParams
+	// ------------- Optional query parameter "namespace" -------------
+
+	err = runtime.BindQueryParameter("form", true, false, "namespace", ctx.QueryParams(), &params.Namespace)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter identifier: %s", err))
+		return echo.NewHTTPError(http.StatusBadRequest, fmt.Sprintf("Invalid format for parameter namespace: %s", err))
 	}
 
 	// Invoke the callback with all the unmarshaled arguments
-	err = w.Handler.GetClusterResourcesIdentifier(ctx, identifier)
+	err = w.Handler.GetClusterResources(ctx, params)
 	return err
 }
 
@@ -78,35 +80,35 @@ func RegisterHandlersWithBaseURL(router EchoRouter, si ServerInterface, baseURL 
 		Handler: si,
 	}
 
-	router.GET(baseURL+"/cluster-resources/:identifier", wrapper.GetClusterResourcesIdentifier)
+	router.GET(baseURL+"/cluster-resources", wrapper.GetClusterResources)
 
 }
 
 type NotOkJSONResponse ResponseInfo
 
-type GetClusterResourcesIdentifierRequestObject struct {
-	Identifier Identifier `json:"identifier"`
+type GetClusterResourcesRequestObject struct {
+	Params GetClusterResourcesParams
 }
 
-type GetClusterResourcesIdentifierResponseObject interface {
-	VisitGetClusterResourcesIdentifierResponse(w http.ResponseWriter) error
+type GetClusterResourcesResponseObject interface {
+	VisitGetClusterResourcesResponse(w http.ResponseWriter) error
 }
 
-type GetClusterResourcesIdentifier200JSONResponse ClusterResources
+type GetClusterResources200JSONResponse ClusterResources
 
-func (response GetClusterResourcesIdentifier200JSONResponse) VisitGetClusterResourcesIdentifierResponse(w http.ResponseWriter) error {
+func (response GetClusterResources200JSONResponse) VisitGetClusterResourcesResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(200)
 
 	return json.NewEncoder(w).Encode(response)
 }
 
-type GetClusterResourcesIdentifierdefaultJSONResponse struct {
+type GetClusterResourcesdefaultJSONResponse struct {
 	Body       ResponseInfo
 	StatusCode int
 }
 
-func (response GetClusterResourcesIdentifierdefaultJSONResponse) VisitGetClusterResourcesIdentifierResponse(w http.ResponseWriter) error {
+func (response GetClusterResourcesdefaultJSONResponse) VisitGetClusterResourcesResponse(w http.ResponseWriter) error {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(response.StatusCode)
 
@@ -116,8 +118,8 @@ func (response GetClusterResourcesIdentifierdefaultJSONResponse) VisitGetCluster
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
 	// Cluster resource definition
-	// (GET /cluster-resources/{identifier})
-	GetClusterResourcesIdentifier(ctx context.Context, request GetClusterResourcesIdentifierRequestObject) (GetClusterResourcesIdentifierResponseObject, error)
+	// (GET /cluster-resources)
+	GetClusterResources(ctx context.Context, request GetClusterResourcesRequestObject) (GetClusterResourcesResponseObject, error)
 }
 
 type StrictHandlerFunc = strictecho.StrictEchoHandlerFunc
@@ -132,25 +134,25 @@ type strictHandler struct {
 	middlewares []StrictMiddlewareFunc
 }
 
-// GetClusterResourcesIdentifier operation middleware
-func (sh *strictHandler) GetClusterResourcesIdentifier(ctx echo.Context, identifier Identifier) error {
-	var request GetClusterResourcesIdentifierRequestObject
+// GetClusterResources operation middleware
+func (sh *strictHandler) GetClusterResources(ctx echo.Context, params GetClusterResourcesParams) error {
+	var request GetClusterResourcesRequestObject
 
-	request.Identifier = identifier
+	request.Params = params
 
 	handler := func(ctx echo.Context, request interface{}) (interface{}, error) {
-		return sh.ssi.GetClusterResourcesIdentifier(ctx.Request().Context(), request.(GetClusterResourcesIdentifierRequestObject))
+		return sh.ssi.GetClusterResources(ctx.Request().Context(), request.(GetClusterResourcesRequestObject))
 	}
 	for _, middleware := range sh.middlewares {
-		handler = middleware(handler, "GetClusterResourcesIdentifier")
+		handler = middleware(handler, "GetClusterResources")
 	}
 
 	response, err := handler(ctx, request)
 
 	if err != nil {
 		return err
-	} else if validResponse, ok := response.(GetClusterResourcesIdentifierResponseObject); ok {
-		return validResponse.VisitGetClusterResourcesIdentifierResponse(ctx.Response())
+	} else if validResponse, ok := response.(GetClusterResourcesResponseObject); ok {
+		return validResponse.VisitGetClusterResourcesResponse(ctx.Response())
 	} else if response != nil {
 		return fmt.Errorf("unexpected response type: %T", response)
 	}
@@ -160,18 +162,18 @@ func (sh *strictHandler) GetClusterResourcesIdentifier(ctx echo.Context, identif
 // Base64 encoded, gzipped, json marshaled Swagger object
 var swaggerSpec = []string{
 
-	"H4sIAAAAAAAC/7xVwW7bOBD9FWN2j7JpJ5eFbsFmNzCCdRZO2h6CIGCpscxYItnhyIlh6N8LipLlJLab",
-	"Q9uTJc3j45s35uMWlC2dNWjYQ7oFJ0mWyEjNm87QsF5opPCWoVekHWtrIAVe4oDQ24oUDqaXkIAOn53k",
-	"JSRgZImQ7hMkQPit0oQZpEwVJuDVEksZmHnjAtozaZNDXdcB7J01HhsdM8s3q/CgrGE0HB6lc4VWMqgR",
-	"Tz5I2u4x/km4gBT+EH17Ila9mLfUU7OwcbPXnX0y+OJQMWYDJLIEAdIuDtx/F5VnpHnbfPSNrENiHd8y",
-	"dIXdlJ2pmrFsHl6GuR22zUrn/HoyutxBIenrQ106S02frZMRDkk0OIXVX36krZBOi1AS60kjsyMnkhuI",
-	"nbE2jUuPVBV4XM96Igu3lOejy37JvCrwtKxuVS9Me9Y2SFOFRsPD3Aq3yoNQLwzys6WVNrnYLTykOpeM",
-	"z3JzVOJVW/8N0jzSWqsTvilLuJ6MbiPutKSIPTjEUDo2xLUmrmTx+EMtO4M+xxUfEvUrRth/sF+fUHHo",
-	"4tWxe3dklM0w/C4slZIhhUobPj+DHZE2jDlSYCrRe5njgeTo0B8LgLuAjWHTJdN9JOj3SKKyhxMN3bVb",
-	"oqnKwPDPfH4zhwSms39vIIEvF/PZdHa1R7Gfc7p1gzUXofafNDJHEteFrbLhtTVMthhc/D+FBNZIPkbU",
-	"ZDQejYMG69BIpyGF8+ZTnGHjqFAxp4ZdSnux7fO4DpAcmz9CmENz3qcZpHCF/Dbhpvsxvn9F3B82uoeI",
-	"vRugfngT62fj8U8L9XehfCDYbyul0PtFVQw6HTEjF7Iq+NgOO8kiXkNNKlRlKWkDaXcZ9FdhhgttdLNj",
-	"Aizz4BK8GwU81HVdfw8AAP//Zq1BA34HAAA=",
+	"H4sIAAAAAAAC/7yVQW/bOgzHv4rB945OnLSXB9+K1/eKoFg6pN12KIpCkxlHjS2qFO02KPLdB9mOkzZN",
+	"1sO2UxSR+vMn0iJfQFPpyKIVD+kLMHpH1mPzZ0pytQwLTVbQSlgq5wqjlRiyyYMnG/a8XmCpwupvxjmk",
+	"8FeyVU1aq09mnfTEzgnW63UMGXrNxgUtSOGLxWeHWjCLkJkYgkt3OGj/W1RekGfoqWLdEjomhyym/Zeh",
+	"K2hVbu5iBMtm8TzIaSArh5AGfl+Ph+e9K8Rb+8CUjri5p1Xl1h1icEoWkMLyHz80lChnkmBK6nGDuRFn",
+	"VitobybGNlm656rAwzz1WBVuoU6H59sjs6rA41ibU1sw48VQQNOFQSuDnBK3zAOoTyzKE/HS2DzpD75H",
+	"nSvBJ7U6iHjR2f8AmkeujT6SN02M9Xh43fodR2p93y1iMB0qYm1YKlXc/5SlT9DX9sSHoH5HCbcb9P0B",
+	"tYRbvHp2e09GU4bhd05cKoEUKmPl9AR6IWMFc+SgVKL3Km/cO6MXNjaHPuzHGsBN8A2sjI+VYcwgvW0F",
+	"tjHiluzuyIVuupBoqzIo/DebXc0ghsn0/yuI4dvZbDqZXuxIbGhDaNNlQ4wUwfZJWZUjJ5cFVdngkqww",
+	"FdHZ5wnEUCP7tkWNh6PhKDCQQ6ucgRROm622hk1GE932qQHvNqocm9qH1DdPfJJBChcoe00tKLEqUZA9",
+	"pLcvb5rkzQKj8AF5pzRGc+LoaWH0IhKKGIUN1hjJAqMOIuIdYRMEHivk8IK7r7DXgninjb9N2F38ejCc",
+	"jEa/bCzsZeCd0XBdaY3ez6si2nC0XXauqkIOReiRk3aQNX2lKkvFK0g346TPUJTh3FjTRIxBVB7SD/vF",
+	"vFuv1+sfAQAA//+4aAzDNwcAAA==",
 }
 
 // GetSwagger returns the content of the embedded swagger specification file

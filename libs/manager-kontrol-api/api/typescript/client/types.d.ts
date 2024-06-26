@@ -5,12 +5,13 @@
 
 
 export interface paths {
-  "/cluster-resources/{identifier}": {
+  "/cluster-resources": {
     /** Cluster resource definition */
     get: {
       parameters: {
-        path: {
-          identifier: components["parameters"]["identifier"];
+        query?: {
+          /** @description The namespace for which to retrieve the cluster resources */
+          namespace?: string;
         };
       };
       responses: {
@@ -54,10 +55,7 @@ export interface components {
       };
     };
   };
-  parameters: {
-    /** @description the resource ID */
-    identifier: string;
-  };
+  parameters: never;
   requestBodies: never;
   headers: never;
   pathItems: never;
