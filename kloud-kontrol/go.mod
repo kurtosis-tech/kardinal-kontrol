@@ -8,6 +8,7 @@ require (
 	github.com/compose-spec/compose-go v1.20.2
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/samber/lo v1.39.0
+	github.com/stretchr/testify v1.9.0
 	istio.io/api v1.22.1-0.20240524024004-b6815be0740d
 	istio.io/client-go v1.22.1
 	k8s.io/api v0.30.2
@@ -16,12 +17,14 @@ require (
 )
 
 require (
+	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/getkin/kin-openapi v0.124.0 // indirect
 	github.com/invopop/yaml v0.2.0 // indirect
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/oapi-codegen/runtime v1.1.1 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
+	github.com/pmezard/go-difflib v1.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )
 

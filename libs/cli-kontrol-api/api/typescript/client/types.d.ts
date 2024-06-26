@@ -59,6 +59,24 @@ export interface paths {
       };
     };
   };
+  "/topology": {
+    get: {
+      parameters: {
+        query?: {
+          /** @description The namespace for which to retrieve the topology */
+          namespace?: string;
+        };
+      };
+      responses: {
+        /** @description Topology information */
+        200: {
+          content: {
+            "application/json": components["schemas"]["ClusterTopology"];
+          };
+        };
+      };
+    };
+  };
 }
 
 export type webhooks = Record<string, never>;
@@ -74,6 +92,24 @@ export interface components {
       /** @example backend-service-a */
       "service-name"?: string;
       "docker-compose"?: unknown[];
+    };
+    Node: {
+      /** @description Unique identifier for the node. */
+      id: string;
+      /** @description Label for the node. */
+      label?: string;
+    };
+    Edge: {
+      /** @description The identifier of the source node of the edge. */
+      source: string;
+      /** @description The identifier of the target node of the edge. */
+      target: string;
+      /** @description Label for the edge. */
+      label?: string;
+    };
+    ClusterTopology: {
+      nodes: components["schemas"]["Node"][];
+      edges: components["schemas"]["Edge"][];
     };
   };
   responses: never;
