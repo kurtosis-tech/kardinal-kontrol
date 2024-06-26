@@ -189,7 +189,7 @@ type ClientWithResponsesInterface interface {
 type GetClusterResourcesIdentifierResponse struct {
 	Body         []byte
 	HTTPResponse *http.Response
-	JSON200      *ClusterResource
+	JSON200      *ClusterResources
 	JSONDefault  *NotOk
 }
 
@@ -233,7 +233,7 @@ func ParseGetClusterResourcesIdentifierResponse(rsp *http.Response) (*GetCluster
 
 	switch {
 	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 200:
-		var dest ClusterResource
+		var dest ClusterResources
 		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
 			return nil, err
 		}

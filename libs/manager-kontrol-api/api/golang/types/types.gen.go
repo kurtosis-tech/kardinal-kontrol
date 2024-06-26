@@ -4,7 +4,9 @@
 package types
 
 import (
-	"time"
+	v1alpha3 "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 // Defines values for ResponseType.
@@ -14,129 +16,13 @@ const (
 	WARNING ResponseType = "WARNING"
 )
 
-// ClusterResource defines model for ClusterResource.
-type ClusterResource struct {
-	Deployments      *[]Deployment      `json:"deployments,omitempty"`
-	DestinationRules *[]DestinationRule `json:"destination_rules,omitempty"`
-	Gateway          *Gateway           `json:"gateway,omitempty"`
-	Services         *[]Service         `json:"services,omitempty"`
-	VirtualServices  *[]VirtualService  `json:"virtual_services,omitempty"`
-}
-
-// Container defines model for Container.
-type Container struct {
-	Env             *[]EnvVar               `json:"env,omitempty"`
-	Image           *string                 `json:"image,omitempty"`
-	ImagePullPolicy *string                 `json:"image_pull_policy,omitempty"`
-	Name            *string                 `json:"name,omitempty"`
-	Ports           *[]ContainerPort        `json:"ports,omitempty"`
-	Resources       *map[string]interface{} `json:"resources,omitempty"`
-}
-
-// ContainerPort defines model for ContainerPort.
-type ContainerPort struct {
-	ContainerPort *int    `json:"container_port,omitempty"`
-	Name          *string `json:"name,omitempty"`
-	Protocol      *string `json:"protocol,omitempty"`
-}
-
-// Deployment defines model for Deployment.
-type Deployment struct {
-	ApiVersion *string                 `json:"api_version,omitempty"`
-	Kind       *string                 `json:"kind,omitempty"`
-	Metadata   *Metadata               `json:"metadata,omitempty"`
-	Spec       *DeploymentSpec         `json:"spec,omitempty"`
-	Status     *map[string]interface{} `json:"status,omitempty"`
-}
-
-// DeploymentSpec defines model for DeploymentSpec.
-type DeploymentSpec struct {
-	Replicas *int `json:"replicas,omitempty"`
-	Selector *struct {
-		MatchLabels *map[string]string `json:"match_labels,omitempty"`
-	} `json:"selector,omitempty"`
-	Strategy *DeploymentStrategy `json:"strategy,omitempty"`
-	Template *PodTemplateSpec    `json:"template,omitempty"`
-}
-
-// DeploymentStrategy defines model for DeploymentStrategy.
-type DeploymentStrategy struct {
-	RollingUpdate *RollingUpdateStrategy `json:"rolling_update,omitempty"`
-	Type          *string                `json:"type,omitempty"`
-}
-
-// DestinationRule defines model for DestinationRule.
-type DestinationRule struct {
-	ApiVersion *string                 `json:"api_version,omitempty"`
-	Kind       *string                 `json:"kind,omitempty"`
-	Metadata   *Metadata               `json:"metadata,omitempty"`
-	Spec       *DestinationRuleSpec    `json:"spec,omitempty"`
-	Status     *map[string]interface{} `json:"status,omitempty"`
-}
-
-// DestinationRuleSpec defines model for DestinationRuleSpec.
-type DestinationRuleSpec struct {
-	Host    *string   `json:"host,omitempty"`
-	Subsets *[]Subset `json:"subsets,omitempty"`
-}
-
-// EnvVar defines model for EnvVar.
-type EnvVar map[string]string
-
-// Gateway defines model for Gateway.
-type Gateway struct {
-	ApiVersion *string                 `json:"api_version,omitempty"`
-	Kind       *string                 `json:"kind,omitempty"`
-	Metadata   *Metadata               `json:"metadata,omitempty"`
-	Spec       *GatewaySpec            `json:"spec,omitempty"`
-	Status     *map[string]interface{} `json:"status,omitempty"`
-}
-
-// GatewaySpec defines model for GatewaySpec.
-type GatewaySpec struct {
-	Selector *struct {
-		Istio *string `json:"istio,omitempty"`
-	} `json:"selector,omitempty"`
-	Servers *[]Server `json:"servers,omitempty"`
-}
-
-// MatchData defines model for MatchData.
-type MatchData struct {
-	Port *int `json:"port,omitempty"`
-}
-
-// MatchRoute defines model for MatchRoute.
-type MatchRoute struct {
-	Match *[]MatchData        `json:"match,omitempty"`
-	Route *[]RouteDestination `json:"route,omitempty"`
-}
-
-// Metadata defines model for Metadata.
-type Metadata struct {
-	Annotations       *map[string]string `json:"annotations,omitempty"`
-	CreationTimeStamp *time.Time         `json:"creation_time_stamp,omitempty"`
-	Labels            *map[string]string `json:"labels,omitempty"`
-	Name              *string            `json:"name,omitempty"`
-	Namespace         *string            `json:"namespace,omitempty"`
-}
-
-// PodSpec defines model for PodSpec.
-type PodSpec struct {
-	Containers *[]Container `json:"containers,omitempty"`
-}
-
-// PodTemplateSpec defines model for PodTemplateSpec.
-type PodTemplateSpec struct {
-	Metadata *Metadata `json:"metadata,omitempty"`
-	Spec     *PodSpec  `json:"spec,omitempty"`
-}
-
-// Port defines model for Port.
-type Port struct {
-	Name       *string `json:"name,omitempty"`
-	Port       *int    `json:"port,omitempty"`
-	Protocol   *string `json:"protocol,omitempty"`
-	TargetPort *int    `json:"targetPort,omitempty"`
+// ClusterResources defines model for ClusterResources.
+type ClusterResources struct {
+	Deployments      *[]appsv1.Deployment        `json:"deployments,omitempty"`
+	DestinationRules *[]v1alpha3.DestinationRule `json:"destination_rules,omitempty"`
+	Gateway          *v1alpha3.Gateway           `json:"gateway,omitempty"`
+	Services         *[]corev1.Service           `json:"services,omitempty"`
+	VirtualServices  *[]v1alpha3.VirtualService  `json:"virtual_services,omitempty"`
 }
 
 // ResponseInfo defines model for ResponseInfo.
@@ -148,77 +34,6 @@ type ResponseInfo struct {
 
 // ResponseType defines model for ResponseType.
 type ResponseType string
-
-// RollingUpdateStrategy defines model for RollingUpdateStrategy.
-type RollingUpdateStrategy struct {
-	MaxSurge       *string `json:"max_surge,omitempty"`
-	MaxUnavailable *string `json:"max_unavailable,omitempty"`
-}
-
-// RouteDestination defines model for RouteDestination.
-type RouteDestination struct {
-	Destination *struct {
-		Host   *string `json:"host,omitempty"`
-		Subset *string `json:"subset,omitempty"`
-	} `json:"destination,omitempty"`
-	Weight *int `json:"weight,omitempty"`
-}
-
-// Server defines model for Server.
-type Server struct {
-	Hosts *[]string   `json:"hosts,omitempty"`
-	Port  *ServerPort `json:"port,omitempty"`
-}
-
-// ServerPort defines model for ServerPort.
-type ServerPort struct {
-	Name     *string `json:"name,omitempty"`
-	Number   *int    `json:"number,omitempty"`
-	Protocol *string `json:"protocol,omitempty"`
-}
-
-// Service defines model for Service.
-type Service struct {
-	ApiVersion *string        `json:"api_version,omitempty"`
-	Kind       *string        `json:"kind,omitempty"`
-	Metadata   *Metadata      `json:"metadata,omitempty"`
-	Spec       *ServiceSpec   `json:"spec,omitempty"`
-	Status     *ServiceStatus `json:"status,omitempty"`
-}
-
-// ServiceSpec defines model for ServiceSpec.
-type ServiceSpec struct {
-	Ports    *[]Port            `json:"ports,omitempty"`
-	Selector *map[string]string `json:"selector,omitempty"`
-}
-
-// ServiceStatus defines model for ServiceStatus.
-type ServiceStatus struct {
-	LoadBalancer *map[string]interface{} `json:"load_balancer,omitempty"`
-}
-
-// Subset defines model for Subset.
-type Subset struct {
-	Labels *map[string]string `json:"labels,omitempty"`
-	Name   *string            `json:"name,omitempty"`
-}
-
-// VirtualService defines model for VirtualService.
-type VirtualService struct {
-	ApiVersion *string                 `json:"api_version,omitempty"`
-	Kind       *string                 `json:"kind,omitempty"`
-	Metadata   *Metadata               `json:"metadata,omitempty"`
-	Spec       *VirtualServiceSpec     `json:"spec,omitempty"`
-	Status     *map[string]interface{} `json:"status,omitempty"`
-}
-
-// VirtualServiceSpec defines model for VirtualServiceSpec.
-type VirtualServiceSpec struct {
-	Gateways *[]string     `json:"gateways,omitempty"`
-	Hosts    *[]string     `json:"hosts,omitempty"`
-	Http     *[]MatchRoute `json:"http,omitempty"`
-	Tcp      *[]MatchRoute `json:"tcp,omitempty"`
-}
 
 // Identifier defines model for identifier.
 type Identifier = string

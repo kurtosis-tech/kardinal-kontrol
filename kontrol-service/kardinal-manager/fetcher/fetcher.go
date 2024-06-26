@@ -3,11 +3,11 @@ package fetcher
 import (
 	"context"
 	"encoding/json"
+	"github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/types"
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/sirupsen/logrus"
 	"io"
 	"kardinal.kontrol/kardinal-manager/cluster_manager"
-	"kardinal.kontrol/kardinal-manager/types"
 	"kardinal.kontrol/kardinal-manager/utils"
 	"net/http"
 	"time"
@@ -71,7 +71,7 @@ func (fetcher *fetcher) fetchAndApply(ctx context.Context) error {
 	return nil
 }
 
-func (fetcher *fetcher) getClusterResourcesFromCloud() (*types.ClusterResources, error) {
+func (fetcher *fetcher) getClusterResourcesFromCloud() (*types.ClusterResource, error) {
 	resp, err := http.Get(fetcher.configEndpoint)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "Error fetching cluster resources from endpoint '%s'", fetcher.configEndpoint)
@@ -83,7 +83,7 @@ func (fetcher *fetcher) getClusterResourcesFromCloud() (*types.ClusterResources,
 		return nil, stacktrace.Propagate(err, "Error reading the response from '%v'", fetcher.configEndpoint)
 	}
 
-	var clusterResources *types.ClusterResources
+	var clusterResources *types.ClusterResource
 
 	if err = json.Unmarshal(responseBodyBytes, &clusterResources); err != nil {
 		return nil, stacktrace.Propagate(err, "And error occurred unmarshalling the response to a config response object")

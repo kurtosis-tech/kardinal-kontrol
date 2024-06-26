@@ -4,6 +4,8 @@ go 1.22.0
 
 toolchain go1.22.3
 
+replace github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api => ../libs/manager-kontrol-api
+
 require (
 	github.com/deepmap/oapi-codegen/v2 v2.2.1-0.20240604070534-2f0ff757704b
 	github.com/getkin/kin-openapi v0.124.0
