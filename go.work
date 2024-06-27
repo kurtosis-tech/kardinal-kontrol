@@ -2,7 +2,7 @@ go 1.22.3
 
 use (
 	./kardinal-cli
-	./kloud-kontrol
+	./kardinal-manager
 	./kontrol-service
 	./libs/cli-kontrol-api
 	./libs/manager-kontrol-api

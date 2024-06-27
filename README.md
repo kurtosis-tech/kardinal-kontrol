@@ -69,20 +69,20 @@ $(nix build .#publish-<SERVICE_NAME>-container --no-link --print-out-paths)/bin/
 $(nix build .#publish-redis-proxy-overlay-container --no-link --print-out-paths)/bin/push
 ```
 
-## Deploying Kloud Kontrol service to local cluster
+## Deploying Kontrol service to local cluster
 
 Building and loading image into minikube:
 
 ```bash
 # First set the docker context to minikube
 eval $(minikube docker-env)
-docker load < $(nix build ./#kloud-kontrol-container --no-link --print-out-paths)
+docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
 ```
 
 To build and run the service directly:
 
 ```bash
-nix run ./#kloud-kontrol
+nix run ./#kontrol-service
 
 ```
 
@@ -93,7 +93,6 @@ To build and run the service directly:
 ```bash
 nix run ./#kardinal-cli
 ```
-
 
 ### Regenerate REST API Bindings
 

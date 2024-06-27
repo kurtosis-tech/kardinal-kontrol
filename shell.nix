@@ -6,7 +6,7 @@
       nativeBuildInputs = builtins.concatLists (map (s: s.nativeBuildInputs or []) shells);
       paths = builtins.concatLists (map (s: s.paths or []) shells);
     };
-  kontrol_shell = pkgs.callPackage ./kontrol-service/shell.nix {inherit pkgs;};
+  manager_shell = pkgs.callPackage ./kardinal-manager/shell.nix {inherit pkgs;};
   frontend_shell = pkgs.callPackage ./kontrol-frontend/shell.nix {inherit pkgs;};
   cli_shell = pkgs.callPackage ./kardinal-cli/shell.nix {inherit pkgs;};
   cli_kontrol_api_shell = pkgs.callPackage ./libs/cli-kontrol-api/shell.nix {inherit pkgs;};
@@ -49,4 +49,4 @@
       '';
     };
 in
-  mergeShells [kontrol_shell frontend_shell cli_shell kardinal_shell cli_kontrol_api_shell]
+  mergeShells [manager_shell frontend_shell cli_shell kardinal_shell cli_kontrol_api_shell]

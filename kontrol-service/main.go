@@ -4,7 +4,7 @@ import (
 	"flag"
 	"log"
 
-	"kardinal.kloud-kontrol/api"
+	"kardinal.kontrol-service/api"
 
 	"github.com/labstack/echo/v4"
 )

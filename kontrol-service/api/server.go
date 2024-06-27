@@ -9,10 +9,10 @@ import (
 	managerapi "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/server"
 	managerapitypes "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/types"
 
-	"kardinal.kloud-kontrol/engine"
-	"kardinal.kloud-kontrol/engine/template"
-	"kardinal.kloud-kontrol/topology"
-	"kardinal.kloud-kontrol/types"
+	"kardinal.kontrol-service/engine"
+	"kardinal.kontrol-service/engine/template"
+	"kardinal.kontrol-service/topology"
+	"kardinal.kontrol-service/types"
 )
 
 // TODO:find a better way to find the frontend

@@ -5,7 +5,7 @@ import (
 
 	"github.com/compose-spec/compose-go/types"
 	"github.com/stretchr/testify/require"
-	"kardinal.kloud-kontrol/engine"
+	"kardinal.kontrol-service/engine"
 )
 
 const (
