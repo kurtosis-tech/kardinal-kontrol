@@ -14,7 +14,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	"kardinal.kloud-kontrol/types"
+	"kardinal.kontrol-service/types"
 )
 
 func RenderClusterResources(cluster types.Cluster) types.ClusterResources {

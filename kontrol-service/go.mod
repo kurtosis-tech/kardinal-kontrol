@@ -1,4 +1,4 @@
-module kardinal.kloud-kontrol
+module kardinal.kontrol-service
 
 go 1.22.0
 

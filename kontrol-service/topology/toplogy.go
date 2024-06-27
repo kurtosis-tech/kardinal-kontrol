@@ -6,7 +6,7 @@ import (
 	apiTypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	"github.com/samber/lo"
 
-	"kardinal.kloud-kontrol/types"
+	"kardinal.kontrol-service/types"
 )
 
 func ClusterTopology(cluster *types.Cluster) *apiTypes.ClusterTopology {

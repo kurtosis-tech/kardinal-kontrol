@@ -25,7 +25,7 @@
           ];
         };
 
-        service_names = ["kardinal-manager" "kloud-kontrol" "redis-proxy-overlay"];
+        service_names = ["kardinal-manager" "kontrol-service" "redis-proxy-overlay"];
         architectures = ["amd64" "arm64"];
         imageRegistry = "kurtosistech";
 
@@ -102,7 +102,7 @@
             inherit pkgs;
           };
 
-          packages.kloud-kontrol = pkgs.callPackage ./kloud-kontrol/default.nix {
+          packages.kontrol-service = pkgs.callPackage ./kontrol-service/default.nix {
             inherit pkgs;
           };
 

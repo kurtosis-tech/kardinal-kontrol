@@ -1,6 +1,6 @@
 openapi: 3.0.0
 info:
-  title: Manager/Kloud-Kontrol API
+  title: Manager/Kontrol API
   version: 1.0.0
 paths:
   /cluster-resources:

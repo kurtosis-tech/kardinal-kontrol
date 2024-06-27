@@ -8,7 +8,7 @@ import (
 	compose "github.com/compose-spec/compose-go/types"
 
 	"github.com/samber/lo"
-	"kardinal.kloud-kontrol/types"
+	"kardinal.kontrol-service/types"
 )
 
 // TODO:find a better way to find the frontend
