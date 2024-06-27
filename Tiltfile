@@ -28,9 +28,9 @@ def build_flake_image(ref, path = "", output = "", resultfile = "result", deps =
 
 image_name = "kurtosistech/kardinal-manager"
 
-build_flake_image(image_name , ".", "kardinal-manager-container", deps=["./kontrol-service"])
+build_flake_image(image_name , ".", "kardinal-manager-container", deps=["./kardinal-manager"])
 
-yaml_dir = "./kontrol-service/deployment"
+yaml_dir = "./kardinal-manager/deployment"
 k8s_yaml(yaml=(yaml_dir + "/k8s.yaml"))
 
 if k8s_context:
