@@ -6,7 +6,8 @@ toolchain go1.22.3
 
 require (
 	github.com/compose-spec/compose-go v1.20.2
-	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-00010101000000-000000000000
+	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240627024237-80e4be18e7f2
+	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240627024237-80e4be18e7f2
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/samber/lo v1.39.0
 	github.com/stretchr/testify v1.9.0
@@ -33,7 +34,6 @@ require (
 	github.com/invopop/yaml v0.2.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0
 	github.com/labstack/gommon v0.4.2 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
