@@ -2,6 +2,7 @@ package template
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/samber/lo"
@@ -89,7 +90,7 @@ func Deployment(serviceSpec *types.ServiceSpec, namespaceSpec types.NamespaceSpe
 		}
 	})
 
-	envVars := lo.MapToSlice(serviceSpec.Config.Environment, func(key string, value *string) v1.EnvVar {
+	envVars := mapWithStringKeyToSortedSlice(serviceSpec.Config.Environment, func(key string, value *string) v1.EnvVar {
 		return v1.EnvVar{
 			Name:  key,
 			Value: *value,
@@ -327,4 +328,20 @@ func FrontendDestinationRule(services []*types.ServiceSpec, namespaceSpec types.
 // Helper function to create int32 pointers
 func int32Ptr(i int32) *int32 {
 	return &i
+}
+
+// Helper function to create a sorted slice from a map with string key and any value
+func mapWithStringKeyToSortedSlice[V any, R any](in map[string]V, iterate func(key string, value V) R) []R {
+	result := make([]R, 0, len(in))
+
+	inKeys := make([]string, 0)
+	for inKey := range in {
+		inKeys = append(inKeys, inKey)
+	}
+	sort.Strings(inKeys)
+	for _, mapKey := range inKeys {
+		mapValue := in[mapKey]
+		result = append(result, iterate(mapKey, mapValue))
+	}
+	return result
 }
