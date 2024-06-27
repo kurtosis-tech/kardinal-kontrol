@@ -1,4 +1,4 @@
-# Kardinal
+# Kardinal Kontrol
 
 ## Developing instructions
 
@@ -25,39 +25,6 @@ On a second terminal, start the tunnel:
 minikube tunnel
 ```
 
-## Deploying Kardinal Manager to local cluster
-
-You can use tilt deploy and keeping the image hot-reloading:
-
-```bash
-tilt up
-```
-
-Or manually build it:
-
-```bash
-# First set the docker context to minikube
-eval $(minikube docker-env)
-docker load < $(nix build ./#kardinal-manager-container --no-link --print-out-paths)
-kubectl apply -f kardinal-manager/deployment
-```
-
-## Deploying Redis Overlay Service to local cluster
-
-Building and loading image into minikube:
-
-```bash
-# First set the docker context to minikube
-eval $(minikube docker-env)
-docker load < $(nix build ./#redis-proxy-overlay-container --no-link --print-out-paths)
-```
-
-To build and run the service directly:
-
-```bash
-nix run ./#redis-proxy-overlay
-```
-
 ## Publishing multi-arch images
 
 To publish multi-arch images, you can use the following command:
@@ -65,8 +32,8 @@ To publish multi-arch images, you can use the following command:
 ```bash
 $(nix build .#publish-<SERVICE_NAME>-container --no-link --print-out-paths)/bin/push
 
-# For instance, to publish the redis proxy overlay image:
-$(nix build .#publish-redis-proxy-overlay-container --no-link --print-out-paths)/bin/push
+# For instance, to publish the kontrol-service image:
+$(nix build .#publish-kontrol-service-container --no-link --print-out-paths)/bin/push
 ```
 
 ## Deploying Kontrol service to local cluster
@@ -83,15 +50,6 @@ To build and run the service directly:
 
 ```bash
 nix run ./#kontrol-service
-
-```
-
-## Running Kardinal CLI
-
-To build and run the service directly:
-
-```bash
-nix run ./#kardinal-cli
 ```
 
 ### Regenerate gomod2nix.toml

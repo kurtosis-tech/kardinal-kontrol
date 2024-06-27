@@ -6,13 +6,11 @@
       nativeBuildInputs = builtins.concatLists (map (s: s.nativeBuildInputs or []) shells);
       paths = builtins.concatLists (map (s: s.paths or []) shells);
     };
-  manager_shell = pkgs.callPackage ./kardinal-manager/shell.nix {inherit pkgs;};
   frontend_shell = pkgs.callPackage ./kontrol-frontend/shell.nix {inherit pkgs;};
-  cli_shell = pkgs.callPackage ./kardinal-cli/shell.nix {inherit pkgs;};
-  cli_kontrol_api_shell = pkgs.callPackage ./libs/cli-kontrol-api/shell.nix {inherit pkgs;};
+  backend_shell = pkgs.callPackage ./kontrol-service/shell.nix {inherit pkgs;};
   kardinal_shell = with pkgs;
     pkgs.mkShell {
-      buildInputs = [k3d kubectl kustomize argo-rollouts kubernetes-helm minikube istioctl tilt reflex];
+      buildInputs = [k3d kubectl kustomize kubernetes-helm minikube istioctl tilt reflex];
       shellHook = ''
         source <(kubectl completion bash)
         source <(kubectl-argo-rollouts completion bash)
@@ -49,4 +47,4 @@
       '';
     };
 in
-  mergeShells [manager_shell frontend_shell cli_shell kardinal_shell cli_kontrol_api_shell]
+  mergeShells [backend_shell frontend_shell kardinal_shell]

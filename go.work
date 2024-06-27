@@ -1,11 +1,6 @@
 go 1.22.3
 
 use (
-	./kardinal-cli
-	./kardinal-manager
 	./kontrol-service
-	./libs/cli-kontrol-api
-	./libs/manager-kontrol-api
-	./sidecars/redis-overlay-service
 	./demos/voting-app
 )

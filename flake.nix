@@ -25,7 +25,7 @@
           ];
         };
 
-        service_names = ["kardinal-manager" "kontrol-service" "redis-proxy-overlay"];
+        service_names = ["kontrol-service"];
         architectures = ["amd64" "arm64"];
         imageRegistry = "kurtosistech";
 
@@ -94,19 +94,7 @@
             inherit pkgs;
           };
 
-          packages.kardinal-cli = pkgs.callPackage ./kardinal-cli/default.nix {
-            inherit pkgs;
-          };
-
-          packages.kardinal-manager = pkgs.callPackage ./kardinal-manager/default.nix {
-            inherit pkgs;
-          };
-
           packages.kontrol-service = pkgs.callPackage ./kontrol-service/default.nix {
-            inherit pkgs;
-          };
-
-          packages.redis-proxy-overlay = pkgs.callPackage ./sidecars/redis-overlay-service/default.nix {
             inherit pkgs;
           };
 

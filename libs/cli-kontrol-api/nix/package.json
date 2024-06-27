@@ -1,7 +1,0 @@
-{
-  "name": "cli-kontrol-api-tools",
-  "version": "1.0.0",
-  "dependencies": {
-    "openapi-typescript": "^6.7.6"
-  }
-}

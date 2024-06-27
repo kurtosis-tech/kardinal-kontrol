@@ -4,11 +4,6 @@ go 1.22.0
 
 toolchain go1.22.3
 
-replace (
-	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api => ../libs/cli-kontrol-api
-	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api => ../libs/manager-kontrol-api
-)
-
 require (
 	github.com/compose-spec/compose-go v1.20.2
 	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-00010101000000-000000000000
