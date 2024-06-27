@@ -55,5 +55,5 @@ jobs:
 
       - name: Build Kardinal Manager images
         run: |
-          nix build ./#containers.x86_64-linux.kardinal-manager.arm64 --no-link --print-out-paths
-          nix build ./#containers.x86_64-linux.kardinal-manager.amd64 --no-link --print-out-paths
+          nix build ./#containers.x86_64-linux.kontrol-service.arm64 --no-link --print-out-paths
+          nix build ./#containers.x86_64-linux.kontrol-service.amd64 --no-link --print-out-paths
