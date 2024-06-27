@@ -64,6 +64,9 @@ schema = 3
   [mod."github.com/compose-spec/compose-go"]
     version = "v1.20.2"
     hash = "sha256-uICczxxRYLAW4jMHEsNxcOUBoCT5l5AMSrexHJ3xTcA="
+  [mod."github.com/creack/pty"]
+    version = "v1.1.9"
+    hash = "sha256-Rj6c4/3IApJcS36iPVIEdlMSC/SWmywnpqk1500ik5k="
   [mod."github.com/davecgh/go-spew"]
     version = "v1.1.1"
     hash = "sha256-nhzSUrE1fCkN0+RL04N4h8jWmRFPPPWbCuDc7Ss0akI="
@@ -232,6 +235,9 @@ schema = 3
   [mod."github.com/kr/pretty"]
     version = "v0.3.1"
     hash = "sha256-DlER7XM+xiaLjvebcIPiB12oVNjyZHuJHoRGITzzpKU="
+  [mod."github.com/kr/pty"]
+    version = "v1.1.1"
+    hash = "sha256-AVeS+ivwNzIrgWQaLtsmO2f2MYGpxIVqdac/EzaYI1Q="
   [mod."github.com/kr/text"]
     version = "v0.2.0"
     hash = "sha256-fadcWxZOORv44oak3jTxm6YcITcFxdGt4bpn869HxUE="
@@ -310,6 +316,9 @@ schema = 3
   [mod."github.com/perimeterx/marshmallow"]
     version = "v1.1.5"
     hash = "sha256-fFWjg0FNohDSV0/wUjQ8fBq1g8h6yIqTrHkxqL2Tt0s="
+  [mod."github.com/pkg/diff"]
+    version = "v0.0.0-20210226163009-20ebb0f2a09e"
+    hash = "sha256-0aP4CtvBp9lmxoIvKq6mrOyQidLubH1bG92RD/n7bbw="
   [mod."github.com/pkg/errors"]
     version = "v0.9.1"
     hash = "sha256-mNfQtcrQmu3sNg/7IwiieKWOgFQOVVe2yXgKBpe/wZw="
