@@ -53,7 +53,11 @@ jobs:
       - name: Magic cache
         uses: DeterminateSystems/magic-nix-cache-action@main
 
-      - name: Build Kardinal Manager images
+      - name: Build Kardinal Kontrol images
         run: |
+          # Backend server
           nix build ./#containers.x86_64-linux.kontrol-service.arm64 --no-link --print-out-paths
           nix build ./#containers.x86_64-linux.kontrol-service.amd64 --no-link --print-out-paths
+          # Frontend server
+          nix build ./#containers.x86_64-linux.kontrol-frontend.arm64 --no-link --print-out-paths
+          nix build ./#containers.x86_64-linux.kontrol-frontend.amd64 --no-link --print-out-paths
