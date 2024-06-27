@@ -21,6 +21,11 @@ with pkgs; let
       mkdir -p $out/node_modules
 
       cp -R ./node_modules $out
+
+      # Remove dependencies that are leaking their own /nix/store/ paths the the fixed output of this derivation
+      rm -rf $out/node_modules/lodash/flake.lock
+      rm -rf $out/node_modules/cytoscape/.github
+      rm -rf $out/node_modules/.cache
     '';
     outputHash = pin."${stdenv.system}";
     outputHashAlgo = "sha256";
