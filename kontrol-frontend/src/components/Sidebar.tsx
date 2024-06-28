@@ -31,7 +31,7 @@ const SidebarLink = ({
     <Link href={href} _hover={{ textDecor: "none" }} w="full">
       <HStack spacing="3">
         <Icon as={icon} boxSize="6" />
-        <Text fontSize="lg" fontWeight="bold">
+        <Text fontSize="sm" fontWeight="bold">
           {children}
         </Text>
       </HStack>
@@ -69,14 +69,14 @@ const Sidebar = () => {
       </VStack>
       <Spacer />
 
-      <Flex mt="auto" pt="5">
+      <Flex mt="auto" pt="5" alignItems="center">
         <IconButton
           icon={<FiChevronLeft />}
           aria-label="Collapse sidebar"
           variant="ghost"
           fontSize="20px"
         />
-        <Text ml="2" fontSize="lg" color="gray.500">
+        <Text ml="2" fontSize="sm" color="gray.500">
           Collapse sidebar
         </Text>
       </Flex>
