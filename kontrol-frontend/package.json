@@ -17,12 +17,14 @@
     "bun": "^1.1.17",
     "cytoscape": "^3.29.2",
     "cytoscape-dagre": "^2.5.0",
-    "cytoscape-sbgn-stylesheet": "^4.0.2",
+    "cytoscape-popper": "^4.0.0",
     "framer-motion": "^11.2.9",
     "react": "^18.2.0",
     "react-cytoscapejs": "^2.0.0",
     "react-dom": "^18.2.0",
-    "react-router-dom": "^6.23.1"
+    "react-error-boundary": "^4.0.13",
+    "react-router-dom": "^6.23.1",
+    "tippy.js": "^6.3.7"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",
