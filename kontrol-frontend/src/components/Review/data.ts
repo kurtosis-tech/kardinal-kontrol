@@ -25,6 +25,7 @@ const data = {
     {
       id: "gateway",
       label: "gateway",
+      type: "gateway",
     },
     {
       id: "voting-app-ui",
@@ -34,19 +35,23 @@ const data = {
       id: "voting-app-ui--prod",
       label: "voting-app-ui (prod)",
       parent: "voting-app-ui",
+      type: "service",
     },
     {
       id: "voting-app-ui--dev",
       label: "voting-app-ui (dev)",
       parent: "voting-app-ui",
+      type: "service",
     },
     {
       id: "kardinal-db-sidecar--dev",
       label: "kardinal-db-sidecar (dev)",
+      type: "redis",
     },
     {
       id: "redis-prod--prod",
       label: "redis-prod (prod)",
+      type: "redis",
     },
   ],
 };

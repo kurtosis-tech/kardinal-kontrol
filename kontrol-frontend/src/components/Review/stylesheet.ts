@@ -1,3 +1,16 @@
+const getBackgroundImage = (ele) => {
+  console.log("getBackgroundImage", ele);
+  switch (ele.data("type")) {
+    case "service":
+      return "url('/icons/kubernetes.svg')";
+    case "redis":
+      return "url('/icons/redis.svg')";
+    case "gateway":
+      return "url('/icons/gateway.svg')";
+    default:
+      return "none";
+  }
+};
 const stylesheet = [
   {
     selector: "node",
@@ -5,11 +18,12 @@ const stylesheet = [
       shape: "round-rectangle",
       content: "data(label)",
       "text-valign": "bottom",
-      "border-color": "#ccc",
-      "border-style": "solid",
-      "border-width": "1px",
       "background-color": "#fff",
       "z-index": 2, // change?
+      "background-image": getBackgroundImage,
+      "background-fit": "cover",
+      width: 50,
+      height: 50,
     },
   },
   {
@@ -24,10 +38,10 @@ const stylesheet = [
     },
   },
   {
-    selector: "node[id ^= 'traffic:']",
+    selector: "node[id^='traffic:']",
     css: {
       "corner-radius": "10",
-      "background-color": "green",
+      "background-color": "blue",
       padding: 0,
       width: 5,
       height: 5,

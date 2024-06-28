@@ -6,7 +6,7 @@ import theme from "./theme";
 import { ChakraProvider } from "@chakra-ui/react";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import Create from "./components/Create";
-import Review from "./components/Review";
+import Review from "./components/Review/index.tsx";
 import Manage from "./components/Manage";
 
 import { ErrorBoundary } from "react-error-boundary";

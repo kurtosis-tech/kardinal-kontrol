@@ -17,10 +17,7 @@ const layout = {
   align: "UL",
 };
 
-const elements = [
-  ...data.nodes.map((n) => ({ ...n, position: { x: 0, y: 0 } })),
-  ...data.edges,
-].map((element) => ({
+const elements = [...data.nodes, ...data.edges].map((element) => ({
   data: element,
 }));
 
@@ -121,6 +118,7 @@ const Review = ({ children }: { children?: ReactNode }) => {
         stylesheet={stylesheet}
         cy={handleCy}
       />
+      <img src="/kubernetes.svg" alt="kubernetes" />
     </Flex>
   );
 };
