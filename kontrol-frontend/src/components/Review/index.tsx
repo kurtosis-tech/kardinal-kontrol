@@ -23,45 +23,7 @@ const elements = [...data.nodes, ...data.edges].map((element) => ({
 
 const Review = ({ children }: { children?: ReactNode }) => {
   const handleCy = useCallback((cy: cytoscape.Core) => {
-    // cy.layout(layout).run();
-
-    // const animateNodeTraffic = (node: cytoscape.NodeSingular) => {
-    //   const incomers = node.incomers("node");
-    //   console.log(
-    //     node.id(),
-    //     "has incomer",
-    //     incomers.map((n) => n.id()),
-    //   );
-    //
-    //   // Create a traffic node for each incoming edge
-    //   incomers.forEach((incoming) => {
-    //     // traffic:source:target
-    //     const trafficNodeId = `traffic:${incoming.id()}:${node.id()}`;
-    //     const trafficNode = cy.add({
-    //       group: "nodes",
-    //       data: {
-    //         id: trafficNodeId,
-    //       },
-    //       position: incoming.position(),
-    //     });
-    //     //
-    //   });
-    //
-    //   // const animateTraffic = node.animation({
-    //   //   position: parent.position(),
-    //   //   style: {},
-    //   //   easing: "ease-in-out-cubic",
-    //   //   duration: 0,
-    //   // });
-    //   //
-    //   // animateTraffic.play();
-    // };
-    // console.log("handleCy");
-    //
-    // const nodes = cy.$("node").filter((n) => n.indegree(false) > 0);
-
     const edges = cy.edges();
-    console.log("EDGES", edges);
     const allNodeIds = cy.nodes().map((n) => n.id());
     const animateEdge = (edge: cytoscape.EdgeSingular) => {
       const trafficNodeId = `traffic:${edge.source().id()}:${edge.target().id()}`;
@@ -118,7 +80,6 @@ const Review = ({ children }: { children?: ReactNode }) => {
         stylesheet={stylesheet}
         cy={handleCy}
       />
-      <img src="/kubernetes.svg" alt="kubernetes" />
     </Flex>
   );
 };

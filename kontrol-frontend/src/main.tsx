@@ -8,31 +8,15 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import Create from "./components/Create";
 import Review from "./components/Review/index.tsx";
 import Manage from "./components/Manage";
+import Fallback from "./components/Fallback";
 
 import { ErrorBoundary } from "react-error-boundary";
-
-function Fallback({ error, resetErrorBoundary }) {
-  // Call resetErrorBoundary() to reset the error boundary and retry the render.
-  console.debug({ error });
-  return (
-    <div role="alert" style={{ padding: 24 }}>
-      <p>Something went wrong:</p>
-      <pre style={{ color: "red" }}>{error.message}</pre>
-      <pre>{error.stack}</pre>
-    </div>
-  );
-}
 
 const router = createBrowserRouter([
   {
     path: "/",
     element: (
-      <ErrorBoundary
-        FallbackComponent={Fallback}
-        onReset={(details) => {
-          // Reset the state of your app so the error doesn't happen again
-        }}
-      >
+      <ErrorBoundary FallbackComponent={Fallback}>
         <App />
       </ErrorBoundary>
     ),

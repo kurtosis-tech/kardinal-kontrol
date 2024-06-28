@@ -24,6 +24,22 @@ const colors = {
 };
 
 // 4. extend the theme
-const theme = extendTheme({ config, colors });
+const theme = extendTheme({
+  config,
+  colors,
+  fonts: {
+    body: "'DM Sans', 'sans-serif'",
+  },
+  styles: {
+    global: {
+      // Styles for the `body`
+      body: {
+        fontSize: "14px", // Set your desired default font size
+        color: "gray.800",
+        bg: "white",
+      },
+    },
+  },
+});
 
 export default theme;
