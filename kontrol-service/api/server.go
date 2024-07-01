@@ -2,12 +2,12 @@ package api
 
 import (
 	"context"
-	"log"
-
 	compose "github.com/compose-spec/compose-go/types"
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	managerapi "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/server"
 	managerapitypes "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/types"
+	"github.com/kurtosis-tech/stacktrace"
+	"log"
 
 	"kardinal.kontrol-service/engine"
 	"kardinal.kontrol-service/engine/template"
@@ -25,12 +25,12 @@ const (
 var _ api.StrictServerInterface = (*Server)(nil)
 
 type Server struct {
-	composes map[string]types.Cluster
+	composesByTenant map[string]map[string]types.Cluster
 }
 
 func NewServer() Server {
 	return Server{
-		composes: make(map[string]types.Cluster),
+		composesByTenant: make(map[string]map[string]types.Cluster),
 	}
 }
 
@@ -42,10 +42,16 @@ func (sv *Server) RegisterExternalAndInternalApi(router api.EchoRouter) {
 	managerapi.RegisterHandlers(router, internalHandlers)
 }
 
-func (sv *Server) PostDeploy(ctx context.Context, request api.PostDeployRequestObject) (api.PostDeployResponseObject, error) {
+func (sv *Server) PostDeploy(_ context.Context, request api.PostDeployRequestObject) (api.PostDeployResponseObject, error) {
 	log.Printf("Deploying prod cluster")
 	project := *request.Body.DockerCompose
-	err := applyProdOnlyFlow(sv, project)
+
+	tenantUuidStr := request.Params.Tenant
+	if tenantUuidStr == "" {
+		return nil, stacktrace.NewError("tenant parameter is required")
+	}
+
+	err := applyProdOnlyFlow(sv, tenantUuidStr, project)
 	if err != nil {
 		return nil, err
 	}
@@ -53,10 +59,16 @@ func (sv *Server) PostDeploy(ctx context.Context, request api.PostDeployRequestO
 	return api.PostDeploy200JSONResponse(resp), nil
 }
 
-func (sv *Server) PostFlowDelete(ctx context.Context, request api.PostFlowDeleteRequestObject) (api.PostFlowDeleteResponseObject, error) {
+func (sv *Server) PostFlowDelete(_ context.Context, request api.PostFlowDeleteRequestObject) (api.PostFlowDeleteResponseObject, error) {
 	log.Printf("Deleting dev flow")
 	project := *request.Body.DockerCompose
-	err := applyProdOnlyFlow(sv, project)
+
+	tenantUuidStr := request.Params.Tenant
+	if tenantUuidStr == "" {
+		return nil, stacktrace.NewError("tenant parameter is required")
+	}
+
+	err := applyProdOnlyFlow(sv, tenantUuidStr, project)
 	if err != nil {
 		return nil, err
 	}
@@ -64,13 +76,19 @@ func (sv *Server) PostFlowDelete(ctx context.Context, request api.PostFlowDelete
 	return api.PostFlowDelete200JSONResponse(resp), nil
 }
 
-func (sv *Server) PostFlowCreate(ctx context.Context, request api.PostFlowCreateRequestObject) (api.PostFlowCreateResponseObject, error) {
+func (sv *Server) PostFlowCreate(_ context.Context, request api.PostFlowCreateRequestObject) (api.PostFlowCreateResponseObject, error) {
 	serviceName := *request.Body.ServiceName
 	imageLocator := *request.Body.ImageLocator
 	log.Printf("Starting new dev flow for service %v on image %v", serviceName, imageLocator)
 
 	project := *request.Body.DockerCompose
-	err := applyProdDevFlow(sv, project, serviceName, imageLocator)
+
+	tenantUuidStr := request.Params.Tenant
+	if tenantUuidStr == "" {
+		return nil, stacktrace.NewError("tenant parameter is required")
+	}
+
+	err := applyProdDevFlow(sv, tenantUuidStr, project, serviceName, imageLocator)
 	if err != nil {
 		return nil, err
 	}
@@ -78,7 +96,14 @@ func (sv *Server) PostFlowCreate(ctx context.Context, request api.PostFlowCreate
 	return api.PostFlowCreate200JSONResponse(resp), nil
 }
 
-func (sv *Server) GetTopology(ctx context.Context, request api.GetTopologyRequestObject) (api.GetTopologyResponseObject, error) {
+func (sv *Server) GetTopology(_ context.Context, request api.GetTopologyRequestObject) (api.GetTopologyResponseObject, error) {
+	tenantUuidStr := request.Params.Tenant
+	if tenantUuidStr == "" {
+		return nil, stacktrace.NewError("tenant parameter is required")
+	}
+
+	log.Printf("Getting topology for tenant '%s'", tenantUuidStr)
+
 	namespaceParam := request.Params.Namespace
 	namespace := defaultNamespace
 
@@ -86,16 +111,24 @@ func (sv *Server) GetTopology(ctx context.Context, request api.GetTopologyReques
 		namespace = *namespaceParam
 	}
 
-	if cluster, found := sv.composes[namespace]; found {
-		topo := topology.ClusterTopology(&cluster)
-		return api.GetTopology200JSONResponse(*topo), nil
+	if composesByNamespace, found := sv.composesByTenant[tenantUuidStr]; found {
+		if cluster, found := composesByNamespace[namespace]; found {
+			topo := topology.ClusterTopology(&cluster)
+			return api.GetTopology200JSONResponse(*topo), nil
+		}
 	}
 
 	return nil, nil
 }
 
-func (sv *Server) GetClusterResources(ctx context.Context, request managerapi.GetClusterResourcesRequestObject) (managerapi.GetClusterResourcesResponseObject, error) {
-	log.Printf("Getting cluster resources")
+func (sv *Server) GetClusterResources(_ context.Context, request managerapi.GetClusterResourcesRequestObject) (managerapi.GetClusterResourcesResponseObject, error) {
+	tenantUuidStr := request.Params.Tenant
+	if tenantUuidStr == "" {
+		return nil, stacktrace.NewError("tenant parameter is required")
+	}
+
+	log.Printf("Getting cluster resources for tenant '%s'", tenantUuidStr)
+
 	namespaceParam := request.Params.Namespace
 	namespace := defaultNamespace
 
@@ -103,35 +136,47 @@ func (sv *Server) GetClusterResources(ctx context.Context, request managerapi.Ge
 		namespace = *namespaceParam
 	}
 
-	if cluster, found := sv.composes[namespace]; found {
-		clusterResources := template.RenderClusterResources(cluster)
-		managerAPIClusterResources := newManagerAPIClusterResources(clusterResources)
+	if composesByNamespace, found := sv.composesByTenant[tenantUuidStr]; found {
+		if cluster, found := composesByNamespace[namespace]; found {
+			clusterResources := template.RenderClusterResources(cluster)
+			managerAPIClusterResources := newManagerAPIClusterResources(clusterResources)
 
-		return managerapi.GetClusterResources200JSONResponse(managerAPIClusterResources), nil
+			return managerapi.GetClusterResources200JSONResponse(managerAPIClusterResources), nil
+		}
 	}
 
 	return nil, nil
 }
 
 // ============================================================================================================
-func applyProdOnlyFlow(sv *Server, project []compose.ServiceConfig) error {
+func applyProdOnlyFlow(sv *Server, tenantUuidStr string, project []compose.ServiceConfig) error {
 	cluster, err := engine.GenerateProdOnlyCluster(project)
 	if err != nil {
 		return err
 	}
 
-	sv.composes["default"] = *cluster
+	if _, found := sv.composesByTenant[tenantUuidStr]; !found {
+		composesByNamespace := make(map[string]types.Cluster)
+		sv.composesByTenant[tenantUuidStr] = composesByNamespace
+	}
+
+	sv.composesByTenant[tenantUuidStr][defaultNamespace] = *cluster
 	return nil
 }
 
 // ============================================================================================================
-func applyProdDevFlow(sv *Server, project []compose.ServiceConfig, devServiceName string, devImage string) error {
+func applyProdDevFlow(sv *Server, tenantUuidStr string, project []compose.ServiceConfig, devServiceName string, devImage string) error {
 	cluster, err := engine.GenerateProdDevCluster(project, devServiceName, devImage)
 	if err != nil {
 		return err
 	}
 
-	sv.composes["default"] = *cluster
+	if _, found := sv.composesByTenant[tenantUuidStr]; !found {
+		composesByNamespace := make(map[string]types.Cluster)
+		sv.composesByTenant[tenantUuidStr] = composesByNamespace
+	}
+
+	sv.composesByTenant[tenantUuidStr][defaultNamespace] = *cluster
 	return nil
 }
 
