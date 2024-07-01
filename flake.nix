@@ -27,7 +27,7 @@
 
         service_names = ["kontrol-service" "kontrol-frontend"];
         architectures = ["amd64" "arm64"];
-        imageRegistry = "kurtosistech";
+        imageRegistry = "258623609258.dkr.ecr.us-east-1.amazonaws.com/kurtosistech";
 
         matchingContainerArch =
           if builtins.match "aarch64-.*" system != null
