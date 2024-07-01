@@ -116,7 +116,7 @@
                 });
         in
           pkgs.dockerTools.buildImage {
-            name = "${imageRegistry}/${service_name}";
+            name = "${service_name}";
             tag = "latest-${arch}";
             # tag = commit_hash;
             created = "now";
