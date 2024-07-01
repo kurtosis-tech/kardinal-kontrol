@@ -141,10 +141,12 @@
         mkFrontendImage = {
           pkgs,
           container_pkgs,
+          arch,
           ...
         }:
           pkgs.callPackage ./kontrol-frontend/image.nix {
             inherit container_pkgs pkgs;
+            tag = "latest-${arch}";
           };
 
         systemOutput = rec {
@@ -184,7 +186,10 @@
                       != system;
                   in
                     if service_name == "kontrol-frontend"
-                    then mkFrontendImage {inherit pkgs container_pkgs;}
+                    then
+                      mkFrontendImage {
+                        inherit pkgs container_pkgs arch;
+                      }
                     else
                       mkGoApplicationImage {
                         inherit pkgs container_pkgs service_name arch os needsCrossCompilation;

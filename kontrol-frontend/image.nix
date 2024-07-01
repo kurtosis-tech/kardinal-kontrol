@@ -1,6 +1,7 @@
 {
   pkgs,
   container_pkgs,
+  tag ? "latest",
   ...
 }: let
   name = "kontrol-frontend";
@@ -42,7 +43,7 @@
 in
   pkgs.dockerTools.buildLayeredImage {
     inherit name;
-    tag = "latest";
+    tag = tag;
 
     contents = [
       container_pkgs.nginx
