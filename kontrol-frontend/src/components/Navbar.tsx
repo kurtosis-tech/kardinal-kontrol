@@ -2,7 +2,15 @@ import { Box, Flex, Avatar, Text, Link, Image, Spacer } from "@chakra-ui/react";
 
 const Navbar = () => {
   return (
-    <Box bg="white" px={4} boxShadow="sm" as="nav" height={"64px"}>
+    <Box
+      bg="white"
+      px={4}
+      boxShadow="sm"
+      as="nav"
+      height={"64px"}
+      borderBottomWidth="1px"
+      borderBottomColor="gray.100"
+    >
       <Flex h={16} alignItems="center">
         {/* Logo */}
         <Link href="/" display="flex" alignItems="center">

@@ -12,7 +12,7 @@ const ComingSoon = ({
   icon: ElementType;
 }) => {
   return (
-    <Center h="100vh">
+    <Center h="100%">
       <Flex
         bg="white"
         py={12}

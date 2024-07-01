@@ -1,4 +1,4 @@
-import { ReactNode, useCallback } from "react";
+import { useCallback } from "react";
 import { Flex } from "@chakra-ui/react";
 import CytoscapeComponent from "react-cytoscapejs";
 import cytoscape from "cytoscape";
@@ -21,7 +21,7 @@ const elements = [...data.nodes, ...data.edges].map((element) => ({
   data: element,
 }));
 
-const TrafficConfiguration = ({ children }: { children?: ReactNode }) => {
+const TrafficConfiguration = () => {
   const handleCy = useCallback((cy: cytoscape.Core) => {
     const edges = cy.edges();
     const allNodeIds = cy.nodes().map((n) => n.id());
@@ -69,9 +69,7 @@ const TrafficConfiguration = ({ children }: { children?: ReactNode }) => {
       justifyContent={"center"}
       height={"100%"}
       flexDir={"column"}
-      gap={8}
     >
-      {children}
       <CytoscapeComponent
         elements={elements}
         style={{ width: "100%", height: "100%" }}

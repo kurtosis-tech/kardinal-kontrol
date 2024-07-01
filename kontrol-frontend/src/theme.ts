@@ -11,7 +11,7 @@ const config: ThemeConfig = {
 const colors = {
   gray: {
     "50": "#FAFBFC",
-    "100": "#dad9d7",
+    "100": "#EAEBF0",
     "200": "#c0bfbf",
     "300": "#a7a6a6",
     "400": "#8d8d8d",

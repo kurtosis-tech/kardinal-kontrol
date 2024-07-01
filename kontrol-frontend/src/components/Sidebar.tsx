@@ -63,6 +63,8 @@ const Sidebar = () => {
       bg="white"
       boxShadow="md"
       p="5"
+      borderRightWidth="1px"
+      borderRightColor="gray.100"
     >
       <VStack align="start" spacing="4">
         <SidebarLink icon={FiTable} href="/">
@@ -89,8 +91,9 @@ const Sidebar = () => {
           aria-label="Collapse sidebar"
           variant="ghost"
           fontSize="20px"
+          color="gray.500"
         />
-        <Text ml="2" fontSize="sm" color="gray.500">
+        <Text ml="2" fontSize="sm" color="gray.500" fontWeight={"normal"}>
           Collapse sidebar
         </Text>
       </Flex>

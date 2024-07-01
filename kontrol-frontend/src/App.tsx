@@ -1,6 +1,6 @@
 import { Outlet } from "react-router-dom";
-import Navbar from "./components/Navbar";
-import Sidebar from "./components/Sidebar";
+import Navbar from "@/components/Navbar";
+import Sidebar from "@/components/Sidebar";
 import { Grid, GridItem } from "@chakra-ui/react";
 
 const App = () => {
@@ -11,7 +11,6 @@ const App = () => {
       gridTemplateRows={"64px 1fr"}
       gridTemplateColumns={"250px 1fr"}
       h="100vh"
-      gap="1"
       color="blackAlpha.700"
       fontWeight="bold"
     >
