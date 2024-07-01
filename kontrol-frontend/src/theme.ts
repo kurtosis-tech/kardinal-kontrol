@@ -10,7 +10,7 @@ const config: ThemeConfig = {
 // 3. Create a custom color palette
 const colors = {
   gray: {
-    "50": "#f2f0f0",
+    "50": "#FAFBFC",
     "100": "#dad9d7",
     "200": "#c0bfbf",
     "300": "#a7a6a6",
@@ -37,6 +37,7 @@ const theme = extendTheme({
         fontSize: "14px", // Set your desired default font size
         color: "gray.800",
         bg: "white",
+        fontWeight: 400,
       },
     },
   },

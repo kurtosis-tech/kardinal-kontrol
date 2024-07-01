@@ -1,3 +1,6 @@
+import { Link as ReactRouterLink } from "react-router-dom";
+import { useMatch } from "react-router-dom";
+
 import {
   Flex,
   Icon,
@@ -27,11 +30,22 @@ const SidebarLink = ({
   href: string;
   children: ReactNode;
 }) => {
+  const match = useMatch({
+    path: href,
+    caseSensitive: true,
+    end: true, // exact match
+  });
+  const color = match ? "gray.900" : "gray.500";
   return (
-    <Link href={href} _hover={{ textDecor: "none" }} w="full">
+    <Link
+      as={ReactRouterLink}
+      to={href}
+      _hover={{ textDecor: "none" }}
+      w="full"
+    >
       <HStack spacing="3">
-        <Icon as={icon} boxSize="6" />
-        <Text fontSize="sm" fontWeight="bold">
+        <Icon as={icon} boxSize="5" color={color} />
+        <Text fontSize="sm" fontWeight="normal" color={color}>
           {children}
         </Text>
       </HStack>
@@ -51,19 +65,19 @@ const Sidebar = () => {
       p="5"
     >
       <VStack align="start" spacing="4">
-        <SidebarLink icon={FiTable} href="#">
+        <SidebarLink icon={FiTable} href="/">
           Dashboard
         </SidebarLink>
-        <SidebarLink icon={FiShield} href="#">
+        <SidebarLink icon={FiShield} href="/maturity-gates">
           Maturity gates
         </SidebarLink>
-        <SidebarLink icon={FiGitPullRequest} href="#">
+        <SidebarLink icon={FiGitPullRequest} href="/flows">
           Flows
         </SidebarLink>
-        <SidebarLink icon={FiRepeat} href="#">
+        <SidebarLink icon={FiRepeat} href="/traffic-configuration">
           Traffic configuration
         </SidebarLink>
-        <SidebarLink icon={FiDatabase} href="#">
+        <SidebarLink icon={FiDatabase} href="/data-configuration">
           Data configuration
         </SidebarLink>
       </VStack>

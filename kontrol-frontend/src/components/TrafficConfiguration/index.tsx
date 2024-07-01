@@ -21,7 +21,7 @@ const elements = [...data.nodes, ...data.edges].map((element) => ({
   data: element,
 }));
 
-const Review = ({ children }: { children?: ReactNode }) => {
+const TrafficConfiguration = ({ children }: { children?: ReactNode }) => {
   const handleCy = useCallback((cy: cytoscape.Core) => {
     const edges = cy.edges();
     const allNodeIds = cy.nodes().map((n) => n.id());
@@ -84,4 +84,4 @@ const Review = ({ children }: { children?: ReactNode }) => {
   );
 };
 
-export default Review;
+export default TrafficConfiguration;

@@ -5,10 +5,12 @@ import "./index.css";
 import theme from "./theme";
 import { ChakraProvider } from "@chakra-ui/react";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
-import Create from "./components/Create";
-import Review from "./components/Review/index.tsx";
-import Manage from "./components/Manage";
 import Fallback from "./components/Fallback";
+import Dashboard from "@/pages/Dashboard";
+import DataConfiguration from "@/pages/DataConfiguration";
+import Flows from "@/pages/Flows";
+import MaturityGates from "@/pages/MaturityGates";
+import TrafficConfiguration from "@/pages/TrafficConfiguration";
 
 import { ErrorBoundary } from "react-error-boundary";
 
@@ -23,15 +25,23 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
-        element: <Create />,
+        element: <Dashboard />,
       },
       {
-        path: "review",
-        element: <Review />,
+        path: "maturity-gates",
+        element: <MaturityGates />,
       },
       {
-        path: "manage",
-        element: <Manage />,
+        path: "flows",
+        element: <Flows />,
+      },
+      {
+        path: "traffic-configuration",
+        element: <TrafficConfiguration />,
+      },
+      {
+        path: "data-configuration",
+        element: <DataConfiguration />,
       },
     ],
   },

@@ -1,7 +1,7 @@
 import { Outlet } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Sidebar from "./components/Sidebar";
-import { Box, Grid, GridItem } from "@chakra-ui/react";
+import { Grid, GridItem } from "@chakra-ui/react";
 
 const App = () => {
   return (
@@ -18,10 +18,10 @@ const App = () => {
       <GridItem area={"nav"}>
         <Navbar />
       </GridItem>
-      <GridItem area={"side"} bg="gray.50">
+      <GridItem area={"side"}>
         <Sidebar />
       </GridItem>
-      <GridItem area={"main"} bg="white" p="5">
+      <GridItem area={"main"} bg="gray.50" p="5">
         <Outlet />
       </GridItem>
     </Grid>

@@ -1,4 +1,4 @@
-const getBackgroundImage = (ele) => {
+const getBackgroundImage = (ele: { data: (s: string) => string }) => {
   console.log("getBackgroundImage", ele);
   switch (ele.data("type")) {
     case "service":
