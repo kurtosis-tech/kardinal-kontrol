@@ -80,6 +80,7 @@ jobs:
       - name: Publish images
         # if: github.ref == 'refs/heads/main'
         run: |
+          docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
           docker image ls
           nix run ./#publish-kontrol-frontend-container
           nix run ./#publish-kontrol-service-container
