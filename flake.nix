@@ -62,7 +62,7 @@
                   tag,
                 }: [
                   "$docker load -i ${image}"
-                  "$docker tag ${service} ${name}:${tag}"
+                  "$docker tag ${service}:${tag} ${name}:${tag}"
                   "$docker push ${name}:${tag}"
                 ])
                 images);
