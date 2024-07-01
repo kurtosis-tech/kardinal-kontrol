@@ -11,6 +11,9 @@ on:
     branches:
       - main
 
+env:
+  AWS_REGION: "us-east-1"
+
 jobs:
   check_nix:
     name: Basic Check
@@ -61,3 +64,14 @@ jobs:
           # Frontend server
           nix build ./#containers.x86_64-linux.kontrol-frontend.arm64 --no-link --print-out-paths
           nix build ./#containers.x86_64-linux.kontrol-frontend.amd64 --no-link --print-out-paths
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          role-to-assume: arn:aws:iam::258623609258:role/kardinal-control-publish-images
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
