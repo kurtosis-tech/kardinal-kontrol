@@ -1,0 +1,3 @@
+[submodule "kardinal"]
+	path = kardinal
+	url = git@github.com:kurtosis-tech/kardinal.git
