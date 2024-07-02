@@ -14,22 +14,16 @@ import (
 	"kardinal.kontrol-service/types"
 )
 
-// TODO:find a better way to find the frontend
-const (
-	frontendServiceName = "voting-app-ui"
-	defaultNamespace    = "default"
-)
-
 // optional code omitted
 var _ api.StrictServerInterface = (*Server)(nil)
 
 type Server struct {
-	composesByTenant map[string]map[string]types.Cluster
+	clusterByTenant map[string]types.Cluster
 }
 
 func NewServer() Server {
 	return Server{
-		composesByTenant: make(map[string]map[string]types.Cluster),
+		clusterByTenant: make(map[string]types.Cluster),
 	}
 }
 
@@ -83,18 +77,9 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenantUuidTopologyRequestObject) (api.GetTenantUuidTopologyResponseObject, error) {
 	log.Printf("Getting topology for tenant '%s'", request.Uuid)
 
-	namespaceParam := request.Params.Namespace
-	namespace := defaultNamespace
-
-	if namespaceParam != nil && len(*namespaceParam) != 0 {
-		namespace = *namespaceParam
-	}
-
-	if composesByNamespace, found := sv.composesByTenant[request.Uuid]; found {
-		if cluster, found := composesByNamespace[namespace]; found {
-			topo := topology.ClusterTopology(&cluster)
-			return api.GetTenantUuidTopology200JSONResponse(*topo), nil
-		}
+	if cluster, found := sv.clusterByTenant[request.Uuid]; found {
+		topo := topology.ClusterTopology(&cluster)
+		return api.GetTenantUuidTopology200JSONResponse(*topo), nil
 	}
 
 	return nil, nil
@@ -103,20 +88,10 @@ func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenant
 func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request managerapi.GetTenantUuidClusterResourcesRequestObject) (managerapi.GetTenantUuidClusterResourcesResponseObject, error) {
 	log.Printf("Getting cluster resources for tenant '%s'", request.Uuid)
 
-	namespaceParam := request.Params.Namespace
-	namespace := defaultNamespace
-
-	if namespaceParam != nil && len(*namespaceParam) != 0 {
-		namespace = *namespaceParam
-	}
-
-	if composesByNamespace, found := sv.composesByTenant[request.Uuid]; found {
-		if cluster, found := composesByNamespace[namespace]; found {
-			clusterResources := template.RenderClusterResources(cluster)
-			managerAPIClusterResources := newManagerAPIClusterResources(clusterResources)
-
-			return managerapi.GetTenantUuidClusterResources200JSONResponse(managerAPIClusterResources), nil
-		}
+	if cluster, found := sv.clusterByTenant[request.Uuid]; found {
+		clusterResources := template.RenderClusterResources(cluster)
+		managerAPIClusterResources := newManagerAPIClusterResources(clusterResources)
+		return managerapi.GetTenantUuidClusterResources200JSONResponse(managerAPIClusterResources), nil
 	}
 
 	return nil, nil
@@ -129,12 +104,7 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, project []compose.Servi
 		return err
 	}
 
-	if _, found := sv.composesByTenant[tenantUuidStr]; !found {
-		composesByNamespace := make(map[string]types.Cluster)
-		sv.composesByTenant[tenantUuidStr] = composesByNamespace
-	}
-
-	sv.composesByTenant[tenantUuidStr][defaultNamespace] = *cluster
+	sv.clusterByTenant[tenantUuidStr] = *cluster
 	return nil
 }
 
@@ -145,12 +115,7 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, project []compose.Servic
 		return err
 	}
 
-	if _, found := sv.composesByTenant[tenantUuidStr]; !found {
-		composesByNamespace := make(map[string]types.Cluster)
-		sv.composesByTenant[tenantUuidStr] = composesByNamespace
-	}
-
-	sv.composesByTenant[tenantUuidStr][defaultNamespace] = *cluster
+	sv.clusterByTenant[tenantUuidStr] = *cluster
 	return nil
 }
 
