@@ -47,7 +47,7 @@ in
 
     contents = [
       container_pkgs.nginx
-      pkgs.fakeNss
+      container_pkgs.fakeNss
     ];
 
     extraCommands = ''

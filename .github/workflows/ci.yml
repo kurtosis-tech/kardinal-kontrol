@@ -51,8 +51,14 @@ jobs:
       - name: git checkout
         uses: actions/checkout@v3
 
+      - name: Install qemu
+        run: sudo apt-get install -y qemu-user-static
+
       - name: Install Nix
         uses: DeterminateSystems/nix-installer-action@v12
+        with:
+          extra_nix_config: |
+            system-features = aarch64-linux
 
       - name: Magic cache
         uses: DeterminateSystems/magic-nix-cache-action@v7
