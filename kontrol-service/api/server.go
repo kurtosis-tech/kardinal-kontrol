@@ -2,11 +2,12 @@ package api
 
 import (
 	"context"
+	"log"
+
 	compose "github.com/compose-spec/compose-go/types"
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	managerapi "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/server"
 	managerapitypes "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/types"
-	"log"
 
 	"kardinal.kontrol-service/engine"
 	"kardinal.kontrol-service/engine/template"
