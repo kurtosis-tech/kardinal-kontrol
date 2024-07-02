@@ -6,6 +6,8 @@ import cytoscape from "cytoscape";
 import dagre from "cytoscape-dagre";
 import stylesheet from "./stylesheet";
 import data from "./data";
+import { paths } from "cli-kontrol-api/api/typescript/client/types"
+
 
 cytoscape.use(dagre);
 
