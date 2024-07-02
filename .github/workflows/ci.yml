@@ -57,11 +57,14 @@ jobs:
       - name: Magic cache
         uses: DeterminateSystems/magic-nix-cache-action@v7
 
-      - name: Build Kardinal Kontrol images
+      - name: Build Kontrol services images
         run: |
           # Backend server
           nix build ./#containers.x86_64-linux.kontrol-service.arm64 --no-link --print-out-paths
           nix build ./#containers.x86_64-linux.kontrol-service.amd64 --no-link --print-out-paths
+
+      - name: Build Kontrol frontent images
+        run: |
           # Frontend server
           nix build ./#containers.x86_64-linux.kontrol-frontend.arm64 --no-link --print-out-paths
           nix build ./#containers.x86_64-linux.kontrol-frontend.amd64 --no-link --print-out-paths
@@ -80,7 +83,5 @@ jobs:
       - name: Publish images
         # if: github.ref == 'refs/heads/main'
         run: |
-          docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
-          docker image ls
           nix run ./#publish-kontrol-frontend-container
           nix run ./#publish-kontrol-service-container
