@@ -1,13 +1,8 @@
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-
-  color-scheme: dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
-
+  --color-text: #68727d;
+  --font-family: "DM Sans", sans-serif;
 }
+
 * {
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -19,6 +14,7 @@ html {
   color-scheme: light;
   background-color: #f9f9f9;
   min-height: 100vh;
+  font-size: 16px;
 }
 
 #root {
