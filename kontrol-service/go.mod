@@ -6,8 +6,8 @@ toolchain go1.22.3
 
 require (
 	github.com/compose-spec/compose-go v1.20.2
-	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240702145612-75b736fe24ad
-	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240702145612-75b736fe24ad
+	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240702151327-2e96ff810e4a
+	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240702151327-2e96ff810e4a
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/samber/lo v1.39.0
 	github.com/stretchr/testify v1.9.0
