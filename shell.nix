@@ -13,7 +13,6 @@
       buildInputs = [dive kubectl kustomize kubernetes-helm minikube istioctl tilt reflex];
       shellHook = ''
         source <(kubectl completion bash)
-        source <(kubectl-argo-rollouts completion bash)
         source <(minikube completion bash)
         printf '\u001b[31m
 
