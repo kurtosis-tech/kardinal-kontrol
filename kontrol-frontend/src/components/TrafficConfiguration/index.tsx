@@ -23,7 +23,13 @@ const client = createClient<paths>({ baseUrl: import.meta.env.VITE_API_URL });
 const TrafficConfiguration = () => {
   const [elems, setElems] = useState<cytoscape.ElementDefinition[]>([]);
   const { uuid } = useParams<{ uuid: string }>();
-  console.log("UUID:", uuid);
+  if (uuid == undefined) {
+    console.error("UUID is undefined");
+    // TODO: Handle error better
+    return null;
+  } else {
+    console.log("UUID:", uuid);
+  }
 
   useEffect(() => {
     const fetchElems = async () => {
@@ -32,10 +38,10 @@ const TrafficConfiguration = () => {
       });
       setElems(
         CytoscapeComponent.normalizeElements({
-          nodes: response.data?.nodes.map((node: cytoscape.NodeSingular) => ({
+          nodes: response.data!.nodes.map((node) => ({
             data: node,
           })),
-          edges: response.data?.edges.map((edge: cytoscape.EdgeSingular) => ({
+          edges: response.data!.edges.map((edge) => ({
             data: edge,
           })),
         }),
