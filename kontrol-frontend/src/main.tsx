@@ -11,12 +11,17 @@ import DataConfiguration from "@/pages/DataConfiguration";
 import Flows from "@/pages/Flows";
 import MaturityGates from "@/pages/MaturityGates";
 import TrafficConfiguration from "@/pages/TrafficConfiguration";
+import NotFound from "@/pages/NotFound";
 
 import { ErrorBoundary } from "react-error-boundary";
 
 const router = createBrowserRouter([
   {
     path: "/",
+    element: <NotFound />,
+  },
+  {
+    path: "/:uuid/",
     element: (
       <ErrorBoundary FallbackComponent={Fallback}>
         <App />
@@ -44,6 +49,10 @@ const router = createBrowserRouter([
         element: <DataConfiguration />,
       },
     ],
+  },
+  {
+    path: "*",
+    element: <NotFound />,
   },
 ]);
 

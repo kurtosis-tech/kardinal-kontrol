@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from "react";
 import { Flex } from "@chakra-ui/react";
 import CytoscapeComponent from "react-cytoscapejs";
 import cytoscape from "cytoscape";
-// import sbgnStylesheet from "cytoscape-sbgn-stylesheet";
 import dagre from "cytoscape-dagre";
 import stylesheet from "./stylesheet";
+import { useParams } from "react-router-dom";
 import { paths } from "cli-kontrol-api/api/typescript/client/types";
 import createClient from "openapi-fetch";
 
@@ -22,11 +22,13 @@ const client = createClient<paths>({ baseUrl: import.meta.env.VITE_API_URL });
 
 const TrafficConfiguration = () => {
   const [elems, setElems] = useState<cytoscape.ElementDefinition[]>([]);
+  const { uuid } = useParams<{ uuid: string }>();
+  console.log("UUID:", uuid);
 
   useEffect(() => {
     const fetchElems = async () => {
       const response = await client.GET("/tenant/{uuid}/topology", {
-        params: { path: { uuid: "e6a0c8e4-4f3d-4b8b-8b1d-7d0e6b2c1e0b" } },
+        params: { path: { uuid } },
       });
       setElems(
         CytoscapeComponent.normalizeElements({
@@ -40,7 +42,7 @@ const TrafficConfiguration = () => {
       );
     };
     fetchElems();
-  }, []);
+  }, [uuid]);
 
   const handleCy = useCallback((cy: cytoscape.Core) => {
     const edges = cy.edges();

@@ -67,19 +67,19 @@ const Sidebar = () => {
       borderRightColor="gray.100"
     >
       <VStack align="start" spacing="4">
-        <SidebarLink icon={FiTable} href="/">
+        <SidebarLink icon={FiTable} href="">
           Dashboard
         </SidebarLink>
-        <SidebarLink icon={FiShield} href="/maturity-gates">
+        <SidebarLink icon={FiShield} href="maturity-gates">
           Maturity gates
         </SidebarLink>
-        <SidebarLink icon={FiGitPullRequest} href="/flows">
+        <SidebarLink icon={FiGitPullRequest} href="flows">
           Flows
         </SidebarLink>
-        <SidebarLink icon={FiRepeat} href="/traffic-configuration">
+        <SidebarLink icon={FiRepeat} href="traffic-configuration">
           Traffic configuration
         </SidebarLink>
-        <SidebarLink icon={FiDatabase} href="/data-configuration">
+        <SidebarLink icon={FiDatabase} href="data-configuration">
           Data configuration
         </SidebarLink>
       </VStack>
