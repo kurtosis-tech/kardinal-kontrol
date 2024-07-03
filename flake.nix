@@ -25,9 +25,9 @@
           ];
         };
 
-        service_names = ["kontrol-service"];
+        service_names = ["kontrol-service" "kontrol-frontend"];
         architectures = ["amd64" "arm64"];
-        imageRegistry = "kurtosistech";
+        imageRegistry = "258623609258.dkr.ecr.us-east-1.amazonaws.com";
 
         matchingContainerArch =
           if builtins.match "aarch64-.*" system != null
@@ -44,7 +44,7 @@
         multiPlatformDockerPusher = acc: service:
           pkgs.lib.recursiveUpdate acc {
             packages."publish-${service}-container" = let
-              name = "${imageRegistry}/${service}";
+              name = "${imageRegistry}/kurtosistech/${service}";
               tagBase = "latest";
               images =
                 map (
@@ -62,6 +62,7 @@
                   tag,
                 }: [
                   "$docker load -i ${image}"
+                  "$docker tag ${service}:${tag} ${name}:${tag}"
                   "$docker push ${name}:${tag}"
                 ])
                 images);
@@ -87,6 +88,65 @@
                 executable = true;
                 destination = "/bin/push";
               };
+          };
+
+        mkGoApplicationImage = {
+          pkgs,
+          container_pkgs,
+          service_name,
+          service,
+          arch,
+          os,
+          needsCrossCompilation,
+        }: let
+          overrideService =
+            if !needsCrossCompilation
+            then
+              service.overrideAttrs
+              (old: old // {doCheck = false;})
+            else
+              service.overrideAttrs (old:
+                old
+                // {
+                  GOOS = os;
+                  GOARCH = arch;
+                  # CGO_ENABLED = disabled breaks the CLI compilation
+                  # CGO_ENABLED = 0;
+                  doCheck = false;
+                });
+        in
+          pkgs.dockerTools.buildImage {
+            name = "${service_name}";
+            tag = "latest-${arch}";
+            # tag = commit_hash;
+            created = "now";
+            copyToRoot = pkgs.buildEnv {
+              name = "image-root";
+              paths = [
+                overrideService
+                container_pkgs.bashInteractive
+                container_pkgs.nettools
+                container_pkgs.gnugrep
+                container_pkgs.coreutils
+              ];
+              pathsToLink = ["/bin"];
+            };
+            architecture = arch;
+            config.Cmd =
+              if !needsCrossCompilation
+              then ["${overrideService}/bin/${overrideService.pname}"]
+              else ["${overrideService}/bin/${os}_${arch}/${overrideService.pname}"];
+          };
+
+        mkFrontendImage = {
+          pkgs,
+          container_pkgs,
+          arch,
+          ...
+        }:
+          pkgs.callPackage ./kontrol-frontend/image.nix {
+            inherit container_pkgs pkgs;
+            tag = "latest-${arch}";
           };
 
         systemOutput = rec {
@@ -124,45 +184,17 @@
                     needsCrossCompilation =
                       "${nix_arch}-${os}"
                       != system;
-
-                    service =
-                      if !needsCrossCompilation
-                      then
-                        packages.${service_name}.overrideAttrs
-                        (old: old // {doCheck = false;})
-                      else
-                        packages.${service_name}.overrideAttrs (old:
-                          old
-                          // {
-                            GOOS = os;
-                            GOARCH = arch;
-                            # CGO_ENABLED = disabled breaks the CLI compilation
-                            # CGO_ENABLED = 0;
-                            doCheck = false;
-                          });
                   in
-                    builtins.trace "${service}/bin" pkgs.dockerTools.buildImage {
-                      name = "${imageRegistry}/${service_name}";
-                      tag = "latest-${arch}";
-                      # tag = commit_hash;
-                      created = "now";
-                      copyToRoot = pkgs.buildEnv {
-                        name = "image-root";
-                        paths = [
-                          service
-                          container_pkgs.bashInteractive
-                          container_pkgs.nettools
-                          container_pkgs.gnugrep
-                          container_pkgs.coreutils
-                        ];
-                        pathsToLink = ["/bin"];
+                    if service_name == "kontrol-frontend"
+                    then
+                      mkFrontendImage {
+                        inherit pkgs container_pkgs arch;
+                      }
+                    else
+                      mkGoApplicationImage {
+                        inherit pkgs container_pkgs service_name arch os needsCrossCompilation;
+                        service = packages.${service_name};
                       };
-                      architecture = arch;
-                      config.Cmd =
-                        if !needsCrossCompilation
-                        then ["${service}/bin/${service.pname}"]
-                        else ["${service}/bin/${os}_${arch}/${service.pname}"];
-                    };
                 };
               }) {
                 arch = architectures;
