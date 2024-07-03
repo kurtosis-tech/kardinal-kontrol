@@ -5,8 +5,8 @@ import cytoscape from "cytoscape";
 // import sbgnStylesheet from "cytoscape-sbgn-stylesheet";
 import dagre from "cytoscape-dagre";
 import stylesheet from "./stylesheet";
-import data from "./data";
 import { paths } from "cli-kontrol-api/api/typescript/client/types"
+import createClient from "openapi-fetch";
 
 
 cytoscape.use(dagre);
@@ -19,9 +19,16 @@ const layout = {
   align: "UL",
 };
 
-const elements = [...data.nodes, ...data.edges].map((element) => ({
-  data: element,
-}));
+
+const client = createClient<paths>({ baseUrl: "http://localhost:8080" })
+var elems: cytoscape.ElementDefinition[] = [];
+
+client.GET("/tenant/{uuid}/topology", { params: { path: { uuid: "e6a0c8e4-4f3d-4b8b-8b1d-7d0e6b2c1e0b" } } }).then((response) => {
+  elems = CytoscapeComponent.normalizeElements({
+    nodes: response.data!.nodes.map(node => ({ data: node })),
+    edges: response.data!.edges.map(edge => ({ data: edge }))
+  });
+})
 
 const TrafficConfiguration = () => {
   const handleCy = useCallback((cy: cytoscape.Core) => {
@@ -73,7 +80,7 @@ const TrafficConfiguration = () => {
       flexDir={"column"}
     >
       <CytoscapeComponent
-        elements={elements}
+        elements={elems}
         style={{ width: "100%", height: "100%" }}
         layout={layout}
         // @ts-expect-error cytoscape
