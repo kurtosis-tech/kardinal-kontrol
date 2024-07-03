@@ -26,6 +26,7 @@ with pkgs; let
       rm -rf $out/node_modules/lodash/flake.lock
       rm -rf $out/node_modules/cytoscape/.github
       rm -rf $out/node_modules/.cache
+      rm -rf $out/node_modules/vscode-languageclient
     '';
     outputHash = pin."${stdenv.system}";
     outputHashAlgo = "sha256";
