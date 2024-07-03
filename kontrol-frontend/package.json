@@ -14,7 +14,7 @@
     "@chakra-ui/react": "^2.8.2",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
-    "cli-kontrol-api": "link:cli-kontrol-api",
+    "cli-kontrol-api": "file:../kardinal/libs/cli-kontrol-api/",
     "cytoscape": "^3.29.2",
     "cytoscape-dagre": "^2.5.0",
     "cytoscape-popper": "^4.0.0",
