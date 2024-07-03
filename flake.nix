@@ -162,6 +162,8 @@
             inherit pkgs;
           };
 
+          packages.default = packages.kontrol-service;
+
           containers = let
             os = "linux";
             all =
