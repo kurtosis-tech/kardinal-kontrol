@@ -3,11 +3,14 @@ import react from "@vitejs/plugin-react-swc";
 import checker from "vite-plugin-checker";
 
 // https://vitejs.dev/config/
-export default defineConfig({
-  plugins: [react(), checker({ typescript: true })],
-  resolve: {
-    alias: {
-      "@": "/src",
+export default defineConfig(({ mode }) => {
+  const isDev = mode === "development";
+  return {
+    plugins: [react(), ...(isDev ? [checker({ typescript: true })] : [])],
+    resolve: {
+      alias: {
+        "@": "/src",
+      },
     },
-  },
+  };
 });
