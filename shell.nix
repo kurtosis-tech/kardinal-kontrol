@@ -10,10 +10,9 @@
   backend_shell = pkgs.callPackage ./kontrol-service/shell.nix {inherit pkgs;};
   kardinal_shell = with pkgs;
     pkgs.mkShell {
-      buildInputs = [k3d kubectl kustomize kubernetes-helm minikube istioctl tilt reflex];
+      buildInputs = [dive kubectl kustomize kubernetes-helm minikube istioctl tilt reflex];
       shellHook = ''
         source <(kubectl completion bash)
-        source <(kubectl-argo-rollouts completion bash)
         source <(minikube completion bash)
         printf '\u001b[31m
 

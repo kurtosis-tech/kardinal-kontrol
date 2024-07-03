@@ -1,6 +1,10 @@
 # Our desired pipeline using only a Nix shell environment
 name: Check and build Kardinal
 
+permissions:
+  id-token: write
+  contents: read
+
 on:
   push:
     branches:
@@ -20,13 +24,13 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+        uses: DeterminateSystems/nix-installer-action@v12
 
       - name: Magic cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
+        uses: DeterminateSystems/magic-nix-cache-action@v7
 
       - name: Check Nixpkgs inputs
-        uses: DeterminateSystems/flake-checker-action@main
+        uses: DeterminateSystems/flake-checker-action@v7
         with:
           fail-mode: true
 
@@ -47,13 +51,43 @@ jobs:
       - name: git checkout
         uses: actions/checkout@v3
 
+      - name: Install qemu
+        uses: docker/setup-qemu-action@v3
+
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@main
+        uses: DeterminateSystems/nix-installer-action@v12
+        with:
+          extra_nix_config: |
+            extra-platforms = aarch64-linux
 
       - name: Magic cache
-        uses: DeterminateSystems/magic-nix-cache-action@main
+        uses: DeterminateSystems/magic-nix-cache-action@v7
 
-      - name: Build Kardinal Manager images
+      - name: Build Kontrol services images
         run: |
+          # Backend server
           nix build ./#containers.x86_64-linux.kontrol-service.arm64 --no-link --print-out-paths
           nix build ./#containers.x86_64-linux.kontrol-service.amd64 --no-link --print-out-paths
+
+      - name: Build Kontrol frontent images
+        run: |
+          # Frontend server
+          nix build ./#containers.x86_64-linux.kontrol-frontend.arm64 --no-link --print-out-paths
+          nix build ./#containers.x86_64-linux.kontrol-frontend.amd64 --no-link --print-out-paths
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          role-to-assume: arn:aws:iam::258623609258:role/kardinal-control-publish-images
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: "us-east-1"
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Publish images
+        if: github.ref == 'refs/heads/main'
+        run: |
+          nix run ./#publish-kontrol-frontend-container
+          nix run ./#publish-kontrol-service-container
