@@ -10,8 +10,8 @@ const config: ThemeConfig = {
 // 3. Create a custom color palette
 const colors = {
   gray: {
-    "50": "#f2f0f0",
-    "100": "#dad9d7",
+    "50": "#FAFBFC",
+    "100": "#EAEBF0",
     "200": "#c0bfbf",
     "300": "#a7a6a6",
     "400": "#8d8d8d",
@@ -24,6 +24,23 @@ const colors = {
 };
 
 // 4. extend the theme
-const theme = extendTheme({ config, colors });
+const theme = extendTheme({
+  config,
+  colors,
+  fonts: {
+    body: "'DM Sans', 'sans-serif'",
+  },
+  styles: {
+    global: {
+      // Styles for the `body`
+      body: {
+        fontSize: "14px", // Set your desired default font size
+        color: "gray.800",
+        bg: "white",
+        fontWeight: 400,
+      },
+    },
+  },
+});
 
 export default theme;
