@@ -46,6 +46,11 @@
             packages."${service}-container" = self.containers.${system}.${service}.${matchingContainerArch};
           };
 
+        mergeKardinalPackages = acc: packageName: package:
+          pkgs.lib.recursiveUpdate acc {
+            packages."public-${packageName}" = package;
+          };
+
         multiPlatformDockerPusher = acc: service:
           pkgs.lib.recursiveUpdate acc {
             packages."publish-${service}-container" = let
@@ -170,7 +175,7 @@
           packages.default = packages.kontrol-service;
 
           # Bypass public kardinal definitions
-          packages.kardinal = pkgs.kardinal;
+          kardinal = pkgs.kardinal;
 
           containers = let
             os = "linux";
@@ -219,7 +224,8 @@
         # For cross-compilation use the containers attribute directly: `nix build .containers.<LOCAL_SYSTEM>.<SERVICE_NAME>.<ARCH>`
         outputWithContaniers = pkgs.lib.foldl' mergeContainerPackages systemOutput service_names;
         outputWithContainersAndPushers = pkgs.lib.foldl' multiPlatformDockerPusher outputWithContaniers service_names;
+        outputWithContainersAndPushersAndKardinal = pkgs.lib.attrsets.foldlAttrs mergeKardinalPackages outputWithContainersAndPushers pkgs.kardinal;
       in
-        outputWithContainersAndPushers
+        outputWithContainersAndPushersAndKardinal
     );
 }
