@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "build": "bun run ./node_modules/.bin/tsc && bun run ./node_modules/.bin/vite build",
+    "build": "bun run ./node_modules/.bin/tsc && bun run ./node_modules/.bin/vite build --mode production",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },
@@ -14,10 +14,12 @@
     "@chakra-ui/react": "^2.8.2",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
+    "cli-kontrol-api": "file:../.cli-kontrol-api",
     "cytoscape": "^3.29.2",
     "cytoscape-dagre": "^2.5.0",
     "cytoscape-popper": "^4.0.0",
     "framer-motion": "^11.2.9",
+    "openapi-fetch": "^0.10.2",
     "react": "^18.2.0",
     "react-cytoscapejs": "^2.0.0",
     "react-dom": "^18.2.0",

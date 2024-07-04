@@ -1,11 +1,12 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Flex } from "@chakra-ui/react";
 import CytoscapeComponent from "react-cytoscapejs";
 import cytoscape from "cytoscape";
-// import sbgnStylesheet from "cytoscape-sbgn-stylesheet";
 import dagre from "cytoscape-dagre";
 import stylesheet from "./stylesheet";
-import data from "./data";
+import { useParams } from "react-router-dom";
+import { paths } from "cli-kontrol-api/api/typescript/client/types";
+import createClient from "openapi-fetch";
 
 cytoscape.use(dagre);
 
@@ -17,11 +18,38 @@ const layout = {
   align: "UL",
 };
 
-const elements = [...data.nodes, ...data.edges].map((element) => ({
-  data: element,
-}));
+const client = createClient<paths>({ baseUrl: import.meta.env.VITE_API_URL });
 
 const TrafficConfiguration = () => {
+  const [elems, setElems] = useState<cytoscape.ElementDefinition[]>([]);
+  const { uuid } = useParams<{ uuid: string }>();
+  if (uuid == undefined) {
+    console.error("UUID is undefined");
+    // TODO: Handle error better
+    return null;
+  } else {
+    console.log("UUID:", uuid);
+  }
+
+  useEffect(() => {
+    const fetchElems = async () => {
+      const response = await client.GET("/tenant/{uuid}/topology", {
+        params: { path: { uuid } },
+      });
+      setElems(
+        CytoscapeComponent.normalizeElements({
+          nodes: response.data!.nodes.map((node) => ({
+            data: node,
+          })),
+          edges: response.data!.edges.map((edge) => ({
+            data: edge,
+          })),
+        }),
+      );
+    };
+    fetchElems();
+  }, [uuid]);
+
   const handleCy = useCallback((cy: cytoscape.Core) => {
     const edges = cy.edges();
     const allNodeIds = cy.nodes().map((n) => n.id());
@@ -71,7 +99,7 @@ const TrafficConfiguration = () => {
       flexDir={"column"}
     >
       <CytoscapeComponent
-        elements={elements}
+        elements={elems}
         style={{ width: "100%", height: "100%" }}
         layout={layout}
         // @ts-expect-error cytoscape

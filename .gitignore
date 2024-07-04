@@ -1,4 +1,8 @@
 .direnv
+
+# local linked copy of the api created by nix shell
+.cli-kontrol-api
+
 ### VisualStudioCode template
 .vscode/*
 
@@ -86,3 +90,4 @@ Temporary Items
 # local build folders
 istio-1.22.0/
 kontrol-service/Run_kontrol_service
+result/

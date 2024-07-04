@@ -6,8 +6,8 @@ toolchain go1.22.3
 
 require (
 	github.com/compose-spec/compose-go v1.20.2
-	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240702145612-75b736fe24ad
-	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240702145612-75b736fe24ad
+	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240702151327-2e96ff810e4a
+	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240702151327-2e96ff810e4a
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/samber/lo v1.39.0
 	github.com/stretchr/testify v1.9.0
@@ -28,6 +28,7 @@ require (
 	github.com/go-openapi/jsonpointer v0.20.2 // indirect
 	github.com/go-openapi/swag v0.22.8 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
@@ -58,6 +59,7 @@ require (
 	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
+	golang.org/x/time v0.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240318140521-94a12d6c2237 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect

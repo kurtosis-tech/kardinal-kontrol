@@ -7,27 +7,34 @@ import (
 	"kardinal.kontrol-service/api"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 func main() {
-	applyLocally := flag.Bool("apply-directly", false, "Apply changes directly to configured k8s")
+	devMode := flag.Bool("dev-mode", false, "Allow to run the service in local mode.")
 
 	flag.Parse()
 
-	if *applyLocally {
-		log.Println("Applying changes directly.")
-	} else {
-		log.Println("Server configuration for pulling.")
+	if *devMode {
+		log.Println("Running in dev mode. CORS fully open.")
 	}
 
-	startServer()
+	startServer(*devMode)
 }
 
-func startServer() {
+func startServer(isDevMode bool) {
 	// create a type that satisfies the `api.ServerInterface`, which contains an implementation of every operation from the generated code
 	server := api.NewServer()
 
 	e := echo.New()
+
+	if isDevMode {
+		e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
+			AllowOrigins: []string{"*"},
+			AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept},
+		}))
+	}
+
 	server.RegisterExternalAndInternalApi(e)
 
 	// And we serve HTTP until the world ends.

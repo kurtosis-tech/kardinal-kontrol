@@ -15,6 +15,9 @@ with pkgs; let
     nativeBuildInputs = [bun];
     dontConfigure = true;
     buildPhase = ''
+      # Mimic local of develop copy of kardinal
+      cp -r ${pkgs.kardinal.cli-kontrol-api} ../.cli-kontrol-api
+
       bun install --no-progress --frozen-lockfile
     '';
     installPhase = ''
@@ -37,20 +40,24 @@ in
     pname = "${name}";
     version = pin.version;
     inherit src;
-    nativeBuildInputs = [makeBinaryWrapper];
+    nativeBuildInputs = [makeBinaryWrapper rsync];
 
     dontConfigure = true;
 
     buildPhase = ''
       runHook preBuild
 
-      ln -s ${node_modules}/node_modules .
+      # Because bun link of local deps (file:...) the link from the previous derivation are broken
+      # we copy all but the those modules and re-copying them directly
+      mkdir -p node_modules
+      ln -sfn ${pkgs.kardinal.cli-kontrol-api} node_modules/cli-kontrol-api
+      rsync -av --progress ${node_modules}/node_modules . --exclude cli-kontrol-api
 
       # bun is referenced naked in the package.json generated script
       mkdir -p ./bin
       makeBinaryWrapper ${bun}/bin/bun ./bin/${name} \
         --prefix PATH : ${lib.makeBinPath [bun]} \
-        --add-flags "run --no-install build"
+        --add-flags "run  build"
 
       # Call wrapper to build the project
       ./bin/${name}

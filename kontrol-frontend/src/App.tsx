@@ -10,9 +10,8 @@ const App = () => {
                       "side main"`}
       gridTemplateRows={"64px 1fr"}
       gridTemplateColumns={"250px 1fr"}
-      h="100vh"
+      h="100%"
       color="blackAlpha.700"
-      fontWeight="bold"
     >
       <GridItem area={"nav"}>
         <Navbar />
