@@ -73,7 +73,7 @@ jobs:
         run: |
           # Frontend server
           nix build ./#containers.x86_64-linux.kontrol-frontend.amd64 --no-link --print-out-paths
-          nix build ./#containers.x86_64-linux.kontrol-frontend.arm64 --no-link --print-out-paths --no-substitute
+          nix build ./#containers.x86_64-linux.kontrol-frontend.arm64 --no-link --print-out-paths
 
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v1.7.0
