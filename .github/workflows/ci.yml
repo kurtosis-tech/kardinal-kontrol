@@ -17,86 +17,86 @@ on:
       - tedi/cicd
 
 jobs:
-#  check_nix:
-#    name: Basic Check
-#    runs-on: ubuntu-22.04
-#    steps:
-#      - name: git checkout
-#        uses: actions/checkout@v3
-#
-#      - name: Install Nix
-#        uses: DeterminateSystems/nix-installer-action@v12
-#
-#      - name: Magic cache
-#        uses: DeterminateSystems/magic-nix-cache-action@v7
-#
-#      - name: Check Nixpkgs inputs
-#        uses: DeterminateSystems/flake-checker-action@v7
-#        with:
-#          fail-mode: true
-#
-#      # Nix-specific logic begins here
-#      - name: Nix Check
-#        run: |
-#          nix flake check
-#
-#      - name: Check Go formatting
-#        run: |
-#          nix develop --command test -z $(gofmt -l .)
-#
-#  build_and_test_nix:
-#    name: Test and build
-#    needs: check_nix
-#    runs-on: ubuntu-22.04
-#    steps:
-#      - name: git checkout
-#        uses: actions/checkout@v3
-#
-#      - name: Install qemu
-#        uses: docker/setup-qemu-action@v3
-#
-#      - name: Install Nix
-#        uses: DeterminateSystems/nix-installer-action@v12
-#        with:
-#          extra_nix_config: |
-#            extra-platforms = aarch64-linux
-#
-#      - name: Magic cache
-#        uses: DeterminateSystems/magic-nix-cache-action@v7
-#
-#      - name: Build Kontrol services images
-#        run: |
-#          # Backend server
-#          nix build ./#containers.x86_64-linux.kontrol-service.arm64 --no-link --print-out-paths
-#          nix build ./#containers.x86_64-linux.kontrol-service.amd64 --no-link --print-out-paths
-#
-#      - name: Build Kontrol frontent images
-#        run: |
-#          # Frontend server
-#          nix build ./#containers.x86_64-linux.kontrol-frontend.arm64 --no-link --print-out-paths
-#          nix build ./#containers.x86_64-linux.kontrol-frontend.amd64 --no-link --print-out-paths
-#
-#      - name: configure aws credentials
-#        uses: aws-actions/configure-aws-credentials@v1.7.0
-#        with:
-#          role-to-assume: arn:aws:iam::258623609258:role/kardinal-control-publish-images
-#          role-session-name: GitHub_to_AWS_via_FederatedOIDC
-#          aws-region: "us-east-1"
-#
-#      - name: Login to Amazon ECR
-#        id: login-ecr
-#        uses: aws-actions/amazon-ecr-login@v1
-#
-#      - name: Publish images
-#        if: github.ref == 'refs/heads/main'
-#        run: |
-#          nix run ./#publish-kontrol-frontend-container
-#          nix run ./#publish-kontrol-service-container
+  check_nix:
+    name: Basic Check
+    runs-on: ubuntu-22.04
+    steps:
+      - name: git checkout
+        uses: actions/checkout@v3
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v12
+
+      - name: Magic cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
+
+      - name: Check Nixpkgs inputs
+        uses: DeterminateSystems/flake-checker-action@v7
+        with:
+          fail-mode: true
+
+      # Nix-specific logic begins here
+      - name: Nix Check
+        run: |
+          nix flake check
+
+      - name: Check Go formatting
+        run: |
+          nix develop --command test -z $(gofmt -l .)
+
+  build_and_test_nix:
+    name: Test and build
+    needs: check_nix
+    runs-on: ubuntu-22.04
+    steps:
+      - name: git checkout
+        uses: actions/checkout@v3
+
+      - name: Install qemu
+        uses: docker/setup-qemu-action@v3
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v12
+        with:
+          extra_nix_config: |
+            extra-platforms = aarch64-linux
+
+      - name: Magic cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
+
+      - name: Build Kontrol services images
+        run: |
+          # Backend server
+          nix build ./#containers.x86_64-linux.kontrol-service.arm64 --no-link --print-out-paths
+          nix build ./#containers.x86_64-linux.kontrol-service.amd64 --no-link --print-out-paths
+
+      - name: Build Kontrol frontent images
+        run: |
+          # Frontend server
+          nix build ./#containers.x86_64-linux.kontrol-frontend.arm64 --no-link --print-out-paths
+          nix build ./#containers.x86_64-linux.kontrol-frontend.amd64 --no-link --print-out-paths
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          role-to-assume: arn:aws:iam::258623609258:role/kardinal-control-publish-images
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: "us-east-1"
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Publish images
+        if: github.ref == 'refs/heads/main'
+        run: |
+          nix run ./#publish-kontrol-frontend-container
+          nix run ./#publish-kontrol-service-container
 
   deploy_kardinal:
     name: Update Cluster Deployment
-#    if: github.ref == 'refs/heads/main'
-#    needs: build_and_test_nix
+    if: github.ref == 'refs/heads/main'
+    needs: build_and_test_nix
     runs-on: ubuntu-22.04
     steps:
       - name: git checkout
