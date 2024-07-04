@@ -36,6 +36,11 @@ func (sv *Server) RegisterExternalAndInternalApi(router api.EchoRouter) {
 	managerapi.RegisterHandlers(router, internalHandlers)
 }
 
+func (sv *Server) GetHealth(_ context.Context, _ api.GetHealthRequestObject) (api.GetHealthResponseObject, error) {
+	resp := "ok"
+	return api.GetHealth200JSONResponse(resp), nil
+}
+
 func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenantUuidDeployRequestObject) (api.PostTenantUuidDeployResponseObject, error) {
 	log.Printf("Deploying prod cluster")
 	project := *request.Body.DockerCompose
