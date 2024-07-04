@@ -110,10 +110,10 @@ jobs:
           aws-region: "us-east-1"
 
       - name: Update Kube config
-        run: aws eks update-kubeconfig --name kloud-kontrol
+        run: aws eks update-kubeconfig --name kardinal-kluster --region us-east-1
 
       - name: Deploy to cluster
         run: |
-          kubectl apply -f ./k8s-deployment/kloud-kontrol-ingress-yml
-          kubectl apply -f ./k8s-deployment/kloud-kontrol-manifest.yml
-          kubectl apply -f ./k8s-deployment/kontrol-frontend-manifest.yml
+          kubectl apply -f ./k8s-deployment/kloud-kontrol-ingress-yml -n kloud-kontrol
+          kubectl apply -f ./k8s-deployment/kloud-kontrol-manifest.yml -n kloud-kontrol
+          kubectl apply -f ./k8s-deployment/kontrol-frontend-manifest.yml -n kloud-kontrol
