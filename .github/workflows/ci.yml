@@ -104,7 +104,7 @@ jobs:
       - name: Install Kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: 'v1.30.0'
+          version: "v1.30.0"
 
       - name: configure aws credentials
         id: aws-creds
@@ -119,10 +119,6 @@ jobs:
 
       - name: Deploy to cluster
         run: |
-          kubectl apply -f ./k8s-deployment/kloud-kontrol-ingress.yml -n kloud-kontrol
-          kubectl apply -f ./k8s-deployment/kloud-kontrol-manifest.yml -n kloud-kontrol
-          kubectl apply -f ./k8s-deployment/kontrol-frontend-manifest.yml -n kloud-kontrol
+          kubectl apply -f ./k8s-deployment -n kloud-kontrol
           kubectl rollout restart deployment/kontrol-frontend -n kloud-kontrol
           kubectl rollout restart deployment/kontrol-service-server -n kloud-kontrol
-          
-          
