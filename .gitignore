@@ -1,4 +1,8 @@
 .direnv
+
+# local linked copy of the api created by nix shell
+.cli-kontrol-api
+
 ### VisualStudioCode template
 .vscode/*
 

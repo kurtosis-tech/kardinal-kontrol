@@ -6,6 +6,7 @@
     gomod2nix.url = "github:nix-community/gomod2nix";
     gomod2nix.inputs.nixpkgs.follows = "nixpkgs";
     gomod2nix.inputs.flake-utils.follows = "flake-utils";
+    kardinal.url = "github:kurtosis-tech/kardinal/3f265481c7bb";
   };
   outputs = {
     self,
@@ -13,6 +14,7 @@
     flake-utils,
     unstable,
     gomod2nix,
+    kardinal,
     ...
   }:
     flake-utils.lib.eachDefaultSystem
@@ -22,6 +24,9 @@
           inherit system;
           overlays = [
             (import "${gomod2nix}/overlay.nix")
+            (final: prev: {
+              kardinal = kardinal.outputs.packages.${system};
+            })
           ];
         };
 
@@ -163,6 +168,9 @@
           };
 
           packages.default = packages.kontrol-service;
+
+          # Bypass public kardinal definitions
+          packages.kardinal = pkgs.kardinal;
 
           containers = let
             os = "linux";
