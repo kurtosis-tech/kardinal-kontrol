@@ -95,6 +95,7 @@ jobs:
 
   deploy_kardinal:
     name: Update Cluster Deployment
+#    if: github.ref == 'refs/heads/main'
     needs: build_and_test_nix
     runs-on: ubuntu-22.04
     steps:
