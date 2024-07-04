@@ -91,3 +91,38 @@ jobs:
         run: |
           nix run ./#publish-kontrol-frontend-container
           nix run ./#publish-kontrol-service-container
+
+  deploy_kardinal:
+    name: Update Cluster Deployment
+    if: github.ref == 'refs/heads/main'
+    needs: build_and_test_nix
+    runs-on: ubuntu-22.04
+    steps:
+      - name: git checkout
+        uses: actions/checkout@v3
+
+      - name: Install Kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: 'v1.30.0'
+
+      - name: configure aws credentials
+        id: aws-creds
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          role-to-assume: arn:aws:iam::258623609258:role/kardinal-kontrol-deploy-to-cluster
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: "us-east-1"
+
+      - name: Update Kube config
+        run: aws eks update-kubeconfig --name kardinal-kluster --region us-east-1
+
+      - name: Deploy to cluster
+        run: |
+          kubectl apply -f ./k8s-deployment/kloud-kontrol-ingress.yml -n kloud-kontrol
+          kubectl apply -f ./k8s-deployment/kloud-kontrol-manifest.yml -n kloud-kontrol
+          kubectl apply -f ./k8s-deployment/kontrol-frontend-manifest.yml -n kloud-kontrol
+          kubectl rollout restart deployment/kontrol-frontend -n kloud-kontrol
+          kubectl rollout restart deployment/kontrol-service-server -n kloud-kontrol
+          
+          
