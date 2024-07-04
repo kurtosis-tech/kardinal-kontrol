@@ -14,7 +14,6 @@ on:
   pull_request:
     branches:
       - main
-      - tedi/cicd
 
 jobs:
   check_nix:
