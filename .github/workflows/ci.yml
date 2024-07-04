@@ -15,9 +15,6 @@ on:
     branches:
       - main
 
-env:
-  MAIN_BRANCH: ${{ 'refs/heads/main' }}
-
 jobs:
   check_nix:
     name: Basic Check
@@ -90,14 +87,14 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Publish images
-        if: github.ref == env.MAIN_BRANCH
+        if: github.ref == 'refs/heads/main'
         run: |
           nix run ./#publish-kontrol-frontend-container
           nix run ./#publish-kontrol-service-container
 
   deploy_kardinal:
     name: Update Cluster Deployment
-    if: github.ref == env.MAIN_BRANCH
+    if: github.ref == 'refs/heads/main'
     needs: build_and_test_nix
     runs-on: ubuntu-22.04
     steps:
@@ -107,7 +104,7 @@ jobs:
       - name: Install Kubectl
         uses: azure/setup-kubectl@v3
         with:
-          version: "v1.30.0"
+          version: 'v1.30.0'
 
       - name: configure aws credentials
         id: aws-creds
@@ -127,3 +124,5 @@ jobs:
           kubectl apply -f ./k8s-deployment/kontrol-frontend-manifest.yml -n kloud-kontrol
           kubectl rollout restart deployment/kontrol-frontend -n kloud-kontrol
           kubectl rollout restart deployment/kontrol-service-server -n kloud-kontrol
+          
+          
