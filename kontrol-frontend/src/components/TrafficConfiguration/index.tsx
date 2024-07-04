@@ -18,36 +18,44 @@ const layout = {
   align: "UL",
 };
 
+const pullingIntervalSeconds = 1;
+
 const client = createClient<paths>({ baseUrl: import.meta.env.VITE_API_URL });
 
 const TrafficConfiguration = () => {
   const [elems, setElems] = useState<cytoscape.ElementDefinition[]>([]);
   const { uuid } = useParams<{ uuid: string }>();
-  if (uuid == undefined) {
+  if (!uuid) {
     console.error("UUID is undefined");
     // TODO: Handle error better
     return null;
-  } else {
-    console.log("UUID:", uuid);
   }
 
   useEffect(() => {
     const fetchElems = async () => {
-      const response = await client.GET("/tenant/{uuid}/topology", {
-        params: { path: { uuid } },
-      });
-      setElems(
-        CytoscapeComponent.normalizeElements({
-          nodes: response.data!.nodes.map((node) => ({
-            data: node,
-          })),
-          edges: response.data!.edges.map((edge) => ({
-            data: edge,
-          })),
-        }),
-      );
+      try {
+        const response = await client.GET("/tenant/{uuid}/topology", {
+          params: { path: { uuid } },
+        });
+        setElems(
+          CytoscapeComponent.normalizeElements({
+            nodes: response.data!.nodes.map((node) => ({
+              data: node,
+            })),
+            edges: response.data!.edges.map((edge) => ({
+              data: edge,
+            })),
+          }),
+        );
+      } catch (error) {
+        console.error("Failed to fetch elements:", error);
+      }
     };
+
+    // Continuously fetch elements
+    const intervalId = setInterval(fetchElems, pullingIntervalSeconds * 1000);
     fetchElems();
+    return () => clearInterval(intervalId);
   }, [uuid]);
 
   const handleCy = useCallback((cy: cytoscape.Core) => {
