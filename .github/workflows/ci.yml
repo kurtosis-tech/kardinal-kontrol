@@ -100,13 +100,13 @@ jobs:
     steps:
       - name: Install Kubectl
         uses: azure/setup-kubectl@v3
-#
-#      - name: configure aws credentials
-#        uses: aws-actions/configure-aws-credentials@v1.7.0
-#        with:
-#          role-to-assume: arn:aws:iam::258623609258:role/kardinal-control-publish-images
-#          role-session-name: GitHub_to_AWS_via_FederatedOIDC
-#          aws-region: "us-east-1"
+
+      - name: configure aws credentials
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          role-to-assume: arn:aws:iam::258623609258:role/kardinal-control-publish-images
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: "us-east-1"
 
       - name: Update Kube config
         run: aws eks update-kubeconfig --name kloud-kontrol
