@@ -55,7 +55,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Install Nix
-        uses: DeterminateSystems/nix-installer-action@v12
+        uses: cachix/install-nix-action@v27
         with:
           extra_nix_config: |
             extra-platforms = aarch64-linux
@@ -66,14 +66,14 @@ jobs:
       - name: Build Kontrol services images
         run: |
           # Backend server
-          nix build ./#containers.x86_64-linux.kontrol-service.arm64 --no-link --print-out-paths
           nix build ./#containers.x86_64-linux.kontrol-service.amd64 --no-link --print-out-paths
+          nix build ./#containers.x86_64-linux.kontrol-service.arm64 --no-link --print-out-paths
 
       - name: Build Kontrol frontent images
         run: |
           # Frontend server
-          nix build ./#containers.x86_64-linux.kontrol-frontend.arm64 --no-link --print-out-paths
           nix build ./#containers.x86_64-linux.kontrol-frontend.amd64 --no-link --print-out-paths
+          nix build ./#containers.x86_64-linux.kontrol-frontend.arm64 --no-link --print-out-paths --no-substitute
 
       - name: configure aws credentials
         uses: aws-actions/configure-aws-credentials@v1.7.0
