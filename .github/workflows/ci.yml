@@ -123,4 +123,7 @@ jobs:
           kubectl apply -f ./k8s-deployment/kloud-kontrol-ingress.yml -n kloud-kontrol
           kubectl apply -f ./k8s-deployment/kloud-kontrol-manifest.yml -n kloud-kontrol
           kubectl apply -f ./k8s-deployment/kontrol-frontend-manifest.yml -n kloud-kontrol
-          kubectl rollout restart
+          kubectl rollout restart deployment/kontrol-frontend
+          kubectl rollout restart deployment/kontrol-service-server
+          
+          
