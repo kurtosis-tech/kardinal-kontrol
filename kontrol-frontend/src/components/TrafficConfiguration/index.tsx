@@ -95,6 +95,7 @@ const TrafficConfiguration = () => {
         setTimeout(animationLoop, duration);
       };
       animationLoop();
+      cy.layout(layout).run();
     };
 
     edges.forEach(animateEdge);
