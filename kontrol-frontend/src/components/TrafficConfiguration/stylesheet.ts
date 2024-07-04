@@ -1,6 +1,6 @@
 const getBackgroundImage = (ele: { data: (s: string) => string }) => {
   switch (ele.data("type")) {
-    case "service":
+    case "service-version":
       return "url('/icons/kubernetes.svg')";
     case "redis":
       return "url('/icons/redis.svg')";
