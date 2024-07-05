@@ -119,6 +119,6 @@ jobs:
 
       - name: Deploy to cluster
         run: |
-          kubectl apply -f ./k8s-deployment -n kloud-kontrol
+          kubectl apply -f ./deployment/k8s/ -n kloud-kontrol
           kubectl rollout restart deployment/kontrol-frontend -n kloud-kontrol
           kubectl rollout restart deployment/kontrol-service-server -n kloud-kontrol
