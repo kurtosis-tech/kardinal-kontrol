@@ -56,6 +56,8 @@ const router = createBrowserRouter([
   },
 ]);
 
+console.info("Using base URL:", import.meta.env.VITE_API_URL);
+
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ChakraProvider theme={theme} resetCSS>

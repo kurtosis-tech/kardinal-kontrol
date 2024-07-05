@@ -53,14 +53,7 @@ in
       ln -sfn ${pkgs.kardinal.cli-kontrol-api} node_modules/cli-kontrol-api
       rsync -av --progress ${node_modules}/node_modules . --exclude cli-kontrol-api
 
-      # bun is referenced naked in the package.json generated script
-      mkdir -p ./bin
-      makeBinaryWrapper ${bun}/bin/bun ./bin/${name} \
-        --prefix PATH : ${lib.makeBinPath [bun]} \
-        --add-flags "run  build"
-
-      # Call wrapper to build the project
-      ./bin/${name}
+      ${bun}/bin/bun run --no-install build
 
       runHook postInstall
     '';
