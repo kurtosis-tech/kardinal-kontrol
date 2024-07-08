@@ -1,3 +1,6 @@
+[![Private Registry](https://img.shields.io/badge/AWS_ECR-images-important.svg?logo=awsfargate)](https://us-east-1.console.aws.amazon.com/ecr/private-registry/repositories?region=us-east-1)
+[![Deployed Cluster](https://img.shields.io/badge/AWS_EKS-cluster-important.svg?logo=awsfargate)](https://us-east-1.console.aws.amazon.com/eks/home?region=us-east-1#/clusters/kardinal-kluster)
+
 # Kardinal Kontrol
 
 ## Developing instructions
