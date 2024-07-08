@@ -77,14 +77,18 @@ func GenerateProdDevCluster(project []compose.ServiceConfig, devServiceName stri
 				newHost, err := createNeonBranch(neonApiKey, projectID, mainBranchId)
 				if err != nil {
 					updateErr = fmt.Errorf("error creating Neon branch: %v", err)
+					log.Fatalf("an error occurred while creating neon branch. Error was:\n '%v'", updateErr.Error())
 					return key, value
 				}
 
 				updatedConnString, err := updateConnectionString(*value, newHost)
 				if err != nil {
 					updateErr = fmt.Errorf("error updating connection string: %v", err)
+					log.Fatalf("an error occurred while creating updating the connection string. Error was:\n '%v'", updateErr.Error())
 					return key, value
 				}
+
+				log.Printf("neon branching succeeded, new connection string with host '%v' will be used", newHost)
 
 				return key, &updatedConnString
 			}
@@ -101,6 +105,7 @@ func GenerateProdDevCluster(project []compose.ServiceConfig, devServiceName stri
 	}
 
 	if updateErr != nil {
+		log.Fatalf("an error occurred while updating the postgres string. Error was :\n '%v'", updateErr.Error())
 		return nil, updateErr
 	}
 

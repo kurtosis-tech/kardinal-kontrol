@@ -74,6 +74,7 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 
 	err := applyProdDevFlow(sv, request.Uuid, project, serviceName, imageLocator)
 	if err != nil {
+		log.Fatalf("an error occured while updating dev flow. error was \n: '%v'", err.Error())
 		return nil, err
 	}
 	resp := "ok"
