@@ -52,16 +52,41 @@ func GenerateProdOnlyCluster(project []compose.ServiceConfig) (*types.Cluster, e
 
 func GenerateProdDevCluster(project []compose.ServiceConfig, devServiceName string, devImage string) (*types.Cluster, error) {
 	var devServiceSpec types.ServiceSpec
+	var updateErr error
 	devService, found := lo.Find(project, func(service compose.ServiceConfig) bool { return service.ContainerName == devServiceName })
 	if !found {
 		log.Fatalf("Frontend service not found")
 		return nil, errors.New("Frontend service not found")
 	} else {
 		devService.Image = devImage
+
+		neonApiKey := lo.FromPtr(devService.Environment["NEON_API_KEY"])
+		projectID := lo.FromPtr(devService.Environment["NEON_PROJECT_ID"])
+		mainBranchId := lo.FromPtr(devService.Environment["NEON_MAIN_BRANCH_ID"])
+
 		devService.Environment = lo.MapEntries(devService.Environment, func(key string, value *string) (string, *string) {
 			if key == "REDIS" {
 				proxyUrl := "kardinal-db-sidecar"
 				return key, &proxyUrl
+			} else if key == "POSTGRES" {
+				if neonApiKey == "" || projectID == "" || mainBranchId == "" {
+					log.Println("Saw postgres env var but at least one of NEON_API_KEY, NEON_PROJECT_ID, NEON_MAIN_BRANCH were empty")
+					return key, value
+				}
+
+				newHost, err := createNeonBranch(neonApiKey, projectID, mainBranchId)
+				if err != nil {
+					updateErr = fmt.Errorf("error creating Neon branch: %v", err)
+					return key, value
+				}
+
+				updatedConnString, err := updateConnectionString(*value, newHost)
+				if err != nil {
+					updateErr = fmt.Errorf("error updating connection string: %v", err)
+					return key, value
+				}
+
+				return key, &updatedConnString
 			}
 			return key, value
 		})
@@ -73,6 +98,10 @@ func GenerateProdDevCluster(project []compose.ServiceConfig, devServiceName stri
 			TargetPort: int32(devService.Ports[0].Target),
 			Config:     devService,
 		}
+	}
+
+	if updateErr != nil {
+		return nil, updateErr
 	}
 
 	serviceSpecsDev := lo.Map(project, func(service compose.ServiceConfig, _ int) *types.ServiceSpec {
