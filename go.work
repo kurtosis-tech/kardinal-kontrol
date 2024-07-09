@@ -1,6 +1,5 @@
 go 1.22.3
 
 use (
-	./demos/voting-app
 	./kontrol-service
 )
