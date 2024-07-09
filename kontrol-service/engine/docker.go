@@ -28,8 +28,7 @@ func GenerateProdOnlyCluster(project []compose.ServiceConfig) (*types.Cluster, e
 
 	frontendService := lo.Filter(serviceSpecs, func(service *types.ServiceSpec, _ int) bool { return service.Name == frontendServiceName })
 	if len(frontendService) == 0 {
-		log.Fatalf("Frontend service not found")
-		return nil, errors.New("Frontend service not found")
+		log.Println("Frontend service not found")
 	}
 
 	cluster := types.Cluster{
@@ -146,8 +145,7 @@ func GenerateProdDevCluster(project []compose.ServiceConfig, devServiceName stri
 
 	frontendServiceDev := lo.Filter(allServiceSpecs, func(service *types.ServiceSpec, _ int) bool { return service.Name == frontendServiceName })
 	if len(frontendServiceDev) == 0 {
-		log.Fatalf("Frontend service not found")
-		return nil, errors.New("Frontend service not found")
+		log.Println("Frontend service not found")
 	}
 
 	clusterDev := types.Cluster{
