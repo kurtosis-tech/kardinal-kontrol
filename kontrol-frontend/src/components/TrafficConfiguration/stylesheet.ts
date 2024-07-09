@@ -6,6 +6,8 @@ const getBackgroundImage = (ele: { data: (s: string) => string }) => {
       return "url('/icons/redis.svg')";
     case "gateway":
       return "url('/icons/gateway.svg')";
+    case "postgres":
+      return "url('/icons/storage.svg')";
     default:
       return "none";
   }
