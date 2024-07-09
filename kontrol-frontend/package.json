@@ -14,6 +14,7 @@
     "@chakra-ui/react": "^2.8.2",
     "@emotion/react": "^11.11.4",
     "@emotion/styled": "^11.11.5",
+    "@react-hooks-library/core": "^0.6.2",
     "cli-kontrol-api": "file:../.cli-kontrol-api",
     "cytoscape": "^3.29.2",
     "cytoscape-dagre": "^2.5.0",

@@ -12,5 +12,13 @@ export default defineConfig(({ mode }) => {
         "@": "/src",
       },
     },
+    server: {
+      proxy: {
+        "/api": {
+          target: "https://app.kardinal.dev",
+          changeOrigin: true,
+        },
+      },
+    },
   };
 });
