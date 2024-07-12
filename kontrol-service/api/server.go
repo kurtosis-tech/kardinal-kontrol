@@ -4,8 +4,8 @@ import (
 	"context"
 	"log"
 
-	compose "github.com/compose-spec/compose-go/types"
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
+	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	managerapi "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/server"
 	managerapitypes "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/types"
 
@@ -43,9 +43,9 @@ func (sv *Server) GetHealth(_ context.Context, _ api.GetHealthRequestObject) (ap
 
 func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenantUuidDeployRequestObject) (api.PostTenantUuidDeployResponseObject, error) {
 	log.Printf("Deploying prod cluster")
-	project := *request.Body.DockerCompose
+	serviceConfigs := *request.Body.ServiceConfigs
 
-	err := applyProdOnlyFlow(sv, request.Uuid, project)
+	err := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs)
 	if err != nil {
 		return nil, err
 	}
@@ -55,9 +55,9 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 
 func (sv *Server) PostTenantUuidFlowDelete(_ context.Context, request api.PostTenantUuidFlowDeleteRequestObject) (api.PostTenantUuidFlowDeleteResponseObject, error) {
 	log.Printf("Deleting dev flow")
-	project := *request.Body.DockerCompose
+	serviceConfigs := *request.Body.ServiceConfigs
 
-	err := applyProdOnlyFlow(sv, request.Uuid, project)
+	err := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs)
 	if err != nil {
 		return nil, err
 	}
@@ -70,9 +70,9 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 	imageLocator := *request.Body.ImageLocator
 	log.Printf("Starting new dev flow for service %v on image %v", serviceName, imageLocator)
 
-	project := *request.Body.DockerCompose
+	serviceConfigs := *request.Body.ServiceConfigs
 
-	err := applyProdDevFlow(sv, request.Uuid, project, serviceName, imageLocator)
+	err := applyProdDevFlow(sv, request.Uuid, serviceConfigs, serviceName, imageLocator)
 	if err != nil {
 		log.Printf("an error occured while updating dev flow. error was \n: '%v'", err.Error())
 		return nil, err
@@ -105,8 +105,8 @@ func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request manag
 }
 
 // ============================================================================================================
-func applyProdOnlyFlow(sv *Server, tenantUuidStr string, project []compose.ServiceConfig) error {
-	cluster, err := engine.GenerateProdOnlyCluster(project)
+func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig) error {
+	cluster, err := engine.GenerateProdOnlyCluster(serviceConfigs)
 	if err != nil {
 		return err
 	}
@@ -116,8 +116,8 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, project []compose.Servi
 }
 
 // ============================================================================================================
-func applyProdDevFlow(sv *Server, tenantUuidStr string, project []compose.ServiceConfig, devServiceName string, devImage string) error {
-	cluster, err := engine.GenerateProdDevCluster(project, devServiceName, devImage)
+func applyProdDevFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, devServiceName string, devImage string) error {
+	cluster, err := engine.GenerateProdDevCluster(serviceConfigs, devServiceName, devImage)
 	if err != nil {
 		return err
 	}

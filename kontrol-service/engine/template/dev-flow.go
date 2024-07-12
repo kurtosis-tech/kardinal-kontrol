@@ -3,13 +3,11 @@ package template
 import (
 	"fmt"
 	"sort"
-	"strings"
 
 	"github.com/samber/lo"
 	"istio.io/api/networking/v1alpha3"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	composetypes "github.com/compose-spec/compose-go/types"
 	istioclient "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
@@ -80,22 +78,9 @@ func Service(serviceSpec *types.ServiceSpec, namespaceSpec types.NamespaceSpec) 
 func Deployment(serviceSpec *types.ServiceSpec, namespaceSpec types.NamespaceSpec) apps.Deployment {
 	vol25pct := intstr.FromString("25%")
 	numReplicas := int32(1)
-	configPorts := serviceSpec.Config.Ports
-
-	containerPorts := lo.Map(configPorts, func(port composetypes.ServicePortConfig, _ int) v1.ContainerPort {
-		return v1.ContainerPort{
-			Name:          fmt.Sprintf("%s-%d", port.Protocol, port.Target),
-			ContainerPort: int32(port.Target),
-			Protocol:      v1.Protocol(strings.ToUpper(port.Protocol)),
-		}
-	})
-
-	envVars := mapWithStringKeyToSortedSlice(serviceSpec.Config.Environment, func(key string, value *string) v1.EnvVar {
-		return v1.EnvVar{
-			Name:  key,
-			Value: *value,
-		}
-	})
+	serviceContainer := serviceSpec.Config.Deployment.Spec.Template.Spec.Containers[0]
+	containerPorts := serviceContainer.Ports
+	envVars := serviceContainer.Env
 
 	return apps.Deployment{
 		TypeMeta: metav1.TypeMeta{
@@ -138,8 +123,8 @@ func Deployment(serviceSpec *types.ServiceSpec, namespaceSpec types.NamespaceSpe
 				Spec: v1.PodSpec{
 					Containers: []v1.Container{
 						{
-							Name:            serviceSpec.Config.ContainerName,
-							Image:           serviceSpec.Config.Image,
+							Name:            serviceContainer.Name,
+							Image:           serviceContainer.Image,
 							ImagePullPolicy: "IfNotPresent",
 							Env:             envVars,
 							Ports:           containerPorts,

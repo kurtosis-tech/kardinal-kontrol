@@ -1,7 +1,7 @@
 package types
 
 import (
-	composetypes "github.com/compose-spec/compose-go/types"
+	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 )
 
 type Traffic struct {
@@ -20,7 +20,7 @@ type ServiceSpec struct {
 	Name       string
 	Port       int32
 	TargetPort int32
-	Config     composetypes.ServiceConfig
+	Config     apitypes.ServiceConfig
 }
 
 type NamespaceSpec struct {

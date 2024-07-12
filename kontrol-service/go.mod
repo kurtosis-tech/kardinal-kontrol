@@ -5,11 +5,11 @@ go 1.22.0
 toolchain go1.22.3
 
 require (
-	github.com/compose-spec/compose-go v1.20.2
-	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240704193727-15a1b0d2bfb8
+	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240712091137-4bcda1fd7034
 	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240704193727-15a1b0d2bfb8
 	github.com/labstack/echo/v4 v4.12.0
 	github.com/samber/lo v1.39.0
+	github.com/sirupsen/logrus v1.8.1
 	github.com/stretchr/testify v1.9.0
 	istio.io/api v1.22.1-0.20240524024004-b6815be0740d
 	istio.io/client-go v1.22.1
@@ -20,9 +20,6 @@ require (
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
-	github.com/distribution/reference v0.5.0 // indirect
-	github.com/docker/go-connections v0.4.0 // indirect
-	github.com/docker/go-units v0.5.0 // indirect
 	github.com/getkin/kin-openapi v0.125.0 // indirect
 	github.com/go-logr/logr v1.4.1 // indirect
 	github.com/go-openapi/jsonpointer v0.20.2 // indirect
@@ -39,24 +36,18 @@ require (
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
-	github.com/mattn/go-shellwords v1.0.12 // indirect
-	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/oapi-codegen/runtime v1.1.1 // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
-	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/sirupsen/logrus v1.9.3 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	golang.org/x/crypto v0.23.0 // indirect
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1 // indirect
 	golang.org/x/net v0.25.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
 	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/text v0.15.0 // indirect
 	golang.org/x/time v0.5.0 // indirect
