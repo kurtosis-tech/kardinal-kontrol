@@ -4,6 +4,7 @@ const Button = (props: ButtonProps) => (
     colorScheme="blackAlpha"
     bg={"gray.900"}
     borderRadius={8}
+    color={"white"}
     {...props}
   >
     Go back

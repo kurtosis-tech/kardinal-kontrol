@@ -82,7 +82,7 @@ const CytoscapeGraph = ({ elements }: Props) => {
   return (
     <CytoscapeComponent
       elements={elements}
-      style={{ width: "100%", height: "100%" }}
+      style={{ width: "100%", height: "100%", minHeight: "400px" }}
       layout={layout}
       // @ts-expect-error cytoscape
       stylesheet={stylesheet}

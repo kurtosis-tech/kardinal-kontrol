@@ -32,7 +32,25 @@ const theme = extendTheme({
   },
   styles: {
     global: {
-      // Styles for the `body`
+      ":root": {
+        "--color-text": "#68727d",
+        "--font-family": "'DM Sans', sans-serif",
+      },
+      "*": {
+        "font-synthesis": "none",
+        "text-rendering": "optimizeLegibility",
+        "-webkit-font-smoothing": "antialiased",
+        "-moz-osx-font-smoothing": "grayscale",
+      },
+      html: {
+        "color-scheme": "light",
+        "background-color": "#f9f9f9",
+        "min-height": "100vh",
+        "font-size": "16px",
+      },
+      "#root": {
+        height: "100vh",
+      },
       body: {
         fontSize: "14px", // Set your desired default font size
         color: "gray.800",

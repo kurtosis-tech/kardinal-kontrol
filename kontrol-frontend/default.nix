@@ -14,23 +14,27 @@ with pkgs; let
       ++ ["GIT_PROXY_COMMAND" "SOCKS_SERVER"];
     nativeBuildInputs = [bun];
     dontConfigure = true;
+
+    # Dont try to patch shebangs in shell scripts contained in vendored node_modules packages
+    # https://nixos.org/manual/nixpkgs/stable/#var-stdenv-dontPatchShebangs
+    #
+    # And if you run into issues with /nix/store/ paths leaking into the fixed output of this derivation
+    # run the build with the following command:
+    # > nix build .#kontrol-frontend --no-link --print-out-paths --print-build-logs
+    # The flag --print-build-logs will show you the files that leaking the paths.
+    dontPatchShebangs = true;
+
     buildPhase = ''
       # Mimic local of develop copy of kardinal
       cp -r ${pkgs.kardinal.cli-kontrol-api} ../.cli-kontrol-api
-
       bun install --no-progress --frozen-lockfile
     '';
+
     installPhase = ''
       mkdir -p $out/node_modules
-
       cp -R ./node_modules $out
-
-      # Remove dependencies that are leaking their own /nix/store/ paths the the fixed output of this derivation
-      rm -rf $out/node_modules/lodash/flake.lock
-      rm -rf $out/node_modules/cytoscape/.github
-      rm -rf $out/node_modules/.cache
-      rm -rf $out/node_modules/vscode-languageclient
     '';
+
     outputHash = pin."${stdenv.system}";
     outputHashAlgo = "sha256";
     outputHashMode = "recursive";

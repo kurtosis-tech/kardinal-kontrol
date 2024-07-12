@@ -1,3 +1,4 @@
+import CytoscapeComponent from "react-cytoscapejs";
 const data = {
   edges: [
     {
@@ -35,13 +36,13 @@ const data = {
       id: "voting-app-ui--prod",
       label: "voting-app-ui (prod)",
       parent: "voting-app-ui",
-      type: "service",
+      type: "service-version",
     },
     {
       id: "voting-app-ui--dev",
       label: "voting-app-ui (dev)",
       parent: "voting-app-ui",
-      type: "service",
+      type: "service-version",
     },
     {
       id: "kardinal-db-sidecar--dev",
@@ -55,5 +56,12 @@ const data = {
     },
   ],
 };
-
-export default data;
+const normalizedData = CytoscapeComponent.normalizeElements({
+  nodes: data.nodes.map((node) => ({
+    data: node,
+  })),
+  edges: data.edges.map((edge) => ({
+    data: edge,
+  })),
+});
+export default normalizedData;
