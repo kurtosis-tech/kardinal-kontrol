@@ -28,3 +28,14 @@ export default {
 - Replace `plugin:@typescript-eslint/recommended` to `plugin:@typescript-eslint/recommended-type-checked` or `plugin:@typescript-eslint/strict-type-checked`
 - Optionally add `plugin:@typescript-eslint/stylistic-type-checked`
 - Install [eslint-plugin-react](https://github.com/jsx-eslint/eslint-plugin-react) and add `plugin:react/recommended` & `plugin:react/jsx-runtime` to the `extends` list
+
+# Running the frontend locally in dev mode
+
+```bash
+nix develop
+bun run dev
+```
+
+The frontend can be accessed at `http://<local url>/<tenant id>`.  The local url can be found in the output of the `bun run dev` command.
+
+The frontend uses the `VITE_API_URL` in `.dev.env` to communicate with the kontrol service. The kontrol service needs to be started in dev mode with the flag `-dev-mode` so CORS is disabled.
