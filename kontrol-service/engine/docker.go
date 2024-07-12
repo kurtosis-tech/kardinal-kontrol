@@ -6,12 +6,12 @@ import (
 	"log"
 
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
+	"github.com/mohae/deepcopy"
+	"github.com/samber/lo"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
-
-	"github.com/samber/lo"
 	"kardinal.kontrol-service/types"
 )
 
@@ -56,13 +56,14 @@ func GenerateProdOnlyCluster(serviceConfigs []apitypes.ServiceConfig) (*types.Cl
 func GenerateProdDevCluster(serviceConfigs []apitypes.ServiceConfig, devServiceName string, devImage string) (*types.Cluster, error) {
 	var devServiceSpec types.ServiceSpec
 	var updateErr error
-	devServiceConfig, found := lo.Find(serviceConfigs, func(serviceConfig apitypes.ServiceConfig) bool {
+	serviceConfig, found := lo.Find(serviceConfigs, func(serviceConfig apitypes.ServiceConfig) bool {
 		return serviceConfig.Deployment.Spec.Template.Spec.Containers[0].Name == devServiceName
 	})
 	if !found {
 		log.Fatalf("Dev service %s not found", devServiceName)
 		return nil, errors.New("Dev service not found")
 	} else {
+		devServiceConfig := deepcopy.Copy(serviceConfig).(apitypes.ServiceConfig)
 		devServiceContainer := devServiceConfig.Deployment.Spec.Template.Spec.Containers[0]
 		devServiceContainer.Image = devImage
 
