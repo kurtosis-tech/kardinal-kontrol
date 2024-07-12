@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --mode dev --host 0.0.0.0",
+    "dev-on-prod": "vite --mode production --host 0.0.0.0",
     "build": "bun run ./node_modules/.bin/tsc && bun run ./node_modules/.bin/vite build --mode production",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview --mode dev",

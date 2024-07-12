@@ -1,8 +1,8 @@
 import CytoscapeComponent from "react-cytoscapejs";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import cytoscape from "cytoscape";
 import dagre from "cytoscape-dagre";
-import stylesheet from "./stylesheet";
+import stylesheet, { trafficNodeSelector } from "./stylesheet";
 import { useInterval } from "@react-hooks-library/core";
 
 const layout = {
@@ -19,65 +19,110 @@ interface Props {
 
 cytoscape.use(dagre);
 
+const BASE_ANIMATION_DURATION = 1000;
+
 const CytoscapeGraph = ({ elements }: Props) => {
   // keep a ref to the cy instance
-  const [cy, setCy] = useState<cytoscape.Core>();
+  const cy = useRef<cytoscape.Core>();
+  const [animationsEnabled, setAnimationsEnabled] = useState(true);
+  // remove all animated traffic nodes
+  const removeAnimatedTrafficNodes = useCallback(() => {
+    if (!cy.current) return;
 
-  const handleCy = useCallback((cy: cytoscape.Core) => {
-    setCy(cy);
-    cy.layout(layout).run();
-  }, []);
+    const animatedNodes = cy.current.nodes(trafficNodeSelector);
+    animatedNodes.remove();
+  }, [cy]);
 
-  const animateEdges = useCallback(
-    async (edges: cytoscape.EdgeCollection) => {
-      if (!cy) return;
-      const animationPromises = edges.map(async (edge) => {
-        const trafficNodeId = `traffic:${edge.source().id()}:${edge.target().id()}`;
-        // if the traffic node already exists, skip it. this should only happen in dev hot reload
-        if (cy.getElementById(trafficNodeId).length > 0) {
-          return;
-        }
-        const trafficNode = cy.add({
-          group: "nodes",
-          data: {
-            id: trafficNodeId,
-          },
-          position: { ...edge.source().position() },
-        });
-        trafficNode.ungrabify(); // prevent mouse from moving this node
-        trafficNode.position({ ...edge.source().position() });
-        // generate a random number between 2000 and 2400
-        const duration = Math.floor(Math.random() * 400) + 2000;
-
-        // @ts-expect-error poor typing upstream
-        const animation = trafficNode.animation({
-          position: { ...edge.target().position() },
-          style: {},
-          easing: "ease-in-out-cubic",
-          duration,
-        });
-
-        await animation.play().promise();
-
-        // each traffic node is removed after the animation is done
-        trafficNode.remove();
+  const handleCy = useCallback(
+    (cyInstance: cytoscape.Core) => {
+      cy.current = cyInstance;
+      // stop animations when the user is dragging nodes around
+      cy.current.on("tapstart", function () {
+        setAnimationsEnabled(false);
       });
-      return Promise.all(animationPromises);
+      // re-start animations when the user is done with interactions
+      cy.current.on("tapend", function () {
+        setTimeout(() => setAnimationsEnabled(true), 0);
+      });
     },
-    [cy],
+    [setAnimationsEnabled],
   );
 
-  useInterval(async () => {
-    if (!cy) return;
-    // dont really need to await this right now, but maybe later we might want to do something after each cycle
-    await animateEdges(cy.edges());
-  }, 2500);
-
+  // when animation is disabled, remove all animated traffic nodes
   useEffect(() => {
-    if (!cy) return;
-    animateEdges(cy.edges()); // initial run, the rest is handled by the interval
-    console.log("Animating edges because of new elements.");
-  }, [cy, elements, animateEdges]);
+    if (animationsEnabled) return;
+    removeAnimatedTrafficNodes();
+  }, [removeAnimatedTrafficNodes, animationsEnabled, cy]);
+
+  // when graph changes, remove all animated traffic nodes
+  useEffect(() => {
+    removeAnimatedTrafficNodes();
+    cy?.current?.layout(layout).run();
+  }, [elements, removeAnimatedTrafficNodes, cy]);
+
+  const animateEdges = useCallback(() => {
+    if (!cy.current) {
+      throw new Error("animateEdges: cytoscape instance is not initialized");
+    }
+
+    const edges = cy.current.edges();
+
+    const animationPromises = edges.map(async (edge) => {
+      if (!cy.current) {
+        throw new Error(
+          "animationPromises: cytoscape instance is not initialized",
+        );
+      }
+
+      const trafficNodeId = `traffic:${edge.source().id()}:${edge.target().id()}`;
+      // if the traffic node already exists, skip it. this should only happen in dev hot reload
+      if (cy.current.getElementById(trafficNodeId).length > 0) {
+        return;
+      }
+      const trafficNode = cy.current.add({
+        group: "nodes",
+        data: {
+          id: trafficNodeId,
+        },
+        position: { ...edge.source().position() },
+      });
+      trafficNode.ungrabify(); // prevent mouse from moving this node
+      trafficNode.position({ ...edge.source().position() });
+      // generate a random number between 2000 and 2400
+      const duration =
+        Math.floor(Math.random() * 400) + BASE_ANIMATION_DURATION;
+
+      // @ts-expect-error poor typing upstream
+      const animation = trafficNode.animation({
+        position: { ...edge.target().position() },
+        style: {},
+        easing: "ease-in-out-cubic",
+        duration,
+      });
+
+      animation
+        .play()
+        .promise()
+        .then(() => {
+          // each traffic node is removed after the animation is done
+          trafficNode.remove();
+        });
+    });
+    return Promise.all(animationPromises);
+  }, []);
+
+  // trigger the animation every 2.5 seconds
+  useInterval(
+    () => {
+      if (!cy) return;
+      // this is technically a promise / async but we dont really need to await
+      // this right now, but maybe later we might want to do something after
+      // each cycle
+      animateEdges();
+    },
+    BASE_ANIMATION_DURATION + 500,
+    { immediate: true, paused: !animationsEnabled },
+  );
 
   return (
     <CytoscapeComponent
