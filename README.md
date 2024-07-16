@@ -63,3 +63,4 @@ You will need to do this every time a `go.mod` file is edited
 nix develop
 gomod2nix generate
 ```
+
