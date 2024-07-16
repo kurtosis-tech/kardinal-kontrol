@@ -69,7 +69,7 @@ jobs:
           nix build ./#containers.x86_64-linux.kontrol-service.amd64 --no-link --print-out-paths
           nix build ./#containers.x86_64-linux.kontrol-service.arm64 --no-link --print-out-paths
 
-      - name: Build Kontrol frontent images
+      - name: Build Kontrol frontend images
         run: |
           # Frontend server
           nix build ./#containers.x86_64-linux.kontrol-frontend.amd64 --no-link --print-out-paths
