@@ -115,10 +115,16 @@ jobs:
           aws-region: "us-east-1"
 
       - name: Update Kube config
-        run: aws eks update-kubeconfig --name kardinal-kluster --region us-east-1
+        run: aws eks update-kubeconfig --name kardinal --region us-east-1
+
+      - name: Deploy Kardinal (VPC and control plane) stack in AWS
+        run: aws cloudformation deploy --template-file ./deployment/aws/01-vpc-and-control-plane.yml --stack-name kardinal --capabilities CAPABILITY_NAMED_IAM
 
       - name: Deploy to cluster
         run: |
-          kubectl apply -f ./deployment/k8s/ -n kloud-kontrol
-          kubectl rollout restart deployment/kontrol-frontend -n kloud-kontrol
-          kubectl rollout restart deployment/kontrol-service-server -n kloud-kontrol
+          kubectl apply -f ./deployment/k8s/ -n kardinal-kontrol
+          kubectl rollout restart deployment/kontrol-frontend -n kardinal-kontrol
+          kubectl rollout restart deployment/kontrol-service-server -n kardinal-kontrol
+
+      - name: Deploy Kardinal Load Balancer stack in AWS
+        run: aws cloudformation deploy --template-file ./deployment/aws/02-lb-and-certificate.yml --stack-name kardinal-lb --capabilities CAPABILITY_NAMED_IAM
