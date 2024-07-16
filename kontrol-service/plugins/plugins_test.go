@@ -80,8 +80,9 @@ func TestSimplePlugin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that the flow UUID was removed from memory
-	_, exists := runner.memory[flowUuid]
-	require.False(t, exists)
+	_, err = runner.getConfigForFlow(flowUuid)
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), "no config map found")
 }
 
 func TestComplexPlugin(t *testing.T) {
@@ -105,8 +106,9 @@ func TestComplexPlugin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that the flow UUID was removed from memory
-	_, exists := runner.memory[flowUuid]
-	require.False(t, exists)
+	_, err = runner.getConfigForFlow(flowUuid)
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), "no config map found")
 }
 
 func TestRedisPluginTest(t *testing.T) {
@@ -129,8 +131,9 @@ func TestRedisPluginTest(t *testing.T) {
 	require.NoError(t, err)
 
 	// Verify that the flow UUID was removed from memory
-	_, exists := runner.memory[flowUuid]
-	require.False(t, exists)
+	_, err = runner.getConfigForFlow(flowUuid)
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), "no config map found")
 }
 
 func int32Ptr(i int32) *int32 { return &i }

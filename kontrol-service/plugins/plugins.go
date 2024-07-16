@@ -8,18 +8,17 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	appv1 "k8s.io/api/apps/v1"
 )
 
 type PluginRunner struct {
-	memory map[string]string
+	memory sync.Map
 }
 
 func NewPluginRunner() *PluginRunner {
-	return &PluginRunner{
-		memory: make(map[string]string),
-	}
+	return &PluginRunner{}
 }
 
 func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceSpec, deploymentSpec appv1.DeploymentSpec, flowUuid string, arguments map[string]string) (appv1.DeploymentSpec, string, error) {
@@ -67,7 +66,7 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceS
 		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to re-marshal config map: %v", err)
 	}
 
-	pr.memory[flowUuid] = string(configMapString)
+	pr.memory.Store(flowUuid, string(configMapString))
 
 	return newDeploymentSpec, string(configMapString), nil
 }
@@ -78,9 +77,9 @@ func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string, arguments map[str
 		return fmt.Errorf("failed to get or clone repository: %v", err)
 	}
 
-	configMap, ok := pr.memory[flowUuid]
-	if !ok {
-		return fmt.Errorf("no config map found for flow UUID: %s", flowUuid)
+	configMap, err := pr.getConfigForFlow(flowUuid)
+	if err != nil {
+		return err
 	}
 
 	_, err = runPythonDeleteFlow(repoPath, configMap, flowUuid, arguments)
@@ -88,14 +87,22 @@ func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string, arguments map[str
 		return err
 	}
 
-	delete(pr.memory, flowUuid)
+	pr.memory.Delete(flowUuid)
 	return nil
 }
 
-// runPythonCreateFlow this runs the create_flow plugin function
-// TODO (gm)
-// -- harden this - currently this captures the result value of creat_flow via a print statement which is fragile
-// a user could have a print statements anywhere else. a way to fix this could be to write to a file or some use other form of IPC
+func (pr *PluginRunner) getConfigForFlow(flowUuid string) (string, error) {
+	configMapInterface, ok := pr.memory.Load(flowUuid)
+	if !ok {
+		return "", fmt.Errorf("no config map found for flow UUID: %s", flowUuid)
+	}
+	configMap, ok := configMapInterface.(string)
+	if !ok {
+		return "", fmt.Errorf("invalid config map type for flow UUID: %s", flowUuid)
+	}
+	return configMap, nil
+}
+
 func runPythonCreateFlow(repoPath, serviceSpecJSON, deploymentSpecJSON, flowUuid string, arguments map[string]string) (string, error) {
 	scriptPath := filepath.Join(repoPath, "main.py")
 
@@ -120,6 +127,12 @@ func runPythonCreateFlow(repoPath, serviceSpecJSON, deploymentSpecJSON, flowUuid
 		return "", fmt.Errorf("failed to marshal arguments: %v", err)
 	}
 	argJsonStr := string(argsJSON)
+
+	tempResultFile, err := os.CreateTemp("", "result_*.json")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary result file: %v", err)
+	}
+	defer os.Remove(tempResultFile.Name())
 
 	tempScript := fmt.Sprintf(`
 import sys
@@ -154,10 +167,23 @@ for param in sig.parameters.values():
 
 # Call create_flow with the prepared kwargs
 result = main.create_flow(**kwargs)
-print(json.dumps(result))
-`, repoPath, serviceSpecJSON, deploymentSpecJSON, flowUuid, argJsonStr)
 
-	return executePythonScript(venvPath, repoPath, tempScript)
+# Write the result to a temporary file
+with open('%s', 'w') as f:
+    json.dump(result, f)
+`, repoPath, serviceSpecJSON, deploymentSpecJSON, flowUuid, argJsonStr, tempResultFile.Name())
+
+	if err := executePythonScript(venvPath, repoPath, tempScript); err != nil {
+		return "", err
+	}
+
+	// Read the result from the temporary file
+	resultBytes, err := os.ReadFile(tempResultFile.Name())
+	if err != nil {
+		return "", fmt.Errorf("failed to read result file: %v", err)
+	}
+
+	return string(resultBytes), nil
 }
 
 func runPythonDeleteFlow(repoPath, configMap, flowUuid string, arguments map[string]string) (string, error) {
@@ -184,12 +210,18 @@ func runPythonDeleteFlow(repoPath, configMap, flowUuid string, arguments map[str
 		return "", fmt.Errorf("failed to marshal arguments: %v", err)
 	}
 
+	tempResultFile, err := os.CreateTemp("", "result_*.json")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temporary result file: %v", err)
+	}
+	defer os.Remove(tempResultFile.Name())
+
 	tempScript := fmt.Sprintf(`
 import sys
 import json
+import inspect
 sys.path.append("%s")
 import main
-import inspect
 
 config_map = %s
 flow_uuid = %q
@@ -209,23 +241,36 @@ for param in sig.parameters.values():
     else:
         print(f"Warning: Required parameter {param.name} not provided")
 
-# Call create_flow with the prepared kwargs
+# Call delete_flow with the prepared kwargs
 result = main.delete_flow(**kwargs)
-print(json.dumps(result))
-`, repoPath, configMap, flowUuid, argsJSON)
 
-	return executePythonScript(venvPath, repoPath, tempScript)
+# Write the result to a temporary file
+with open('%s', 'w') as f:
+    json.dump(result, f)
+`, repoPath, configMap, flowUuid, argsJSON, tempResultFile.Name())
+
+	if err := executePythonScript(venvPath, repoPath, tempScript); err != nil {
+		return "", err
+	}
+
+	// Read the result from the temporary file
+	resultBytes, err := os.ReadFile(tempResultFile.Name())
+	if err != nil {
+		return "", fmt.Errorf("failed to read result file: %v", err)
+	}
+
+	return string(resultBytes), nil
 }
 
-func executePythonScript(venvPath, repoPath, scriptContent string) (string, error) {
+func executePythonScript(venvPath, repoPath, scriptContent string) error {
 	tempFile, err := os.CreateTemp("", "temp_script_*.py")
 	if err != nil {
-		return "", fmt.Errorf("failed to create temporary script: %v", err)
+		return fmt.Errorf("failed to create temporary script: %v", err)
 	}
 	defer os.Remove(tempFile.Name())
 
 	if _, err := tempFile.WriteString(scriptContent); err != nil {
-		return "", fmt.Errorf("failed to write temporary script: %v", err)
+		return fmt.Errorf("failed to write temporary script: %v", err)
 	}
 	tempFile.Close()
 
@@ -233,10 +278,10 @@ func executePythonScript(venvPath, repoPath, scriptContent string) (string, erro
 	cmd.Dir = repoPath
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return "", fmt.Errorf("failed to run Python script: %v\nOutput: %s", err, output)
+		return fmt.Errorf("failed to run Python script: %v\nOutput: %s", err, output)
 	}
 
-	return strings.TrimSpace(string(output)), nil
+	return nil
 }
 
 func getOrCloneRepo(repoURL string) (string, error) {
@@ -258,6 +303,12 @@ func getOrCloneRepo(repoURL string) (string, error) {
 		cmd := exec.Command("git", "clone", repoURL, repoPath)
 		if output, err := cmd.CombinedOutput(); err != nil {
 			return "", fmt.Errorf("git clone failed: %v\nOutput: %s", err, output)
+		}
+	} else {
+		// If the repository already exists, pull the latest changes
+		cmd := exec.Command("git", "-C", repoPath, "pull")
+		if output, err := cmd.CombinedOutput(); err != nil {
+			return "", fmt.Errorf("git pull failed: %v\nOutput: %s", err, output)
 		}
 	}
 
