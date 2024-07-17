@@ -15,10 +15,10 @@ const colors = {
     "200": "#c0bfbf",
     "300": "#a7a6a6",
     "400": "#8d8d8d",
-    "500": "#747373",
+    "500": "#68727D",
     "600": "#5A5A59",
     "700": "#41403F",
-    "800": "#282625",
+    "800": "#252525",
     "900": "#1B1A19",
   },
 };
@@ -53,7 +53,7 @@ const theme = extendTheme({
       },
       body: {
         fontSize: "14px", // Set your desired default font size
-        color: "gray.800",
+        color: "gray.500",
         bg: "white",
         fontWeight: 400,
       },

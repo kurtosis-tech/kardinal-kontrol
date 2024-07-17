@@ -5,6 +5,7 @@ const preview: Preview = {
   parameters: {
     chakra: {
       theme,
+      resetCSS: true,
     },
     controls: {
       matchers: {
