@@ -19,7 +19,7 @@ interface Props {
 
 cytoscape.use(dagre);
 
-const BASE_ANIMATION_DURATION = 1000;
+const BASE_ANIMATION_DURATION = 2000;
 
 const CytoscapeGraph = ({ elements }: Props) => {
   // keep a ref to the cy instance
