@@ -4,15 +4,19 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
+	"github.com/kurtosis-tech/stacktrace"
 	"github.com/mohae/deepcopy"
 	"github.com/samber/lo"
+	"gopkg.in/yaml.v2"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"kardinal.kontrol-service/types"
+	"kardinal.kontrol-service/types/cluster_topology/resolved"
 )
 
 // TODO:find a better way to find the frontend
@@ -209,17 +213,17 @@ func GenerateProdDevCluster(serviceConfigs []apitypes.ServiceConfig, devServiceN
 									Image:           containerImage,
 									ImagePullPolicy: "IfNotPresent",
 									Env: []v1.EnvVar{
-										v1.EnvVar{
+										{
 											Name:  "REDIS_ADDR",
 											Value: redisProdAddr,
 										},
-										v1.EnvVar{
+										{
 											Name:  "PORT",
 											Value: redisPortStr,
 										},
 									},
 									Ports: []v1.ContainerPort{
-										v1.ContainerPort{
+										{
 											Name:          fmt.Sprintf("tcp-%d", redisPort),
 											ContainerPort: redisPort,
 											Protocol:      v1.ProtocolTCP,
@@ -256,4 +260,122 @@ func GenerateProdDevCluster(serviceConfigs []apitypes.ServiceConfig, devServiceN
 		Namespace: types.NamespaceSpec{Name: "prod"},
 	}
 	return &clusterDev, nil
+}
+
+func GenerateClusterTopology(serviceConfigs []apitypes.ServiceConfig) (*resolved.ClusterTopology, error) {
+	clusterTopology := resolved.ClusterTopology{}
+
+	clusterTopologyServices := []resolved.Service{}
+	for _, serviceConfig := range serviceConfigs {
+		service := serviceConfig.Service
+		deployment := serviceConfig.Deployment
+		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
+
+		// Ingress?
+		isIngress, ok := serviceAnnotations["kardinal.dev.service/ingress"]
+		if ok && isIngress == "true" {
+			clusterTopology.Ingress = resolved.Ingress{
+				IngressUUID: service.ObjectMeta.Name,
+			}
+			continue
+		}
+
+		// Service
+		clusterTopologyService := resolved.Service{
+			ServiceID:      service.GetObjectMeta().GetName(),
+			ServiceSpec:    &service.Spec,
+			DeploymentSpec: &deployment.Spec,
+		}
+		isStateful, ok := serviceAnnotations["kardinal.dev.service/stateful"]
+		if ok && isStateful == "true" {
+			clusterTopologyService.IsStateful = true
+		}
+		isExternal, ok := serviceAnnotations["kardinal.dev.service/external"]
+		if ok && isExternal == "true" {
+			clusterTopologyService.IsExternal = true
+		}
+
+		// Service plugin?
+		plugins, ok := serviceAnnotations["kardinal.dev.service/plugins"]
+		if ok {
+			var statefulPlugins []resolved.StatefulPlugin
+			err := yaml.Unmarshal([]byte(plugins), &statefulPlugins)
+			if err != nil {
+				return nil, stacktrace.Propagate(err, "An error occurred parsing the plugins for service %s", service.GetObjectMeta().GetName())
+			}
+			serviceStatefulPlugins := make([]*resolved.StatefulPlugin, len(statefulPlugins))
+			for index := range statefulPlugins {
+				serviceStatefulPlugins[index] = &statefulPlugins[index]
+			}
+			clusterTopologyService.StatefulPlugins = serviceStatefulPlugins
+		}
+
+		clusterTopologyServices = append(clusterTopologyServices, clusterTopologyService)
+	}
+
+	clusterTopology.Services = clusterTopologyServices
+
+	clusterTopologyServiceDependencies := []resolved.ServiceDependency{}
+	for _, serviceConfig := range serviceConfigs {
+		service := serviceConfig.Service
+		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
+
+		if service.GetObjectMeta().GetName() == clusterTopology.Ingress.IngressUUID {
+			continue
+		}
+
+		clusterTopologyService, err := getService(service.GetObjectMeta().GetName(), clusterTopologyServices)
+		if err != nil {
+			return nil, stacktrace.Propagate(err, "An error occurred finding service %s in the list of services", service.GetObjectMeta().GetName())
+		}
+
+		// Service dependencies?
+		deps, ok := serviceAnnotations["kardinal.dev.service/dependencies"]
+		if ok {
+			serviceAndPorts := strings.Split(deps, ",")
+			for _, serviceAndPort := range serviceAndPorts {
+				serviceAndPortParts := strings.Split(serviceAndPort, ":")
+				depService, depServicePort, err := getServiceAndPort(serviceAndPortParts[0], serviceAndPortParts[1], clusterTopologyServices)
+				if err != nil {
+					return nil, stacktrace.Propagate(err, "An error occurred finding the service dependency for service %s and port %s", serviceAndPortParts[0], serviceAndPortParts[1])
+				}
+
+				serviceDependency := resolved.ServiceDependency{
+					Service:          clusterTopologyService,
+					DependsOnService: depService,
+					DependencyPort:   depServicePort,
+				}
+
+				clusterTopologyServiceDependencies = append(clusterTopologyServiceDependencies, serviceDependency)
+			}
+		}
+	}
+
+	clusterTopology.ServiceDependecies = clusterTopologyServiceDependencies
+
+	return &clusterTopology, nil
+}
+
+func getServiceAndPort(serviceName string, servicePortName string, services []resolved.Service) (*resolved.Service, *v1.ServicePort, error) {
+	for _, service := range services {
+		if service.ServiceID == serviceName {
+			for _, port := range service.ServiceSpec.Ports {
+				if port.Name == servicePortName {
+					return &service, &port, nil
+				}
+			}
+		}
+	}
+
+	return nil, nil, stacktrace.NewError("Service %s and Port %s not found in the list of services", serviceName, servicePortName)
+}
+
+func getService(serviceName string, services []resolved.Service) (*resolved.Service, error) {
+	for _, service := range services {
+		if service.ServiceID == serviceName {
+			return &service, nil
+		}
+	}
+
+	return nil, stacktrace.NewError("Service %s not found in the list of services", serviceName)
 }

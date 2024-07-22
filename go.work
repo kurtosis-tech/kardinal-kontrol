@@ -1,5 +1,3 @@
 go 1.22.3
 
-use (
-	./kontrol-service
-)
+use ./kontrol-service
