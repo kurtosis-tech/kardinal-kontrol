@@ -1,0 +1,41 @@
+
+.tooltip {
+  background-color: white;
+  color: #1B1A19;
+  padding: 15px;
+  border-radius: 12px;
+  border: 1px solid #c0bfbf;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  font-family: monospace;
+}
+
+.tooltip::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -15px; /* Adjust this value to position the arrow correctly */
+  margin-top: -8px; /* This value should be half of border-width to center the arrow */
+  border-width: 8px;
+  border-style: solid;
+  border-color: transparent #c0bfbf transparent transparent;
+}
+
+.tooltip::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: -14px; /* Adjust this value to position the arrow correctly */
+  margin-top: -8px; /* This value should be half of border-width to center the arrow */
+  border-width: 8px;
+  border-style: solid;
+  border-color: transparent white transparent transparent;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  display: inline-block;
+  background-color: red;
+  border-radius: 50%;
+  margin-right: 8px;
+}

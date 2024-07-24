@@ -10,6 +10,7 @@ import DataConfiguration from "@/pages/DataConfiguration";
 import Flows from "@/pages/Flows";
 import MaturityGates from "@/pages/MaturityGates";
 import TrafficConfiguration from "@/pages/TrafficConfiguration";
+import MockTrafficConfiguration from "@/pages/MockTrafficConfiguration";
 import NotFound from "@/pages/NotFound";
 
 import { ErrorBoundary } from "react-error-boundary";
@@ -41,7 +42,28 @@ const router = createBrowserRouter([
       },
       {
         path: "traffic-configuration",
-        element: <TrafficConfiguration />,
+        children: [
+          {
+            index: true,
+            element: <TrafficConfiguration />,
+          },
+          {
+            path: "dev",
+            element: <MockTrafficConfiguration variant="dev" />,
+          },
+          {
+            path: "dev2",
+            element: <MockTrafficConfiguration variant="dev2" />,
+          },
+          {
+            path: "main",
+            element: <MockTrafficConfiguration variant="main" />,
+          },
+          {
+            path: "all",
+            element: <MockTrafficConfiguration variant="all" />,
+          },
+        ],
       },
       {
         path: "data-configuration",

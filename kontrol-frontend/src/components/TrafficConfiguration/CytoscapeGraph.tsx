@@ -1,30 +1,34 @@
 import CytoscapeComponent from "react-cytoscapejs";
 import { useCallback, useEffect, useRef, useState } from "react";
 import cytoscape from "cytoscape";
-import dagre from "cytoscape-dagre";
 import stylesheet, { trafficNodeSelector } from "./stylesheet";
 import { useInterval } from "@react-hooks-library/core";
+import dagrePlugin, { dagreLayout } from "./plugins/dagre";
+import tippyPlugin, { createTooltip, TooltipInstance } from "./plugins/tippy";
 
-const layout = {
-  name: "dagre",
-  nodeSep: 50,
-  nodeDimensionsIncludeLabels: true,
-  rankDir: "LR",
-  align: "UL",
-};
+// register plugins with cytoscape
+cytoscape.use(dagrePlugin);
+cytoscape.use(tippyPlugin);
+
+// base animation timing, which we add a random amount of 0-500ms to
+const BASE_ANIMATION_DURATION = 2000;
+// enable animations. false is for debug or when using taxi edges (animations
+// only really make sense with straight edges)
+const INIT_ANIMATIONS_ENABLED = false;
 
 interface Props {
   elements: cytoscape.ElementDefinition[];
+  layout?: cytoscape.LayoutOptions;
 }
 
-cytoscape.use(dagre);
-
-const BASE_ANIMATION_DURATION = 2000;
-
-const CytoscapeGraph = ({ elements }: Props) => {
-  // keep a ref to the cy instance
+const CytoscapeGraph = ({ elements, layout = dagreLayout }: Props) => {
+  // keep a ref to the cy instance. using state will cause infinite re-renders
   const cy = useRef<cytoscape.Core>();
-  const [animationsEnabled, setAnimationsEnabled] = useState(true);
+  const tooltip = useRef<null | TooltipInstance>(null);
+  const [animationsEnabled, setAnimationsEnabled] = useState(
+    INIT_ANIMATIONS_ENABLED,
+  );
+
   // remove all animated traffic nodes
   const removeAnimatedTrafficNodes = useCallback(() => {
     if (!cy.current) return;
@@ -33,16 +37,43 @@ const CytoscapeGraph = ({ elements }: Props) => {
     animatedNodes.remove();
   }, [cy]);
 
+  // handle cytoscape instance callback when cy is initialized
   const handleCy = useCallback(
     (cyInstance: cytoscape.Core) => {
+      // set mutable cy instance
       cy.current = cyInstance;
+      // add event listeners to handle selected state of nodes
+      cy.current.on("tap", function (ele: cytoscape.EventObject) {
+        // tap on background
+        if (ele.target === cy.current) {
+          cy.current?.elements().unselect();
+          return;
+        }
+        cy.current?.nodes().removeClass("selected");
+        ele.target.addClass("selected");
+        // TODO: re-enable
+        if (tooltip.current != null) {
+          tooltip.current.destroy();
+        }
+        const tooltipData = ele.target.data("tooltip");
+        if (tooltipData == null) return;
+        tooltip.current = createTooltip(ele.target, ele.target.data("tooltip"));
+      });
+
       // stop animations when the user is dragging nodes around
       cy.current.on("tapstart", function () {
         setAnimationsEnabled(false);
       });
+      // remove tooltip when a node is moved
+      cy.current.on("drag pan zoom", function () {
+        cy.current?.nodes().removeClass("selected");
+        if (tooltip.current == null) return;
+        tooltip.current?.destroy();
+        tooltip.current = null;
+      });
       // re-start animations when the user is done with interactions
       cy.current.on("tapend", function () {
-        setTimeout(() => setAnimationsEnabled(true), 0);
+        setTimeout(() => setAnimationsEnabled(INIT_ANIMATIONS_ENABLED), 0);
       });
     },
     [setAnimationsEnabled],
@@ -58,7 +89,7 @@ const CytoscapeGraph = ({ elements }: Props) => {
   useEffect(() => {
     removeAnimatedTrafficNodes();
     cy?.current?.layout(layout).run();
-  }, [elements, removeAnimatedTrafficNodes, cy]);
+  }, [elements, removeAnimatedTrafficNodes, cy, layout]);
 
   const animateEdges = useCallback(() => {
     if (!cy.current) {
@@ -67,6 +98,7 @@ const CytoscapeGraph = ({ elements }: Props) => {
 
     const edges = cy.current.edges();
 
+    // create a animation for each edge
     const animationPromises = edges.map(async (edge) => {
       if (!cy.current) {
         throw new Error(
@@ -74,11 +106,14 @@ const CytoscapeGraph = ({ elements }: Props) => {
         );
       }
 
+      // construct a unique id for the traffic node that will be created and animated
       const trafficNodeId = `traffic:${edge.source().id()}:${edge.target().id()}`;
-      // if the traffic node already exists, skip it. this should only happen in dev hot reload
+      // if the traffic node already exists, skip it. this should only happen
+      // in dev live reload since the component may not fully re-mount
       if (cy.current.getElementById(trafficNodeId).length > 0) {
         return;
       }
+      // create the animated traffic node element
       const trafficNode = cy.current.add({
         group: "nodes",
         data: {
@@ -86,12 +121,15 @@ const CytoscapeGraph = ({ elements }: Props) => {
         },
         position: { ...edge.source().position() },
       });
-      trafficNode.ungrabify(); // prevent mouse from moving this node
+      // prevent mouse from moving the animated traffic node
+      trafficNode.ungrabify();
+      // set the initial position of the traffic node to the edge source node
       trafficNode.position({ ...edge.source().position() });
       // generate a random number between 2000 and 2400
       const duration =
         Math.floor(Math.random() * 400) + BASE_ANIMATION_DURATION;
 
+      // animate the traffic node to the edge target node
       // @ts-expect-error poor typing upstream
       const animation = trafficNode.animation({
         position: { ...edge.target().position() },
@@ -100,11 +138,12 @@ const CytoscapeGraph = ({ elements }: Props) => {
         duration,
       });
 
+      // play the animation
       animation
         .play()
         .promise()
         .then(() => {
-          // each traffic node is removed after the animation is done
+          // remove each traffic node once its animation has completed
           trafficNode.remove();
         });
     });
@@ -115,6 +154,7 @@ const CytoscapeGraph = ({ elements }: Props) => {
   useInterval(
     () => {
       if (!cy) return;
+      if (!animationsEnabled) return;
       // this is technically a promise / async but we dont really need to await
       // this right now, but maybe later we might want to do something after
       // each cycle
@@ -129,7 +169,7 @@ const CytoscapeGraph = ({ elements }: Props) => {
       elements={elements}
       style={{ width: "100%", height: "100%", minHeight: "400px" }}
       layout={layout}
-      // @ts-expect-error cytoscape
+      // @ts-expect-error cytoscape types are not great
       stylesheet={stylesheet}
       cy={handleCy}
     />

@@ -90,6 +90,7 @@ Temporary Items
 # local build folders
 istio-1.22.0/
 kontrol-service/Run_kontrol_service
-result/
+result
+result/*
 
 *storybook.log
