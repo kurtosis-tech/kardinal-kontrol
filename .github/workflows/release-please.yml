@@ -25,3 +25,69 @@ jobs:
           bump-patch-for-minor-pre-major: true
           include-v-in-tag: false
 
+  publish:
+    name: Publish Images
+    if: ${{ needs.release-please.outputs.release_created }}
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+
+      - name: Magic cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          role-to-assume: arn:aws:iam::258623609258:role/kardinal-control-publish-images
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: "us-east-1"
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v1
+
+      - name: Publish images
+        run: |
+          nix run ./#publish-kontrol-frontend-container
+          nix run ./#publish-kontrol-service-container
+
+  deploy:
+    name: Update Cluster Deployment
+    if: ${{ needs.release-please.outputs.release_created }}
+    needs: publish
+    runs-on: ubuntu-22.04
+    steps:
+      - name: git checkout
+        uses: actions/checkout@v3
+
+      - name: Install Kubectl
+        uses: azure/setup-kubectl@v3
+        with:
+          version: "v1.30.1"
+
+      - name: configure aws credentials
+        id: aws-creds
+        uses: aws-actions/configure-aws-credentials@v1.7.0
+        with:
+          role-to-assume: arn:aws:iam::258623609258:role/kardinal-kontrol-deploy-to-cluster
+          role-session-name: GitHub_to_AWS_via_FederatedOIDC
+          aws-region: "us-east-1"
+
+      - name: Update Kube config
+        run: aws eks update-kubeconfig --name kardinal --region us-east-1
+
+      - name: Deploy Kardinal (VPC and control plane) stack in AWS
+        run: aws cloudformation deploy --template-file ./deployment/aws/01-vpc-and-control-plane.yml --stack-name kardinal --capabilities CAPABILITY_NAMED_IAM
+
+      - name: Deploy to cluster
+        run: |
+          kubectl apply -f ./deployment/k8s/ -n kardinal-kontrol
+          kubectl rollout restart deployment/kontrol-frontend -n kardinal-kontrol
+          kubectl rollout restart deployment/kontrol-service-server -n kardinal-kontrol
+
+      - name: Deploy Kardinal Load Balancer stack in AWS
+        run: aws cloudformation deploy --template-file ./deployment/aws/02-lb-and-certificate.yml --stack-name kardinal-lb --capabilities CAPABILITY_NAMED_IAM
