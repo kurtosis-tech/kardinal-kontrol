@@ -17,10 +17,10 @@ on:
 
 jobs:
   check_nix:
-    name: Basic Check
+    name: Check Nix
     runs-on: ubuntu-22.04
     steps:
-      - name: git checkout
+      - name: Git checkout
         uses: actions/checkout@v3
 
       - name: Install Nix
@@ -34,21 +34,37 @@ jobs:
         with:
           fail-mode: true
 
-      # Nix-specific logic begins here
       - name: Nix Check
         run: |
           nix flake check
+
+  check_go:
+    name: Check Go
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@v12
+
+      - name: Magic cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
 
       - name: Check Go formatting
         run: |
           nix develop --command test -z $(gofmt -l .)
 
-  build_and_test_nix:
-    name: Test and build
-    needs: check_nix
+  build:
+    name: Build
+    needs: [check_nix, check_go]
     runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        component: [kontrol-service, kontrol-frontend]
+        arch: [amd64, arm64]
     steps:
-      - name: git checkout
+      - name: Git checkout
         uses: actions/checkout@v3
 
       - name: Install qemu
@@ -63,19 +79,23 @@ jobs:
       - name: Magic cache
         uses: DeterminateSystems/magic-nix-cache-action@v7
 
-      - name: Build Kontrol services images
+      - name: Build ${{ matrix.component }} for ${{ matrix.arch }}
         run: |
-          # Backend server
-          nix build ./#containers.x86_64-linux.kontrol-service.amd64 --no-link --print-out-paths
-          nix build ./#containers.x86_64-linux.kontrol-service.arm64 --no-link --print-out-paths
+          nix build ./#containers.x86_64-linux.${{ matrix.component }}.${{ matrix.arch }} --no-link --print-out-paths
 
-      - name: Build Kontrol frontend images
-        run: |
-          # Frontend server
-          nix build ./#containers.x86_64-linux.kontrol-frontend.amd64 --no-link --print-out-paths
-          nix build ./#containers.x86_64-linux.kontrol-frontend.arm64 --no-link --print-out-paths
+  publish:
+    name: Publish Images
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
 
-      - name: configure aws credentials
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1.7.0
         with:
           role-to-assume: arn:aws:iam::258623609258:role/kardinal-control-publish-images
@@ -87,15 +107,14 @@ jobs:
         uses: aws-actions/amazon-ecr-login@v1
 
       - name: Publish images
-        if: github.ref == 'refs/heads/main'
         run: |
           nix run ./#publish-kontrol-frontend-container
           nix run ./#publish-kontrol-service-container
 
-  deploy_kardinal:
+  deploy:
     name: Update Cluster Deployment
     if: github.ref == 'refs/heads/main'
-    needs: build_and_test_nix
+    needs: build
     runs-on: ubuntu-22.04
     steps:
       - name: git checkout

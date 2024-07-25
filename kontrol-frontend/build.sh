@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-out_path="$(nix build .#kontrol-frontend --no-link --print-out-paths -vvvvv)"
+out_path="$(nix build .#kontrol-frontend --no-link --print-out-paths)"
 
 ls -la "${out_path}"
 
