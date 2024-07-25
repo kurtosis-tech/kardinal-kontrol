@@ -95,6 +95,9 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v27
 
+      - name: Magic cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
+
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v1.7.0
         with:
@@ -114,7 +117,7 @@ jobs:
   deploy:
     name: Update Cluster Deployment
     if: github.ref == 'refs/heads/main'
-    needs: build
+    needs: [build, publish]
     runs-on: ubuntu-22.04
     steps:
       - name: git checkout
