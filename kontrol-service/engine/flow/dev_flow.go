@@ -40,6 +40,7 @@ func topologyToGraph(topology resolved.ClusterTopology) graph.Graph[string, reso
 func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace string) types.ClusterResources {
 
 	virtualServices := []istioclient.VirtualService{}
+	destinationRules := []istioclient.DestinationRule{}
 	for _, service := range clusterTopology.Services {
 		var gateway *string
 		var extHost *string
@@ -47,8 +48,11 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 			gateway = &clusterTopology.Ingress.IngressID
 			extHost = clusterTopology.Ingress.GetHost()
 		}
-		virtualService := getVirtualService(&service, namespace, gateway, extHost)
+		virtualService, destinationRule := getVirtualService(&service, namespace, gateway, extHost)
 		virtualServices = append(virtualServices, *virtualService)
+		if destinationRule != nil {
+			destinationRules = append(destinationRules, *destinationRule)
+		}
 	}
 
 	return types.ClusterResources{
@@ -64,7 +68,7 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 
 		VirtualServices: virtualServices,
 
-		DestinationRules: []istioclient.DestinationRule{},
+		DestinationRules: destinationRules,
 	}
 }
 
@@ -101,14 +105,16 @@ func getHTTPRoute(service *resolved.Service, servicePort *v1.ServicePort) *v1alp
 	}
 }
 
-func getVirtualService(service *resolved.Service, namespace string, gateway *string, extHost *string) *istioclient.VirtualService {
+func getVirtualService(service *resolved.Service, namespace string, gateway *string, extHost *string) (*istioclient.VirtualService, *istioclient.DestinationRule) {
 	// TODO: Support for multiple ports
 	servicePort := &service.ServiceSpec.Ports[0]
 
 	virtualServiceSpec := v1alpha3.VirtualService{}
+	var destinationRule *istioclient.DestinationRule
 
 	if servicePort.AppProtocol != nil && *servicePort.AppProtocol == "HTTP" {
 		virtualServiceSpec.Http = []*v1alpha3.HTTPRoute{getHTTPRoute(service, servicePort)}
+		destinationRule = getDestinationRule(service, namespace)
 	} else {
 		virtualServiceSpec.Tcp = []*v1alpha3.TCPRoute{getTCPRoute(service, servicePort)}
 	}
@@ -133,6 +139,33 @@ func getVirtualService(service *resolved.Service, namespace string, gateway *str
 			Namespace: namespace,
 		},
 		Spec: virtualServiceSpec,
+	}, destinationRule
+}
+
+func getDestinationRule(service *resolved.Service, namespace string) *istioclient.DestinationRule {
+
+	subsets := []*v1alpha3.Subset{
+		&v1alpha3.Subset{
+			Name: service.Version,
+			Labels: map[string]string{
+				"version": service.Version,
+			},
+		},
+	}
+
+	return &istioclient.DestinationRule{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "networking.istio.io/v1alpha3",
+			Kind:       "DestinationRule",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      service.ServiceID,
+			Namespace: namespace,
+		},
+		Spec: v1alpha3.DestinationRule{
+			Host:    service.ServiceID,
+			Subsets: subsets,
+		},
 	}
 }
 
