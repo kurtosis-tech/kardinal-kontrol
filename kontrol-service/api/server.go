@@ -10,21 +10,25 @@ import (
 	managerapitypes "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/types"
 
 	"kardinal.kontrol-service/engine"
+	"kardinal.kontrol-service/engine/flow"
 	"kardinal.kontrol-service/engine/template"
 	"kardinal.kontrol-service/topology"
 	"kardinal.kontrol-service/types"
+	"kardinal.kontrol-service/types/cluster_topology/resolved"
 )
 
 // optional code omitted
 var _ api.StrictServerInterface = (*Server)(nil)
 
 type Server struct {
-	clusterByTenant map[string]types.Cluster
+	clusterByTenant         map[string]types.Cluster
+	clusterTopologyByTenant map[string]resolved.ClusterTopology
 }
 
 func NewServer() Server {
 	return Server{
-		clusterByTenant: make(map[string]types.Cluster),
+		clusterByTenant:         make(map[string]types.Cluster),
+		clusterTopologyByTenant: make(map[string]resolved.ClusterTopology),
 	}
 }
 
@@ -84,8 +88,8 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenantUuidTopologyRequestObject) (api.GetTenantUuidTopologyResponseObject, error) {
 	log.Printf("Getting topology for tenant '%s'", request.Uuid)
 
-	if cluster, found := sv.clusterByTenant[request.Uuid]; found {
-		topo := topology.ClusterTopology(&cluster)
+	if clusterTopology, found := sv.clusterTopologyByTenant[request.Uuid]; found {
+		topo := topology.ClusterTopology(&clusterTopology)
 		return api.GetTenantUuidTopology200JSONResponse(*topo), nil
 	}
 
@@ -93,10 +97,16 @@ func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenant
 }
 
 func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request managerapi.GetTenantUuidClusterResourcesRequestObject) (managerapi.GetTenantUuidClusterResourcesResponseObject, error) {
-	log.Printf("Getting cluster resources for tenant '%s'", request.Uuid)
+	namespace := "prod"
 
 	if cluster, found := sv.clusterByTenant[request.Uuid]; found {
 		clusterResources := template.RenderClusterResources(cluster)
+		managerAPIClusterResources := newManagerAPIClusterResources(clusterResources)
+		return managerapi.GetTenantUuidClusterResources200JSONResponse(managerAPIClusterResources), nil
+	}
+
+	if clusterTopology, found := sv.clusterTopologyByTenant[request.Uuid]; found {
+		clusterResources := flow.RenderClusterResources(&clusterTopology, namespace)
 		managerAPIClusterResources := newManagerAPIClusterResources(clusterResources)
 		return managerapi.GetTenantUuidClusterResources200JSONResponse(managerAPIClusterResources), nil
 	}
@@ -106,12 +116,12 @@ func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request manag
 
 // ============================================================================================================
 func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig) error {
-	cluster, err := engine.GenerateProdOnlyCluster(serviceConfigs)
+	clusterTopology, err := engine.GenerateProdOnlyCluster(serviceConfigs)
 	if err != nil {
 		return err
 	}
 
-	sv.clusterByTenant[tenantUuidStr] = *cluster
+	sv.clusterTopologyByTenant[tenantUuidStr] = *clusterTopology
 	return nil
 }
 

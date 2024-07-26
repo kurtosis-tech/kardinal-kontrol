@@ -13,16 +13,6 @@ import (
 	"kardinal.kontrol-service/engine"
 )
 
-const (
-	redisServiceName    = "redis-prod"
-	redisServiceVersion = "6.0.8"
-	redisServiceID      = "node-1"
-
-	votingAppServiceName    = "voting-app-ui"
-	votingAppServiceVersion = "latest"
-	votingAppServiceID      = "node-2"
-)
-
 func TestServiceConfigsToTopology(t *testing.T) {
 	testServiceConfigs := []apitypes.ServiceConfig{}
 
@@ -202,10 +192,48 @@ func TestServiceConfigsToTopology(t *testing.T) {
 		},
 	})
 
-	cluster, err := engine.GenerateProdOnlyCluster(testServiceConfigs)
+	// Gateway
+	version = "prod"
+	appName = "voting-app-lb"
+	serviceName = appName
+	port = int32(80)
+	testServiceConfigs = append(testServiceConfigs, apitypes.ServiceConfig{
+		Service: v1.Service{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "Service",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      serviceName,
+				Namespace: "",
+				Labels: map[string]string{
+					"app": appName,
+				},
+				Annotations: map[string]string{
+					"kardinal.dev.service/ingress": "true",
+					"kardinal.dev.service/host":    "test.host",
+				},
+			},
+			Spec: v1.ServiceSpec{
+				Ports: []v1.ServicePort{
+					{
+						Name:       fmt.Sprintf("tcp-%s", containerName),
+						Port:       port,
+						Protocol:   v1.ProtocolTCP,
+						TargetPort: intstr.FromInt(int(port)),
+					},
+				},
+				Selector: map[string]string{
+					"app": "azure-vote-front",
+				},
+			},
+		},
+	})
+
+	clusterTopology, err := engine.GenerateProdOnlyCluster(testServiceConfigs)
 	if err != nil {
 		t.Errorf("Error generating cluster: %s", err)
 	}
-	topo := ClusterTopology(cluster)
+	topo := ClusterTopology(clusterTopology)
 	require.NotNil(t, topo)
 }

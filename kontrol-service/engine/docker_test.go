@@ -9,8 +9,9 @@ import (
 
 func TestServiceConfigsToClusterTopology(t *testing.T) {
 	testServiceConfigs := test.GetServiceConfigs()
+	testVersion := "prod"
 
-	cluster, err := GenerateClusterTopology(testServiceConfigs)
+	cluster, err := generateClusterTopology(testServiceConfigs, testVersion)
 	if err != nil {
 		t.Errorf("Error generating cluster: %s", err)
 	}
@@ -37,5 +38,5 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 	require.Equal(t, *dependency.DependencyPort, testServiceConfigs[0].Service.Spec.Ports[0])
 
 	ingressService := cluster.Ingress
-	require.Equal(t, ingressService.IngressUUID, "voting-app-lb")
+	require.Equal(t, ingressService.IngressID, "voting-app-lb")
 }

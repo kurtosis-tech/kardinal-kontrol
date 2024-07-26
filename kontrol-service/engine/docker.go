@@ -13,6 +13,7 @@ import (
 	"gopkg.in/yaml.v2"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"kardinal.kontrol-service/types"
@@ -22,39 +23,15 @@ import (
 // TODO:find a better way to find the frontend
 const frontendServiceName = "voting-app-ui"
 
-func GenerateProdOnlyCluster(serviceConfigs []apitypes.ServiceConfig) (*types.Cluster, error) {
-	serviceSpecs := lo.Map(serviceConfigs, func(serviceConfig apitypes.ServiceConfig, _ int) *types.ServiceSpec {
-		version := "prod"
-		return &types.ServiceSpec{
-			Version:    version,
-			Name:       serviceConfig.Deployment.Spec.Template.Spec.Containers[0].Name,
-			Port:       int32(serviceConfig.Service.Spec.Ports[0].TargetPort.IntValue()),
-			TargetPort: int32(serviceConfig.Service.Spec.Ports[0].TargetPort.IntValue()),
-			Config:     serviceConfig,
-		}
-	})
+func GenerateProdOnlyCluster(serviceConfigs []apitypes.ServiceConfig) (*resolved.ClusterTopology, error) {
 
-	frontendService := lo.Filter(serviceSpecs, func(service *types.ServiceSpec, _ int) bool { return service.Name == frontendServiceName })
-	if len(frontendService) == 0 {
-		log.Println("Frontend service not found")
+	version := "prod"
+	clusterTopology, err := generateClusterTopology(serviceConfigs, version)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occured generating the cluster topology from the service configs")
 	}
 
-	cluster := types.Cluster{
-		Services:            serviceSpecs,
-		ServiceDependencies: []*types.ServiceDependency{},
-		FrontdoorService:    frontendService,
-		TrafficSource: types.Traffic{
-			HasMirroring:           false,
-			MirrorPercentage:       0,
-			MirrorToVersion:        "",
-			MirrorExternalHostname: "",
-			ExternalHostname:       "prod.app.localhost",
-			GatewayName:            "gateway",
-		},
-		Namespace: types.NamespaceSpec{Name: "prod"},
-	}
-
-	return &cluster, nil
+	return clusterTopology, nil
 }
 
 func GenerateProdDevCluster(serviceConfigs []apitypes.ServiceConfig, devServiceName string, devImage string) (*types.Cluster, error) {
@@ -262,7 +239,7 @@ func GenerateProdDevCluster(serviceConfigs []apitypes.ServiceConfig, devServiceN
 	return &clusterDev, nil
 }
 
-func GenerateClusterTopology(serviceConfigs []apitypes.ServiceConfig) (*resolved.ClusterTopology, error) {
+func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version string) (*resolved.ClusterTopology, error) {
 	clusterTopology := resolved.ClusterTopology{}
 
 	clusterTopologyServices := []resolved.Service{}
@@ -275,7 +252,16 @@ func GenerateClusterTopology(serviceConfigs []apitypes.ServiceConfig) (*resolved
 		isIngress, ok := serviceAnnotations["kardinal.dev.service/ingress"]
 		if ok && isIngress == "true" {
 			clusterTopology.Ingress = resolved.Ingress{
-				IngressUUID: service.ObjectMeta.Name,
+				IngressID:   service.ObjectMeta.Name,
+				ServiceSpec: &service.Spec,
+			}
+			host, ok := serviceAnnotations["kardinal.dev.service/host"]
+			if ok {
+				clusterTopology.Ingress.IngressRules = []*net.IngressRule{
+					&net.IngressRule{
+						Host: host,
+					},
+				}
 			}
 			continue
 		}
@@ -283,6 +269,7 @@ func GenerateClusterTopology(serviceConfigs []apitypes.ServiceConfig) (*resolved
 		// Service
 		clusterTopologyService := resolved.Service{
 			ServiceID:      service.GetObjectMeta().GetName(),
+			Version:        version,
 			ServiceSpec:    &service.Spec,
 			DeploymentSpec: &deployment.Spec,
 		}
@@ -320,11 +307,11 @@ func GenerateClusterTopology(serviceConfigs []apitypes.ServiceConfig) (*resolved
 		service := serviceConfig.Service
 		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
 
-		if service.GetObjectMeta().GetName() == clusterTopology.Ingress.IngressUUID {
+		if service.GetObjectMeta().GetName() == clusterTopology.Ingress.IngressID {
 			continue
 		}
 
-		clusterTopologyService, err := getService(service.GetObjectMeta().GetName(), clusterTopologyServices)
+		clusterTopologyService, err := clusterTopology.GetService(service.GetObjectMeta().GetName())
 		if err != nil {
 			return nil, stacktrace.Propagate(err, "An error occurred finding service %s in the list of services", service.GetObjectMeta().GetName())
 		}
@@ -335,7 +322,7 @@ func GenerateClusterTopology(serviceConfigs []apitypes.ServiceConfig) (*resolved
 			serviceAndPorts := strings.Split(deps, ",")
 			for _, serviceAndPort := range serviceAndPorts {
 				serviceAndPortParts := strings.Split(serviceAndPort, ":")
-				depService, depServicePort, err := getServiceAndPort(serviceAndPortParts[0], serviceAndPortParts[1], clusterTopologyServices)
+				depService, depServicePort, err := clusterTopology.GetServiceAndPort(serviceAndPortParts[0], serviceAndPortParts[1])
 				if err != nil {
 					return nil, stacktrace.Propagate(err, "An error occurred finding the service dependency for service %s and port %s", serviceAndPortParts[0], serviceAndPortParts[1])
 				}
@@ -354,28 +341,4 @@ func GenerateClusterTopology(serviceConfigs []apitypes.ServiceConfig) (*resolved
 	clusterTopology.ServiceDependecies = clusterTopologyServiceDependencies
 
 	return &clusterTopology, nil
-}
-
-func getServiceAndPort(serviceName string, servicePortName string, services []resolved.Service) (*resolved.Service, *v1.ServicePort, error) {
-	for _, service := range services {
-		if service.ServiceID == serviceName {
-			for _, port := range service.ServiceSpec.Ports {
-				if port.Name == servicePortName {
-					return &service, &port, nil
-				}
-			}
-		}
-	}
-
-	return nil, nil, stacktrace.NewError("Service %s and Port %s not found in the list of services", serviceName, servicePortName)
-}
-
-func getService(serviceName string, services []resolved.Service) (*resolved.Service, error) {
-	for _, service := range services {
-		if service.ServiceID == serviceName {
-			return &service, nil
-		}
-	}
-
-	return nil, stacktrace.NewError("Service %s not found in the list of services", serviceName)
 }

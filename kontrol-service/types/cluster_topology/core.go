@@ -26,6 +26,6 @@ type ServiceDependency struct {
 }
 
 type Ingress struct {
-	IngressUUID  string
+	IngressID    string
 	IngressRules []*net.IngressRule
 }

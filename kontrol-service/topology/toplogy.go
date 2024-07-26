@@ -2,84 +2,65 @@ package topology
 
 import (
 	"fmt"
-	"strings"
 
 	apiTypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	"github.com/samber/lo"
 
-	"kardinal.kontrol-service/types"
+	"kardinal.kontrol-service/types/cluster_topology/resolved"
 )
 
-func ClusterTopology(cluster *types.Cluster) *apiTypes.ClusterTopology {
-	nodes := lo.Map(cluster.Services, func(service *types.ServiceSpec, _ int) apiTypes.Node {
-		label := fmt.Sprintf("%s (%s)", service.Name, service.Version)
-		isRedis := strings.Contains(service.Name, "redis")
-
+func ClusterTopology(clusterTopology *resolved.ClusterTopology) *apiTypes.ClusterTopology {
+	nodes := lo.Map(clusterTopology.Services, func(service resolved.Service, _ int) apiTypes.Node {
+		label := fmt.Sprintf("%s (%s)", service.ServiceID, service.Version)
 		nodeType := apiTypes.ServiceVersion
-		if isRedis {
-			nodeType = apiTypes.Redis
-		}
-
-		serviceName := service.Name
+		serviceName := service.ServiceID
 		return apiTypes.Node{
-			Id:     fmt.Sprintf("%s (%s)", service.Name, service.Version),
+			Id:     label,
 			Label:  &label,
 			Type:   nodeType,
 			Parent: &serviceName,
 		}
 	})
 
-	uniqServices := lo.UniqBy(cluster.Services, func(item *types.ServiceSpec) string { return item.Name })
-	services := lo.Map(uniqServices, func(service *types.ServiceSpec, _ int) apiTypes.Node {
-		label := service.Name
+	uniqServices := lo.UniqBy(clusterTopology.Services, func(item resolved.Service) string { return item.ServiceID })
+	services := lo.Map(uniqServices, func(service resolved.Service, _ int) apiTypes.Node {
+		label := service.ServiceID
 		return apiTypes.Node{
-			Id:    service.Name,
+			Id:    label,
 			Label: &label,
 			Type:  apiTypes.Service,
 		}
 	})
 
-	gwLabel := "gateway"
+	gwLabel := clusterTopology.Ingress.IngressID
 	gateway := apiTypes.Node{
-		Id:    "gateway",
+		Id:    gwLabel,
 		Label: &gwLabel,
 		Type:  apiTypes.Gateway,
 	}
 
-	edges := []apiTypes.Edge{
-		{
-			Source: "gateway",
-			Target: "voting-app-ui (prod)",
-		},
-		{
-			Source: "voting-app-ui (prod)",
-			Target: "redis-prod (prod)",
-		},
-		{
-			Source: "gateway",
-			Target: "voting-app-ui (dev)",
-		},
-		{
-			Source: "voting-app-ui (dev)",
-			Target: "kardinal-db-sidecar (dev)",
-		},
-		{
-			Source: "kardinal-db-sidecar (dev)",
-			Target: "redis-prod (prod)",
-		},
+	edges := []apiTypes.Edge{}
+	ingressAppName := clusterTopology.Ingress.GetSelectorAppName()
+	if ingressAppName != nil {
+		ingressTargetService, _ := clusterTopology.GetService(*ingressAppName)
+		if ingressTargetService != nil {
+			edges = append(edges, apiTypes.Edge{
+				Source: gwLabel,
+				Target: fmt.Sprintf("%s (%s)", ingressTargetService.ServiceID, ingressTargetService.Version),
+			})
+		}
+	}
+
+	for _, serviceDependency := range clusterTopology.ServiceDependecies {
+		edges = append(edges, apiTypes.Edge{
+			Source: fmt.Sprintf("%s (%s)", serviceDependency.Service.ServiceID, serviceDependency.Service.Version),
+			Target: fmt.Sprintf("%s (%s)", serviceDependency.DependsOnService.ServiceID, serviceDependency.DependsOnService.Version),
+		})
 	}
 
 	allNodes := append(nodes, append(services, gateway)...)
 	return &apiTypes.ClusterTopology{
 		Nodes: allNodes,
-		Edges: lo.Filter(edges, func(edge apiTypes.Edge, _ int) bool {
-			_, hasSource := lo.Find(allNodes, func(node apiTypes.Node) bool {
-				return edge.Source == node.Id
-			})
-			_, hasTarget := lo.Find(allNodes, func(node apiTypes.Node) bool {
-				return edge.Target == node.Id
-			})
-			return hasSource && hasTarget
-		}),
+		Edges: edges,
 	}
 }
