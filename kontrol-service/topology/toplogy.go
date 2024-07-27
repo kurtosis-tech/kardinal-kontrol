@@ -10,7 +10,7 @@ import (
 )
 
 func ClusterTopology(clusterTopology *resolved.ClusterTopology) *apiTypes.ClusterTopology {
-	nodes := lo.Map(clusterTopology.Services, func(service resolved.Service, _ int) apiTypes.Node {
+	nodes := lo.Map(clusterTopology.Services, func(service *resolved.Service, _ int) apiTypes.Node {
 		label := fmt.Sprintf("%s (%s)", service.ServiceID, service.Version)
 		nodeType := apiTypes.ServiceVersion
 		serviceName := service.ServiceID
@@ -22,8 +22,8 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology) *apiTypes.Cluste
 		}
 	})
 
-	uniqServices := lo.UniqBy(clusterTopology.Services, func(item resolved.Service) string { return item.ServiceID })
-	services := lo.Map(uniqServices, func(service resolved.Service, _ int) apiTypes.Node {
+	uniqServices := lo.UniqBy(clusterTopology.Services, func(item *resolved.Service) string { return item.ServiceID })
+	services := lo.Map(uniqServices, func(service *resolved.Service, _ int) apiTypes.Node {
 		label := service.ServiceID
 		return apiTypes.Node{
 			Id:    label,

@@ -11,10 +11,11 @@ import (
 )
 
 const (
-	simplePlugin  = "https://github.com/h4ck3rk3y/a-test-plugin"
-	complexPlugin = "https://github.com/h4ck3rk3y/slightly-more-complex-plugin"
-	redisPlugin   = "https://github.com/h4ck3rk3y/redis-sidecar-plugin"
-	flowUuid      = "test-flow-uuid"
+	simplePlugin   = "https://github.com/h4ck3rk3y/a-test-plugin"
+	complexPlugin  = "https://github.com/h4ck3rk3y/slightly-more-complex-plugin"
+	identityPlugin = "https://github.com/h4ck3rk3y/identity-plugin"
+	redisPlugin    = "https://github.com/h4ck3rk3y/redis-sidecar-plugin"
+	flowUuid       = "test-flow-uuid"
 )
 
 var serviceSpec = corev1.ServiceSpec{}
@@ -77,6 +78,31 @@ func TestSimplePlugin(t *testing.T) {
 	require.Equal(t, "helloworld", configMapData["original_text"])
 
 	err = runner.DeleteFlow(simplePlugin, flowUuid, map[string]string{})
+	require.NoError(t, err)
+
+	// Verify that the flow UUID was removed from memory
+	_, err = runner.getConfigForFlow(flowUuid)
+	require.NotNil(t, err)
+	require.Contains(t, err.Error(), "no config map found")
+}
+
+func TestIdentityPlugin(t *testing.T) {
+	t.Skip("skipping this as this pulls from the internet")
+	runner := NewPluginRunner()
+
+	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
+	require.NoError(t, err)
+
+	// Check if the deployment spec was updated correctly
+	require.Equal(t, deploymentSpec, updatedServiceSpec)
+
+	// Verify the config map
+	var configMapData map[string]interface{}
+	err = json.Unmarshal([]byte(configMap), &configMapData)
+	require.NoError(t, err)
+	require.Equal(t, map[string]interface{}{}, configMapData)
+
+	err = runner.DeleteFlow(identityPlugin, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	// Verify that the flow UUID was removed from memory

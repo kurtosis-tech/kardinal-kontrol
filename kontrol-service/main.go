@@ -2,7 +2,6 @@ package main
 
 import (
 	"flag"
-	"log"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -16,7 +15,8 @@ func main() {
 	flag.Parse()
 
 	if *devMode {
-		log.Println("Running in dev mode. CORS fully open.")
+		logrus.Warn("Running in dev mode. CORS fully open.")
+		logrus.SetLevel(logrus.DebugLevel)
 	}
 
 	startServer(*devMode)
@@ -50,5 +50,5 @@ func startServer(isDevMode bool) {
 	server.RegisterExternalAndInternalApi(e)
 
 	// And we serve HTTP until the world ends.
-	log.Fatal(e.Start("0.0.0.0:8080"))
+	logrus.Fatal(e.Start("0.0.0.0:8080"))
 }

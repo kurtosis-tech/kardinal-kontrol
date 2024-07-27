@@ -2,16 +2,17 @@ package api
 
 import (
 	"context"
-	"log"
 
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	managerapi "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/server"
 	managerapitypes "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/types"
+	"github.com/sirupsen/logrus"
 
 	"kardinal.kontrol-service/engine"
 	"kardinal.kontrol-service/engine/flow"
 	"kardinal.kontrol-service/engine/template"
+	"kardinal.kontrol-service/plugins"
 	"kardinal.kontrol-service/topology"
 	"kardinal.kontrol-service/types"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
@@ -22,12 +23,14 @@ var _ api.StrictServerInterface = (*Server)(nil)
 
 type Server struct {
 	clusterByTenant         map[string]types.Cluster
+	pluginRunnerByTenant    map[string]plugins.PluginRunner
 	clusterTopologyByTenant map[string]resolved.ClusterTopology
 }
 
 func NewServer() Server {
 	return Server{
 		clusterByTenant:         make(map[string]types.Cluster),
+		pluginRunnerByTenant:    make(map[string]plugins.PluginRunner),
 		clusterTopologyByTenant: make(map[string]resolved.ClusterTopology),
 	}
 }
@@ -46,7 +49,7 @@ func (sv *Server) GetHealth(_ context.Context, _ api.GetHealthRequestObject) (ap
 }
 
 func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenantUuidDeployRequestObject) (api.PostTenantUuidDeployResponseObject, error) {
-	log.Printf("Deploying prod cluster")
+	logrus.Infof("deploying prod cluster for tenant '%s'", request.Uuid)
 	serviceConfigs := *request.Body.ServiceConfigs
 
 	err := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs)
@@ -58,7 +61,7 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 }
 
 func (sv *Server) PostTenantUuidFlowDelete(_ context.Context, request api.PostTenantUuidFlowDeleteRequestObject) (api.PostTenantUuidFlowDeleteResponseObject, error) {
-	log.Printf("Deleting dev flow")
+	logrus.Infof("deleting dev flow for tenant '%s'", request.Uuid)
 	serviceConfigs := *request.Body.ServiceConfigs
 
 	err := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs)
@@ -72,13 +75,13 @@ func (sv *Server) PostTenantUuidFlowDelete(_ context.Context, request api.PostTe
 func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTenantUuidFlowCreateRequestObject) (api.PostTenantUuidFlowCreateResponseObject, error) {
 	serviceName := *request.Body.ServiceName
 	imageLocator := *request.Body.ImageLocator
-	log.Printf("Starting new dev flow for service %v on image %v", serviceName, imageLocator)
+	logrus.Infof("starting new dev flow for service %v on image %v", serviceName, imageLocator)
 
 	serviceConfigs := *request.Body.ServiceConfigs
 
 	err := applyProdDevFlow(sv, request.Uuid, serviceConfigs, serviceName, imageLocator)
 	if err != nil {
-		log.Printf("an error occured while updating dev flow. error was \n: '%v'", err.Error())
+		logrus.Errorf("an error occured while updating dev flow. error was \n: '%v'", err.Error())
 		return nil, err
 	}
 	resp := "ok"
@@ -86,7 +89,7 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 }
 
 func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenantUuidTopologyRequestObject) (api.GetTenantUuidTopologyResponseObject, error) {
-	log.Printf("Getting topology for tenant '%s'", request.Uuid)
+	logrus.Infof("getting topology for tenant '%s'", request.Uuid)
 
 	if clusterTopology, found := sv.clusterTopologyByTenant[request.Uuid]; found {
 		topo := topology.ClusterTopology(&clusterTopology)
@@ -121,18 +124,33 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apityp
 		return err
 	}
 
+	sv.pluginRunnerByTenant[tenantUuidStr] = plugins.PluginRunner{}
 	sv.clusterTopologyByTenant[tenantUuidStr] = *clusterTopology
 	return nil
 }
 
 // ============================================================================================================
 func applyProdDevFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, devServiceName string, devImage string) error {
-	cluster, err := engine.GenerateProdDevCluster(serviceConfigs, devServiceName, devImage)
+	flowID := "dev"
+
+	logrus.Debugf("generating base cluster topology for tenant %s on flowID %s", tenantUuidStr, flowID)
+	prodClusterTopology, err := engine.GenerateProdOnlyCluster(serviceConfigs)
 	if err != nil {
 		return err
 	}
 
-	sv.clusterByTenant[tenantUuidStr] = *cluster
+	pluginRunner, found := sv.pluginRunnerByTenant[tenantUuidStr]
+	if !found {
+		pluginRunner = plugins.PluginRunner{}
+	}
+
+	logrus.Debugf("calculating cluster topology overlay for tenant %s on flowID %s", tenantUuidStr, flowID)
+	devClusterTopology, err := engine.GenerateProdDevCluster(prodClusterTopology, pluginRunner, flowID, devServiceName, devImage)
+	if err != nil {
+		return err
+	}
+
+	sv.clusterTopologyByTenant[tenantUuidStr] = *devClusterTopology
 	return nil
 }
 

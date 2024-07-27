@@ -33,8 +33,8 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 	require.Equal(t, *votingAppUIService.DeploymentSpec, testServiceConfigs[1].Deployment.Spec)
 
 	dependency := cluster.ServiceDependecies[0]
-	require.Equal(t, *dependency.Service, votingAppUIService)
-	require.Equal(t, *dependency.DependsOnService, redisProdService)
+	require.Equal(t, dependency.Service, votingAppUIService)
+	require.Equal(t, dependency.DependsOnService, redisProdService)
 	require.Equal(t, *dependency.DependencyPort, testServiceConfigs[0].Service.Spec.Ports[0])
 
 	ingressService := cluster.Ingress
