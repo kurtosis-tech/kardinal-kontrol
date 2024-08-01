@@ -2,34 +2,76 @@ package flow
 
 import (
 	"fmt"
-
 	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
+	"google.golang.org/protobuf/types/known/structpb"
 	"istio.io/api/networking/v1alpha3"
+	securityapi "istio.io/api/security/v1beta1"
+	typev1beta1 "istio.io/api/type/v1beta1"
 	istioclient "istio.io/client-go/pkg/apis/networking/v1alpha3"
+	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"kardinal.kontrol-service/types"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
+	"strings"
 )
 
+// RenderClusterResources returns a cluster resource for a given topology
+// Perhaps we can make this throw an error if the # of extHosts != # of versions
+// This assumes that there is a dev version of the ext host as well
 func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace string) types.ClusterResources {
 	virtualServices := []istioclient.VirtualService{}
 	destinationRules := []istioclient.DestinationRule{}
+	envoyFilters := []istioclient.EnvoyFilter{}
+	authorizationPolicies := []securityv1beta1.AuthorizationPolicy{}
+	serviceSeenSet := map[string]bool{}
+
+	servicesAgainstVersions := map[string][]string{}
+	versionsAgainstExtHost := map[string]string{}
+
 	for _, service := range clusterTopology.Services {
 		var gateway *string
 		var extHost *string
+		if _, found := servicesAgainstVersions[service.ServiceID]; !found {
+			servicesAgainstVersions[service.ServiceID] = []string{}
+		}
+		servicesAgainstVersions[service.ServiceID] = append(servicesAgainstVersions[service.ServiceID], service.Version)
+
 		if clusterTopology.IsIngressDestination(service) {
 			gateway = &clusterTopology.Ingress.IngressID
 			extHost = clusterTopology.Ingress.GetHost()
+			versionsAgainstExtHost[service.Version] = *extHost
 		}
 		virtualService, destinationRule := getVirtualService(service, namespace, gateway, extHost)
 		virtualServices = append(virtualServices, *virtualService)
 		if destinationRule != nil {
 			destinationRules = append(destinationRules, *destinationRule)
 		}
+
+		if _, found := serviceSeenSet[service.ServiceID]; found {
+			continue
+		}
+
+		logrus.Infof("adding filters and authorization policies for service '%s'", service.ServiceID)
+
+		envoyFiltersForService := getEnvoyFilters(service, namespace)
+		envoyFilters = append(envoyFilters, envoyFiltersForService...)
+
+		authorizationPolicy := getAuthorizationPolicy(service, namespace)
+		if authorizationPolicy != nil {
+			authorizationPolicies = append(authorizationPolicies, *authorizationPolicy)
+		}
+
+		serviceSeenSet[service.ServiceID] = true
 	}
+
+	logrus.Infof("have total of %d envoy filters", len(envoyFilters))
+
+	gatewayFilter := getEnvoyFilterForGateway(servicesAgainstVersions, versionsAgainstExtHost)
+	envoyFilters = append(envoyFilters, *gatewayFilter)
 
 	return types.ClusterResources{
 		Services: lo.Map(clusterTopology.Services, func(service *resolved.Service, _ int) v1.Service {
@@ -45,6 +87,9 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 		VirtualServices: virtualServices,
 
 		DestinationRules: destinationRules,
+
+		EnvoyFilters:          envoyFilters,
+		AuthorizationPolicies: []securityv1beta1.AuthorizationPolicy{},
 	}
 }
 
@@ -53,6 +98,7 @@ func getTCPRoute(service *resolved.Service, servicePort *v1.ServicePort) *v1alph
 		Match: []*v1alpha3.L4MatchAttributes{{
 			Port: uint32(servicePort.Port),
 		}},
+		// TODO(edgar) - do we need the version here?
 		Route: []*v1alpha3.RouteDestination{
 			{
 				Destination: &v1alpha3.Destination{
@@ -67,15 +113,39 @@ func getTCPRoute(service *resolved.Service, servicePort *v1.ServicePort) *v1alph
 	}
 }
 
-func getHTTPRoute(service *resolved.Service, servicePort *v1.ServicePort) *v1alpha3.HTTPRoute {
+func getHTTPRoute(service *resolved.Service, host *string) *v1alpha3.HTTPRoute {
+	matches := []*v1alpha3.HTTPMatchRequest{
+		{
+			Headers: map[string]*v1alpha3.StringMatch{
+				"x-kardinal-destination": {
+					MatchType: &v1alpha3.StringMatch_Exact{
+						Exact: service.ServiceID + "-" + service.Version,
+					},
+				},
+			},
+		},
+	}
+
+	if host != nil {
+		matches = append(matches, &v1alpha3.HTTPMatchRequest{
+			Headers: map[string]*v1alpha3.StringMatch{
+				"x-kardinal-destination": {
+					MatchType: &v1alpha3.StringMatch_Exact{
+						Exact: *host + "-" + service.Version,
+					},
+				},
+			},
+		})
+	}
+
 	return &v1alpha3.HTTPRoute{
+		Match: matches,
 		Route: []*v1alpha3.HTTPRouteDestination{
 			{
 				Destination: &v1alpha3.Destination{
 					Host:   service.ServiceID,
 					Subset: service.Version,
 				},
-				Weight: 100,
 			},
 		},
 	}
@@ -88,8 +158,8 @@ func getVirtualService(service *resolved.Service, namespace string, gateway *str
 	virtualServiceSpec := v1alpha3.VirtualService{}
 	var destinationRule *istioclient.DestinationRule
 
-	if servicePort.AppProtocol != nil && *servicePort.AppProtocol == "HTTP" {
-		virtualServiceSpec.Http = []*v1alpha3.HTTPRoute{getHTTPRoute(service, servicePort)}
+	if isHttp(service) {
+		virtualServiceSpec.Http = []*v1alpha3.HTTPRoute{getHTTPRoute(service, extHost)}
 		destinationRule = getDestinationRule(service, namespace)
 	} else {
 		virtualServiceSpec.Tcp = []*v1alpha3.TCPRoute{getTCPRoute(service, servicePort)}
@@ -243,4 +313,313 @@ func getGateway(ingress *resolved.Ingress, namespace string) *istioclient.Gatewa
 			},
 		},
 	}
+}
+
+func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.EnvoyFilter {
+	if !isHttp(service) {
+		return []istioclient.EnvoyFilter{}
+	}
+	inboundFilter := &istioclient.EnvoyFilter{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "networking.istio.io/v1alpha3",
+			Kind:       "EnvoyFilter",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-inbound-trace-id-check", service.ServiceID),
+			Namespace: namespace,
+		},
+		Spec: v1alpha3.EnvoyFilter{
+			WorkloadSelector: &v1alpha3.WorkloadSelector{
+				Labels: map[string]string{
+					"app": service.ServiceID,
+				},
+			},
+			ConfigPatches: []*v1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
+				{
+					ApplyTo: v1alpha3.EnvoyFilter_HTTP_FILTER,
+					Match: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: v1alpha3.EnvoyFilter_SIDECAR_INBOUND,
+						ObjectTypes: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+							Listener: &v1alpha3.EnvoyFilter_ListenerMatch{
+								FilterChain: &v1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
+									Filter: &v1alpha3.EnvoyFilter_ListenerMatch_FilterMatch{
+										Name: "envoy.filters.network.http_connection_manager",
+									},
+								},
+							},
+						},
+					},
+					Patch: &v1alpha3.EnvoyFilter_Patch{
+						Operation: v1alpha3.EnvoyFilter_Patch_INSERT_BEFORE,
+						Value: &structpb.Struct{
+							Fields: map[string]*structpb.Value{
+								"name": {Kind: &structpb.Value_StringValue{StringValue: "envoy.lua"}},
+								"typed_config": {
+									Kind: &structpb.Value_StructValue{
+										StructValue: &structpb.Struct{
+											Fields: map[string]*structpb.Value{
+												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
+												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: inboundRequestTraceIDFilter}},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	outboundFilter := &istioclient.EnvoyFilter{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "networking.istio.io/v1alpha3",
+			Kind:       "EnvoyFilter",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-outbound-trace-router", service.ServiceID),
+			Namespace: namespace,
+		},
+		Spec: v1alpha3.EnvoyFilter{
+			WorkloadSelector: &v1alpha3.WorkloadSelector{
+				Labels: map[string]string{
+					"app": service.ServiceID,
+				},
+			},
+			ConfigPatches: []*v1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
+				{
+					ApplyTo: v1alpha3.EnvoyFilter_HTTP_FILTER,
+					Match: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: v1alpha3.EnvoyFilter_SIDECAR_OUTBOUND,
+						ObjectTypes: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+							Listener: &v1alpha3.EnvoyFilter_ListenerMatch{
+								FilterChain: &v1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
+									Filter: &v1alpha3.EnvoyFilter_ListenerMatch_FilterMatch{
+										Name: "envoy.filters.network.http_connection_manager",
+									},
+								},
+							},
+						},
+					},
+					Patch: &v1alpha3.EnvoyFilter_Patch{
+						Operation: v1alpha3.EnvoyFilter_Patch_INSERT_BEFORE,
+						Value: &structpb.Struct{
+							Fields: map[string]*structpb.Value{
+								"name": {Kind: &structpb.Value_StringValue{StringValue: "envoy.lua"}},
+								"typed_config": {
+									Kind: &structpb.Value_StructValue{
+										StructValue: &structpb.Struct{
+											Fields: map[string]*structpb.Value{
+												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
+												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: outgoingRequestTraceIDFilter}},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	return []istioclient.EnvoyFilter{*inboundFilter, *outboundFilter}
+}
+
+// getAuthorizationPolicy returns an authorization policy that denies requests with the missing header
+// this is not really needed as we have an inbound rule
+func getAuthorizationPolicy(service *resolved.Service, namespace string) *securityv1beta1.AuthorizationPolicy {
+	if !isHttp(service) {
+		return nil
+	}
+	return &securityv1beta1.AuthorizationPolicy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-require-trace-id", service.ServiceID),
+			Namespace: namespace,
+		},
+		Spec: securityapi.AuthorizationPolicy{
+			Selector: &typev1beta1.WorkloadSelector{
+				MatchLabels: map[string]string{
+					"app": service.ServiceID,
+				},
+			},
+			Action: securityapi.AuthorizationPolicy_DENY,
+			Rules: []*securityapi.Rule{
+				{
+					When: []*securityapi.Condition{
+						{
+							Key:       "request.headers[x-kardinal-trace-id]",
+							NotValues: []string{"*"},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func getEnvoyFilterForGateway(servicesAgainstVersions map[string][]string, serviceAndVersionAgainstExtHost map[string]string) *istioclient.EnvoyFilter {
+	luaScript := generateDynamicLuaScript(servicesAgainstVersions, serviceAndVersionAgainstExtHost)
+
+	return &istioclient.EnvoyFilter{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "networking.istio.io/v1alpha3",
+			Kind:       "EnvoyFilter",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "kardinal-gateway-tracing",
+			Namespace: "istio-system",
+		},
+		Spec: v1alpha3.EnvoyFilter{
+			WorkloadSelector: &v1alpha3.WorkloadSelector{
+				Labels: map[string]string{
+					"istio": "ingressgateway",
+				},
+			},
+			ConfigPatches: []*v1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
+				{
+					ApplyTo: v1alpha3.EnvoyFilter_HTTP_FILTER,
+					Match: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: v1alpha3.EnvoyFilter_GATEWAY,
+						ObjectTypes: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+							Listener: &v1alpha3.EnvoyFilter_ListenerMatch{
+								FilterChain: &v1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
+									Filter: &v1alpha3.EnvoyFilter_ListenerMatch_FilterMatch{
+										Name: "envoy.filters.network.http_connection_manager",
+									},
+								},
+							},
+						},
+					},
+					Patch: &v1alpha3.EnvoyFilter_Patch{
+						Operation: v1alpha3.EnvoyFilter_Patch_INSERT_BEFORE,
+						Value: &structpb.Struct{
+							Fields: map[string]*structpb.Value{
+								"name": {Kind: &structpb.Value_StringValue{StringValue: "envoy.lua"}},
+								"typed_config": {
+									Kind: &structpb.Value_StructValue{
+										StructValue: &structpb.Struct{
+											Fields: map[string]*structpb.Value{
+												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
+												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: luaScript}},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func generateDynamicLuaScript(servicesAgainstVersions map[string][]string, versionAgainstExtHost map[string]string) string {
+	var setRouteCalls strings.Builder
+
+	// Helper function to add a setRoute call
+	addSetRouteCall := func(service, destination string) {
+		setRouteCalls.WriteString(fmt.Sprintf(`
+    request_handle:httpCall(
+      "outbound|8080||trace-router.default.svc.cluster.local",
+      {
+        [":method"] = "POST",
+        [":path"] = "/set-route?trace_id=" .. trace_id .. "&hostname=%s&destination=%s",
+        [":authority"] = "trace-router.default.svc.cluster.local",
+        ["Content-Type"] = "application/json"
+      },
+      "{}",
+      5000
+    )
+`, service, destination))
+	}
+
+	// This is the one we are interested in
+	// For prod host all goes to prod
+	// For non prod host we add a non prod mapping for the non prod service and everything else falls back
+	for service, versions := range servicesAgainstVersions {
+		for _, version := range versions {
+			setRouteCalls.WriteString(fmt.Sprintf(`
+    if hostname == "%s" then`, versionAgainstExtHost[version]))
+			destination := fmt.Sprintf("%s-%s", service, version)
+			addSetRouteCall(service, destination)
+			setRouteCalls.WriteString(`
+    end`)
+		}
+	}
+
+	// this gets consumed by the virtual source route for the gateway
+	for version, extHost := range versionAgainstExtHost {
+		destination := fmt.Sprintf("%s-%s", extHost, version)
+		addSetRouteCall(extHost, destination)
+	}
+
+	return fmt.Sprintf(`
+function envoy_on_request(request_handle)
+  local headers = request_handle:headers()
+  local trace_id = headers:get("x-kardinal-trace-id")
+  local hostname = headers:get(":authority")
+
+  request_handle:logInfo("Processing request - Initial trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none"))
+
+  if not trace_id then
+    trace_id = string.format("%%032x", math.random(2^128 - 1))
+    request_handle:logInfo("Generated new trace ID: " .. trace_id)
+
+    local generate_headers, generate_body = request_handle:httpCall(
+      "outbound|8080||trace-router.default.svc.cluster.local",
+      {
+       [":method"] = "GET",
+       [":path"] = "/generate-trace-id",
+       [":authority"] = "trace-router.default.svc.cluster.local"
+      },
+      "",
+      5000
+    )
+
+    if generate_headers and generate_headers[":status"] == "200" then
+      trace_id = generate_body
+      request_handle:logInfo("Received trace ID from trace-router: " .. trace_id)
+    else
+      request_handle:logWarn("Failed to get trace ID from trace-router, using generated: " .. trace_id)
+    end
+
+    request_handle:headers():add("x-kardinal-trace-id", trace_id)
+
+    %s
+  end
+
+  local determine_headers, determine_body = request_handle:httpCall(
+    "outbound|8080||trace-router.default.svc.cluster.local",
+    {
+      [":method"] = "GET",
+      [":path"] = "/route?trace_id=" .. trace_id .. "&hostname=" .. hostname,
+      [":authority"] = "trace-router.default.svc.cluster.local"
+    },
+    "",
+    5000
+  )
+
+  local destination
+  if determine_headers and determine_headers[":status"] == "200" then
+    destination = determine_body
+    request_handle:logInfo("Determined destination: " .. destination)
+  else
+    destination = hostname .. "-prod"
+    request_handle:logWarn("Failed to determine destination, using fallback: " .. destination)
+  end
+
+  request_handle:headers():add("x-kardinal-destination", destination)
+  request_handle:logInfo("Final headers - Trace ID: " .. trace_id .. ", Destination: " .. destination)
+end
+`, setRouteCalls.String())
+}
+
+// isHttp - TODO support multiple ports
+func isHttp(service *resolved.Service) bool {
+	servicePort := &service.ServiceSpec.Ports[0]
+	return servicePort.AppProtocol != nil && *servicePort.AppProtocol == "HTTP"
 }

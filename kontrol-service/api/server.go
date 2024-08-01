@@ -102,6 +102,7 @@ func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenant
 func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request managerapi.GetTenantUuidClusterResourcesRequestObject) (managerapi.GetTenantUuidClusterResourcesResponseObject, error) {
 	namespace := "prod"
 
+	// TODO - this can be removed?
 	if cluster, found := sv.clusterByTenant[request.Uuid]; found {
 		clusterResources := template.RenderClusterResources(cluster)
 		managerAPIClusterResources := newManagerAPIClusterResources(clusterResources)
@@ -156,10 +157,12 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitype
 
 func newManagerAPIClusterResources(clusterResources types.ClusterResources) managerapitypes.ClusterResources {
 	return managerapitypes.ClusterResources{
-		Deployments:      &clusterResources.Deployments,
-		Services:         &clusterResources.Services,
-		VirtualServices:  &clusterResources.VirtualServices,
-		DestinationRules: &clusterResources.DestinationRules,
-		Gateway:          &clusterResources.Gateway,
+		Deployments:           &clusterResources.Deployments,
+		Services:              &clusterResources.Services,
+		VirtualServices:       &clusterResources.VirtualServices,
+		DestinationRules:      &clusterResources.DestinationRules,
+		Gateway:               &clusterResources.Gateway,
+		EnvoyFilters:          &clusterResources.EnvoyFilters,
+		AuthorizationPolicies: &clusterResources.AuthorizationPolicies,
 	}
 }
