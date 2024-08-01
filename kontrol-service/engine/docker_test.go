@@ -38,5 +38,5 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 	require.Equal(t, *dependency.DependencyPort, testServiceConfigs[0].Service.Spec.Ports[0])
 
 	ingressService := cluster.Ingress
-	require.Equal(t, ingressService.IngressID, "voting-app-lb")
+	require.Equal(t, ingressService[0].IngressID, "voting-app-lb")
 }

@@ -2,6 +2,8 @@ package flow
 
 import (
 	"fmt"
+	"strings"
+
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/structpb"
@@ -16,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"kardinal.kontrol-service/types"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
-	"strings"
 )
 
 // RenderClusterResources returns a cluster resource for a given topology
@@ -26,69 +27,70 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 	virtualServices := []istioclient.VirtualService{}
 	destinationRules := []istioclient.DestinationRule{}
 	envoyFilters := []istioclient.EnvoyFilter{}
+
 	authorizationPolicies := []securityv1beta1.AuthorizationPolicy{}
-	serviceSeenSet := map[string]bool{}
 
 	servicesAgainstVersions := map[string][]string{}
-	versionsAgainstExtHost := map[string]string{}
+	serviceList := []v1.Service{}
 
-	for _, service := range clusterTopology.Services {
-		var gateway *string
-		var extHost *string
-		if _, found := servicesAgainstVersions[service.ServiceID]; !found {
-			servicesAgainstVersions[service.ServiceID] = []string{}
+	allActiveFlows := lo.FlatMap(clusterTopology.Ingress, func(item *resolved.Ingress, _ int) []string { return item.ActiveFlowIDs })
+	var versionsAgainstExtHost map[string]string
+
+	groupedServices := lo.GroupBy(clusterTopology.Services, func(item *resolved.Service) string { return item.ServiceID })
+	for serviceID, services := range groupedServices {
+		servicesAgainstVersions[serviceID] = lo.Map(services, func(item *resolved.Service, _ int) string { return item.Version })
+		if len(services) > 0 {
+			// TODO: this assumes service specs didn't change. May we need a new version to ClusterTopology data structure
+			serviceList = append(serviceList, *getService(services[0], namespace))
+
+			var gateway *string
+			var extHost *string
+			if ingressService, found := clusterTopology.GetIngressForService(services[0]); found {
+				gateway = &ingressService.IngressID
+				extHost = ingressService.GetHost()
+				// TODO: either update getEnvoyFilters or merge maps in case there is more than one ingress
+				versionsAgainstExtHost = lo.SliceToMap(allActiveFlows, func(item string) (string, string) { return item, ReplaceOrAddSubdomain(*extHost, item) })
+
+			}
+			virtualService, destinationRule := getVirtualService(serviceID, services, namespace, gateway, extHost)
+			virtualServices = append(virtualServices, *virtualService)
+			if destinationRule != nil {
+				destinationRules = append(destinationRules, *destinationRule)
+			}
+			logrus.Infof("adding filters and authorization policies for service '%s'", serviceID)
+
+			envoyFiltersForService := getEnvoyFilters(services[0], namespace)
+			envoyFilters = append(envoyFilters, envoyFiltersForService...)
+
+			authorizationPolicy := getAuthorizationPolicy(services[0], namespace)
+			if authorizationPolicy != nil {
+				authorizationPolicies = append(authorizationPolicies, *authorizationPolicy)
+			}
 		}
-		servicesAgainstVersions[service.ServiceID] = append(servicesAgainstVersions[service.ServiceID], service.Version)
 
-		if clusterTopology.IsIngressDestination(service) {
-			gateway = &clusterTopology.Ingress.IngressID
-			extHost = clusterTopology.Ingress.GetHost()
-			versionsAgainstExtHost[service.Version] = *extHost
-		}
-		virtualService, destinationRule := getVirtualService(service, namespace, gateway, extHost)
-		virtualServices = append(virtualServices, *virtualService)
-		if destinationRule != nil {
-			destinationRules = append(destinationRules, *destinationRule)
-		}
-
-		if _, found := serviceSeenSet[service.ServiceID]; found {
-			continue
-		}
-
-		logrus.Infof("adding filters and authorization policies for service '%s'", service.ServiceID)
-
-		envoyFiltersForService := getEnvoyFilters(service, namespace)
-		envoyFilters = append(envoyFilters, envoyFiltersForService...)
-
-		authorizationPolicy := getAuthorizationPolicy(service, namespace)
-		if authorizationPolicy != nil {
-			authorizationPolicies = append(authorizationPolicies, *authorizationPolicy)
-		}
-
-		serviceSeenSet[service.ServiceID] = true
 	}
 
 	logrus.Infof("have total of %d envoy filters", len(envoyFilters))
 
+	// TODO: make it to use a list of Ingresses
 	gatewayFilter := getEnvoyFilterForGateway(servicesAgainstVersions, versionsAgainstExtHost)
 	envoyFilters = append(envoyFilters, *gatewayFilter)
 
 	return types.ClusterResources{
-		Services: lo.Map(clusterTopology.Services, func(service *resolved.Service, _ int) v1.Service {
-			return *getService(service, namespace)
-		}),
+		Services: serviceList,
 
 		Deployments: lo.Map(clusterTopology.Services, func(service *resolved.Service, _ int) appsv1.Deployment {
 			return *getDeployment(service, namespace)
 		}),
 
-		Gateway: *getGateway(&clusterTopology.Ingress, namespace),
+		Gateway: *getGateway(clusterTopology.Ingress, namespace),
 
 		VirtualServices: virtualServices,
 
 		DestinationRules: destinationRules,
 
-		EnvoyFilters:          envoyFilters,
+		EnvoyFilters: envoyFilters,
+
 		AuthorizationPolicies: []securityv1beta1.AuthorizationPolicy{},
 	}
 }
@@ -151,28 +153,42 @@ func getHTTPRoute(service *resolved.Service, host *string) *v1alpha3.HTTPRoute {
 	}
 }
 
-func getVirtualService(service *resolved.Service, namespace string, gateway *string, extHost *string) (*istioclient.VirtualService, *istioclient.DestinationRule) {
-	// TODO: Support for multiple ports
-	servicePort := &service.ServiceSpec.Ports[0]
+func getVirtualService(serviceID string, services []*resolved.Service, namespace string, gateway *string, extHost *string) (*istioclient.VirtualService, *istioclient.DestinationRule) {
+	extHosts := []string{}
+
+	httpRoutes := []*v1alpha3.HTTPRoute{}
+	tcpRoutes := []*v1alpha3.TCPRoute{}
+	destinationRule := getDestinationRule(serviceID, services, namespace)
+
+	for _, service := range services {
+		// TODO: Support for multiple ports
+		servicePort := &service.ServiceSpec.Ports[0]
+		var flowHost *string
+		if extHost != nil {
+			flowHostTemp := ReplaceOrAddSubdomain(*extHost, service.Version)
+			flowHost = &flowHostTemp
+			extHosts = append(extHosts, *flowHost)
+		}
+
+		if servicePort.AppProtocol != nil && *servicePort.AppProtocol == "HTTP" {
+			httpRoutes = append(httpRoutes, getHTTPRoute(service, flowHost))
+		} else {
+			tcpRoutes = append(tcpRoutes, getTCPRoute(service, servicePort))
+		}
+	}
 
 	virtualServiceSpec := v1alpha3.VirtualService{}
-	var destinationRule *istioclient.DestinationRule
-
-	if isHttp(service) {
-		virtualServiceSpec.Http = []*v1alpha3.HTTPRoute{getHTTPRoute(service, extHost)}
-		destinationRule = getDestinationRule(service, namespace)
-	} else {
-		virtualServiceSpec.Tcp = []*v1alpha3.TCPRoute{getTCPRoute(service, servicePort)}
-	}
+	virtualServiceSpec.Http = httpRoutes
+	virtualServiceSpec.Tcp = tcpRoutes
 
 	if gateway != nil {
 		virtualServiceSpec.Gateways = []string{*gateway}
 	}
 
 	if extHost != nil {
-		virtualServiceSpec.Hosts = []string{*extHost}
+		virtualServiceSpec.Hosts = extHosts
 	} else {
-		virtualServiceSpec.Hosts = []string{service.ServiceID}
+		virtualServiceSpec.Hosts = []string{serviceID}
 	}
 
 	return &istioclient.VirtualService{
@@ -181,22 +197,22 @@ func getVirtualService(service *resolved.Service, namespace string, gateway *str
 			Kind:       "VirtualService",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-%s", service.ServiceID, service.Version),
+			Name:      serviceID,
 			Namespace: namespace,
 		},
 		Spec: virtualServiceSpec,
 	}, destinationRule
 }
 
-func getDestinationRule(service *resolved.Service, namespace string) *istioclient.DestinationRule {
-	subsets := []*v1alpha3.Subset{
-		{
+func getDestinationRule(serviceID string, services []*resolved.Service, namespace string) *istioclient.DestinationRule {
+	subsets := lo.Map(services, func(service *resolved.Service, _ int) *v1alpha3.Subset {
+		return &v1alpha3.Subset{
 			Name: service.Version,
 			Labels: map[string]string{
 				"version": service.Version,
 			},
-		},
-	}
+		}
+	})
 
 	return &istioclient.DestinationRule{
 		TypeMeta: metav1.TypeMeta{
@@ -204,11 +220,11 @@ func getDestinationRule(service *resolved.Service, namespace string) *istioclien
 			Kind:       "DestinationRule",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      service.ServiceID,
+			Name:      serviceID,
 			Namespace: namespace,
 		},
 		Spec: v1alpha3.DestinationRule{
-			Host:    service.ServiceID,
+			Host:    serviceID,
 			Subsets: subsets,
 		},
 	}
@@ -277,12 +293,18 @@ func getDeployment(service *resolved.Service, namespace string) *appsv1.Deployme
 	return &deployment
 }
 
-func getGateway(ingress *resolved.Ingress, namespace string) *istioclient.Gateway {
+func getGateway(ingresses []*resolved.Ingress, namespace string) *istioclient.Gateway {
 	extHosts := []string{}
-	ingressHost := ingress.GetHost()
-	if ingressHost != nil {
-		extHosts = append(extHosts, *ingressHost)
+	for _, ingress := range ingresses {
+		ingressHost := ingress.GetHost()
+		if ingressHost != nil {
+			allFlowHosts := lo.Map(ingress.ActiveFlowIDs, func(flowId string, _ int) string { return ReplaceOrAddSubdomain(*ingressHost, flowId) })
+			extHosts = append(extHosts, allFlowHosts...)
+		}
 	}
+	extHosts = lo.Uniq(extHosts)
+
+	ingressId := ingresses[0].IngressID
 
 	return &istioclient.Gateway{
 		TypeMeta: metav1.TypeMeta{
@@ -290,10 +312,10 @@ func getGateway(ingress *resolved.Ingress, namespace string) *istioclient.Gatewa
 			Kind:       "Gateway",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ingress.IngressID,
+			Name:      ingressId,
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":     ingress.IngressID,
+				"app":     ingressId,
 				"version": "v1",
 			},
 		},

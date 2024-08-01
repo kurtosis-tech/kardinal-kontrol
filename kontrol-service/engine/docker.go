@@ -4,6 +4,8 @@ import (
 	"strings"
 
 	"github.com/kurtosis-tech/stacktrace"
+	"github.com/samber/lo"
+	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
@@ -18,9 +20,8 @@ import (
 // TODO:find a better way to find the frontend
 const frontendServiceName = "voting-app-ui"
 
-func GenerateProdOnlyCluster(serviceConfigs []apitypes.ServiceConfig) (*resolved.ClusterTopology, error) {
-	version := "prod"
-	clusterTopology, err := generateClusterTopology(serviceConfigs, version)
+func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceConfig) (*resolved.ClusterTopology, error) {
+	clusterTopology, err := generateClusterTopology(serviceConfigs, flowID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occured generating the cluster topology from the service configs")
 	}
@@ -29,7 +30,7 @@ func GenerateProdOnlyCluster(serviceConfigs []apitypes.ServiceConfig) (*resolved
 }
 
 func GenerateProdDevCluster(baseTopology *resolved.ClusterTopology, pluginRunner plugins.PluginRunner, flowID string, devServiceName string, devImage string) (*resolved.ClusterTopology, error) {
-	devService, found := flow.FindServiceByID(*baseTopology, devServiceName)
+	devService, _, found := flow.FindServiceByID(*baseTopology, devServiceName)
 	if !found {
 		return nil, stacktrace.NewError("Service with UUID %s not found", devServiceName)
 	}
@@ -54,6 +55,7 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 	clusterTopology := resolved.ClusterTopology{}
 
 	clusterTopologyServices := []*resolved.Service{}
+	clusterTopologyIngress := []*resolved.Ingress{}
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
 		deployment := serviceConfig.Deployment
@@ -62,18 +64,22 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 		// Ingress?
 		isIngress, ok := serviceAnnotations["kardinal.dev.service/ingress"]
 		if ok && isIngress == "true" {
-			clusterTopology.Ingress = resolved.Ingress{
-				IngressID:   service.ObjectMeta.Name,
-				ServiceSpec: &service.Spec,
+			ingress := resolved.Ingress{
+				ActiveFlowIDs: []string{version},
+				IngressID:     service.ObjectMeta.Name,
+				ServiceSpec:   &service.Spec,
 			}
 			host, ok := serviceAnnotations["kardinal.dev.service/host"]
 			if ok {
-				clusterTopology.Ingress.IngressRules = []*net.IngressRule{
+				ingress.IngressRules = []*net.IngressRule{
 					{
 						Host: host,
 					},
 				}
 			}
+			clusterTopologyIngress = append(clusterTopologyIngress, &ingress)
+			// TODO: why this need to be a separeted service?
+			// Don't add ingress services to the list of resolved services
 			continue
 		}
 
@@ -112,18 +118,21 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 	}
 
 	clusterTopology.Services = clusterTopologyServices
+	clusterTopology.Ingress = clusterTopologyIngress
 
 	clusterTopologyServiceDependencies := []resolved.ServiceDependency{}
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
 		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
 
-		if service.GetObjectMeta().GetName() == clusterTopology.Ingress.IngressID {
+		if isServiceIngress(&clusterTopology, service) {
+			logrus.Infof("Service %s is an ingress service, skipping dependency resolution", service.GetObjectMeta().GetName())
 			continue
 		}
 
 		clusterTopologyService, err := clusterTopology.GetService(service.GetObjectMeta().GetName())
 		if err != nil {
+			logrus.Fatalf("An error occurred finding service %s in the list of services", service.GetObjectMeta().GetName())
 			return nil, stacktrace.Propagate(err, "An error occurred finding service %s in the list of services", service.GetObjectMeta().GetName())
 		}
 
@@ -152,6 +161,12 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 	clusterTopology.ServiceDependecies = clusterTopologyServiceDependencies
 
 	return &clusterTopology, nil
+}
+
+func isServiceIngress(clusterTopology *resolved.ClusterTopology, service v1.Service) bool {
+	return lo.SomeBy(clusterTopology.Ingress, func(item *resolved.Ingress) bool {
+		return item.IngressID == service.GetObjectMeta().GetName()
+	})
 }
 
 func getServiceAndPort(serviceName string, servicePortName string, services []*resolved.Service) (*resolved.Service, *v1.ServicePort, error) {

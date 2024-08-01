@@ -13,17 +13,31 @@ import (
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
 )
 
-func FindServiceByID(topology resolved.ClusterTopology, serviceID string) (*resolved.Service, bool) {
+func FindServiceByID(topology resolved.ClusterTopology, serviceID string) (*resolved.Service, int, bool) {
 	var targetService *resolved.Service
 	found := false
-	for _, service := range topology.Services {
+	pos := -1
+	for ix, service := range topology.Services {
 		if service.ServiceID == serviceID {
 			targetService = service
 			found = true
+			pos = ix
 			break
 		}
 	}
-	return targetService, found
+	return targetService, pos, found
+}
+
+func updateDependeciesInplace(serviceDependencies []resolved.ServiceDependency, targetService *resolved.Service, modifiedService *resolved.Service) {
+	for ix, dependency := range serviceDependencies {
+		if dependency.Service == targetService {
+			dependency.Service = modifiedService
+		}
+		if dependency.DependsOnService == targetService {
+			dependency.DependsOnService = modifiedService
+		}
+		serviceDependencies[ix] = dependency
+	}
 }
 
 func CreateDevFlow(pluginRunner plugins.PluginRunner, flowID string, serviceID string, deploymentSpec appsv1.DeploymentSpec, baseTopology resolved.ClusterTopology) (*resolved.ClusterTopology, error) {
@@ -33,15 +47,24 @@ func CreateDevFlow(pluginRunner plugins.PluginRunner, flowID string, serviceID s
 	// duplicate slices
 	topology.Services = deepCopySlice(baseTopology.Services)
 	topology.ServiceDependecies = deepCopySlice(baseTopology.ServiceDependecies)
+	topology.Ingress = lo.Map(baseTopology.Ingress, func(item *resolved.Ingress, _ int) *resolved.Ingress {
+		copiedIngress := resolved.Ingress{
+			ActiveFlowIDs: []string{flowID},
+			IngressID:     item.IngressID,
+			IngressRules:  deepCopySlice(item.IngressRules),
+			ServiceSpec:   item.ServiceSpec,
+		}
+		return &copiedIngress
+	})
 
 	// use deep copy the enforce immutability
 	// deepCopy(baseTopology, topology)
 
-	targetService, found := FindServiceByID(topology, serviceID)
+	targetService, pos, found := FindServiceByID(topology, serviceID)
 	if !found {
 		return nil, fmt.Errorf("service with UUID %s not found", serviceID)
 	}
-	logrus.Debugf("calculating new flow for service %s", serviceID)
+	logrus.Infof("calculating new flow for service %s", serviceID)
 
 	g := topologyToGraph(topology)
 	statefulPaths := findAllDownstreamStatefulPaths(targetService, g, topology)
@@ -53,8 +76,15 @@ func CreateDevFlow(pluginRunner plugins.PluginRunner, flowID string, serviceID s
 		}
 		statefulServices = append(statefulServices, statefulService)
 	}
-
 	statefulServices = lo.Uniq(statefulServices)
+
+	modifiedTargetService := DeepCopyService(targetService)
+	modifiedTargetService.DeploymentSpec = &deploymentSpec
+	modifiedTargetService.Version = flowID
+
+	topology.Services[pos] = modifiedTargetService
+	updateDependeciesInplace(topology.ServiceDependecies, targetService, modifiedTargetService)
+
 	for statefulServiceIx, statefulService := range topology.Services {
 		if lo.Contains(statefulServices, statefulService) {
 			logrus.Debugf("applying stateful plugins on service: %s", statefulService.ServiceID)
@@ -82,16 +112,7 @@ func CreateDevFlow(pluginRunner plugins.PluginRunner, flowID string, serviceID s
 			modifiedService.DeploymentSpec = resultSpec
 
 			topology.Services[statefulServiceIx] = modifiedService
-
-			lo.ForEach(topology.ServiceDependecies, func(dependency resolved.ServiceDependency, ix int) {
-				if dependency.Service == statefulService {
-					dependency.Service = modifiedService
-				}
-				if dependency.DependsOnService == statefulService {
-					dependency.DependsOnService = modifiedService
-				}
-				topology.ServiceDependecies[ix] = dependency
-			})
+			updateDependeciesInplace(topology.ServiceDependecies, statefulService, modifiedService)
 		}
 	}
 

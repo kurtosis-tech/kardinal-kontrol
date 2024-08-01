@@ -2,6 +2,8 @@ package flow
 
 import (
 	"encoding/json"
+	"fmt"
+	"regexp"
 
 	appsv1 "k8s.io/api/apps/v1"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
@@ -46,4 +48,23 @@ func DeepCopyClusterTopology(src *resolved.ClusterTopology) *resolved.ClusterTop
 	dst := &resolved.ClusterTopology{}
 	unsafeDeepCopy(src, dst)
 	return dst
+}
+
+func DeepCopyIngress(src *resolved.Ingress) *resolved.Ingress {
+	dst := &resolved.Ingress{}
+	unsafeDeepCopy(src, dst)
+	return dst
+}
+
+func ReplaceOrAddSubdomain(url string, newSubdomain string) string {
+	re := regexp.MustCompile(`^(https?://)?(([^./]+\.)?([^./]+\.[^./]+))(.*)$`)
+	return re.ReplaceAllString(url, fmt.Sprintf("${1}%s.${4}${5}", newSubdomain))
+}
+
+func SPrintJSONClusterTopology(clusterTopology *resolved.ClusterTopology) string {
+	bytes, err := json.MarshalIndent(clusterTopology, "", "  ")
+	if err != nil {
+		panic("Error marshalling cluster topology")
+	}
+	return string(bytes)
 }

@@ -32,23 +32,28 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology) *apiTypes.Cluste
 		}
 	})
 
-	gwLabel := clusterTopology.Ingress.IngressID
-	gateway := apiTypes.Node{
-		Id:    gwLabel,
-		Label: &gwLabel,
-		Type:  apiTypes.Gateway,
-	}
-
 	edges := []apiTypes.Edge{}
-	ingressAppName := clusterTopology.Ingress.GetSelectorAppName()
-	if ingressAppName != nil {
-		ingressTargetService, _ := clusterTopology.GetService(*ingressAppName)
-		if ingressTargetService != nil {
-			edges = append(edges, apiTypes.Edge{
-				Source: gwLabel,
-				Target: fmt.Sprintf("%s (%s)", ingressTargetService.ServiceID, ingressTargetService.Version),
-			})
+	gws := []apiTypes.Node{}
+	for _, ingress := range clusterTopology.Ingress {
+		gwLabel := ingress.IngressID
+		gateway := apiTypes.Node{
+			Id:    gwLabel,
+			Label: &gwLabel,
+			Type:  apiTypes.Gateway,
 		}
+		gws = append(gws, gateway)
+
+		ingressAppName := ingress.GetSelectorAppName()
+		if ingressAppName != nil {
+			ingressTargetService, _ := clusterTopology.GetService(*ingressAppName)
+			if ingressTargetService != nil {
+				edges = append(edges, apiTypes.Edge{
+					Source: gwLabel,
+					Target: fmt.Sprintf("%s (%s)", ingressTargetService.ServiceID, ingressTargetService.Version),
+				})
+			}
+		}
+
 	}
 
 	for _, serviceDependency := range clusterTopology.ServiceDependecies {
@@ -58,7 +63,7 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology) *apiTypes.Cluste
 		})
 	}
 
-	allNodes := append(nodes, append(services, gateway)...)
+	allNodes := append(nodes, append(services, gws...)...)
 	return &apiTypes.ClusterTopology{
 		Nodes: allNodes,
 		Edges: edges,

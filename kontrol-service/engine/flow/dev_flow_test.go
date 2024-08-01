@@ -280,13 +280,14 @@ func clusterTopologyExample() resolved.ClusterTopology {
 
 	// Create ingress
 	ingress := resolved.Ingress{
-		IngressID:    "main-ingress",
-		IngressRules: ingressRules,
+		ActiveFlowIDs: []string{"main-flow"},
+		IngressID:     "main-ingress",
+		IngressRules:  ingressRules,
 	}
 
 	// Create cluster topology
 	clusterTopology := resolved.ClusterTopology{
-		Ingress: ingress,
+		Ingress: []*resolved.Ingress{&ingress},
 		Services: []*resolved.Service{
 			&frontendService,
 			&cartService,
@@ -337,7 +338,7 @@ func assertStatefulServices(t *testing.T, originalCluster *resolved.ClusterTopol
 func TestTopologyToGraph(t *testing.T) {
 	cluster := clusterTopologyExample()
 	g := topologyToGraph(cluster)
-	targetService, found := FindServiceByID(cluster, "checkoutservice")
+	targetService, _, found := FindServiceByID(cluster, "checkoutservice")
 	require.Equal(t, found, true)
 
 	resultGraph := findAllDownstreamStatefulPaths(targetService, g, cluster)
@@ -390,13 +391,12 @@ func TestDeepCopyService(t *testing.T) {
 func TestDevFlowImmutability(t *testing.T) {
 	cluster := clusterTopologyExample()
 	checkoutservice := getServiceRef(&cluster, "checkoutservice")
-	paymentservice := getServiceRef(&cluster, "paymentservice")
 	devCluster, err := CreateDevFlow(plugins.PluginRunner{}, "dev-flow-1", "checkoutservice", *checkoutservice.DeploymentSpec, cluster)
 	require.NoError(t, err)
 
-	devPaymentService := getServiceRef(devCluster, "paymentservice")
-	require.NotEqual(t, devPaymentService, paymentservice)
-	require.NotEqual(t, devPaymentService.Version, paymentservice.Version)
+	devCheckoutservice := getServiceRef(devCluster, "checkoutservice")
+	require.NotEqual(t, devCheckoutservice, checkoutservice)
+	require.NotEqual(t, devCheckoutservice.Version, checkoutservice.Version)
 
 	statefulServices := []string{
 		"paymentservice",
@@ -409,7 +409,6 @@ func TestDevFlowImmutability(t *testing.T) {
 		"frontend",
 		"cartservice",
 		"productcatalogservice",
-		"checkoutservice",
 		"recommendationservice",
 	}
 	assertStateLessServices(t, &cluster, devCluster, statelessServices)
@@ -421,4 +420,26 @@ func TestDevFlowImmutability(t *testing.T) {
 		require.Equal(t, true, lo.Contains(devCluster.Services, deps.Service))
 		require.Equal(t, true, lo.Contains(devCluster.Services, deps.DependsOnService))
 	}
+}
+
+func TestFlowMerging(t *testing.T) {
+	cluster := clusterTopologyExample()
+	checkoutservice := getServiceRef(&cluster, "checkoutservice")
+	devCluster, err := CreateDevFlow(plugins.PluginRunner{}, "dev-flow-1", "checkoutservice", *checkoutservice.DeploymentSpec, cluster)
+	require.NoError(t, err)
+	require.Equal(t, len(cluster.Services), len(devCluster.Services))
+	require.Equal(t, len(cluster.ServiceDependecies), len(devCluster.ServiceDependecies))
+
+	mergedTopology := MergeClusterTopologies(cluster, []resolved.ClusterTopology{*devCluster})
+
+	extraModifiedServices := []string{
+		"checkoutservice",
+		"paymentservice",
+		"shippingservice",
+		"redis",
+	}
+	require.Equal(t, len(cluster.Services)+len(extraModifiedServices), len(mergedTopology.Services))
+
+	nunExtraDeps := 7
+	require.Equal(t, len(cluster.ServiceDependecies)+nunExtraDeps, len(mergedTopology.ServiceDependecies))
 }

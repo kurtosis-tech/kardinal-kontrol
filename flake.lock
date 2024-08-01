@@ -92,17 +92,17 @@
         "unstable": "unstable"
       },
       "locked": {
-        "lastModified": 1720057438,
-        "narHash": "sha256-cx/bscejl/B7UvLa0ySF5659zl8EzfDKkpKu9T4+pAI=",
+        "lastModified": 1722524101,
+        "narHash": "sha256-UxbBYFvI7zb4TRUB+1L9Zo28NDfceUbaw43za5M1Rb4=",
         "owner": "kurtosis-tech",
         "repo": "kardinal",
-        "rev": "3f265481c7bb104c5389e1f35d57bb3025032eee",
+        "rev": "ef41abb2a820c02ad7be5072d026c0c41721c827",
         "type": "github"
       },
       "original": {
         "owner": "kurtosis-tech",
-        "ref": "3f265481c7bb",
         "repo": "kardinal",
+        "rev": "ef41abb2a820c02ad7be5072d026c0c41721c827",
         "type": "github"
       }
     },

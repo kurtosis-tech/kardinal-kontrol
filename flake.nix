@@ -6,7 +6,7 @@
     gomod2nix.url = "github:nix-community/gomod2nix";
     gomod2nix.inputs.nixpkgs.follows = "nixpkgs";
     gomod2nix.inputs.flake-utils.follows = "flake-utils";
-    kardinal.url = "github:kurtosis-tech/kardinal/3f265481c7bb";
+    kardinal.url = "github:kurtosis-tech/kardinal/ef41abb2a820c02ad7be5072d026c0c41721c827";
   };
   outputs = {
     self,
@@ -139,8 +139,8 @@
                 container_pkgs.gnugrep
                 container_pkgs.coreutils
                 container_pkgs.cacert
-                container_pkgs.python3  # Add Python 3 to the container for plugins
-                container_pkgs.git      # Add Git to the container for plugins
+                container_pkgs.python3 # Add Python 3 to the container for plugins
+                container_pkgs.git # Add Git to the container for plugins
               ];
               pathsToLink = ["/bin"];
             };
@@ -149,10 +149,10 @@
               if !needsCrossCompilation
               then ["${overrideService}/bin/${overrideService.pname}"]
               else ["${overrideService}/bin/${os}_${arch}/${overrideService.pname}"];
-              config.Env = [
+            config.Env = [
               "SSL_CERT_FILE=${container_pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
               "PATH=${container_pkgs.python3}/bin:${container_pkgs.git}/bin:$PATH"
-              ];
+            ];
           };
 
         mkFrontendImage = {

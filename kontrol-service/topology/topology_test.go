@@ -86,17 +86,17 @@ func TestServiceConfigsToTopology(t *testing.T) {
 								Image:           containerImage,
 								ImagePullPolicy: "IfNotPresent",
 								Env: []v1.EnvVar{
-									v1.EnvVar{
+									{
 										Name:  "ALLOW_EMPTY_PASSWORD",
 										Value: allowEmpty,
 									},
-									v1.EnvVar{
+									{
 										Name:  "REDIS_PORT_NUMBER",
 										Value: portStr,
 									},
 								},
 								Ports: []v1.ContainerPort{
-									v1.ContainerPort{
+									{
 										Name:          fmt.Sprintf("tcp-%d", port),
 										ContainerPort: port,
 										Protocol:      v1.ProtocolTCP,
@@ -178,7 +178,7 @@ func TestServiceConfigsToTopology(t *testing.T) {
 								Image:           containerImage,
 								ImagePullPolicy: "IfNotPresent",
 								Ports: []v1.ContainerPort{
-									v1.ContainerPort{
+									{
 										Name:          fmt.Sprintf("tcp-%d", port),
 										ContainerPort: port,
 										Protocol:      v1.ProtocolTCP,
@@ -230,7 +230,7 @@ func TestServiceConfigsToTopology(t *testing.T) {
 		},
 	})
 
-	clusterTopology, err := engine.GenerateProdOnlyCluster(testServiceConfigs)
+	clusterTopology, err := engine.GenerateProdOnlyCluster("prod", testServiceConfigs)
 	if err != nil {
 		t.Errorf("Error generating cluster: %s", err)
 	}
