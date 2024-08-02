@@ -29,6 +29,7 @@ jobs:
           include-v-in-tag: false
 
   publish:
+    needs: release-please
     name: Publish Images
     if: ${{ needs.release-please.outputs.release_created }}
     runs-on: ubuntu-22.04
