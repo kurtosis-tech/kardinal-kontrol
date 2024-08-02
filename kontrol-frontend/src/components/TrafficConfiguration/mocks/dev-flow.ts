@@ -1,31 +1,26 @@
-import { GraphData } from ".";
+import { GraphData } from "../types";
 
 const data: GraphData = {
   edges: [
     {
       source: "gateway",
       target: "order-service",
-      classes: "dev",
     },
     {
       source: "gateway",
       target: "analytics-service",
-      classes: "",
     },
     {
       source: "analytics-service",
       target: "postgres",
-      classes: "",
     },
     {
       source: "order-service",
       target: "postgres",
-      classes: "dev",
     },
     {
       source: "order-service",
       target: "stripe",
-      classes: "dev",
     },
   ],
 
@@ -34,21 +29,20 @@ const data: GraphData = {
       id: "gateway",
       label: "gateway",
       type: "gateway",
-      classes: "production dot",
+      versions: ["prod"],
     },
     // service versions
     {
       id: "order-service",
       label: "order-service",
       expandedLabel: `order-service\n├─ dev\n└─ latest`,
-      classes: "dev ghost dot dot",
       type: "service-version",
+      versions: ["prod", "dev"],
     },
     {
       id: "analytics-service",
       label: "analytics-service",
-      expandedLabel: `analytics-service\n└─ latest`,
-      classes: "production dot",
+      versions: ["prod"],
       type: "service-version",
     },
     // parent nodes
@@ -57,14 +51,14 @@ const data: GraphData = {
       label: "stripe",
       expandedLabel: `stripe\n├─ kardinal-stripe-plugin\n└─ stripe-production`,
       type: "stripe",
-      classes: "dev ghost dot dot",
+      versions: ["prod", "dev"],
     },
     {
       id: "postgres",
       label: "postgres",
       expandedLabel: `postgres\n├─ kardinal-postgres-sidecar\n└─ postgres-production`,
-      classes: "dev ghost dot dot",
       type: "postgres",
+      versions: ["prod", "dev"],
     },
   ],
 };

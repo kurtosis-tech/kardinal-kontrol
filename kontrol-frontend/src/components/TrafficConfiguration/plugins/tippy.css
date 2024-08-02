@@ -2,11 +2,16 @@
 .tooltip {
   background-color: white;
   color: #1B1A19;
-  padding: 15px;
+  padding: 16px;
   border-radius: 12px;
   border: 1px solid #c0bfbf;
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   font-family: monospace;
+  font-size: 16px;
+}
+
+.tooltip ul {
+  margin-left: 24px;
 }
 
 .tooltip::before {

@@ -1,14 +1,23 @@
 import { Button as ChakraButton, ButtonProps } from "@chakra-ui/react";
-const Button = ({ isDisabled, ...props }: ButtonProps) => (
+import { Link as ReactRouterLink } from "react-router-dom";
+interface Props extends ButtonProps {
+  to?: string;
+}
+
+const Button = ({ isDisabled, to, children, ...props }: Props) => (
   <ChakraButton
-    colorScheme="blackAlpha"
-    bg={isDisabled ? "gray.100" : "gray.900"}
+    height={10}
+    colorScheme="orange"
     borderRadius={8}
-    color={isDisabled ? "gray.800" : "white"}
     isDisabled={isDisabled}
+    fontSize={"15px"}
+    fontWeight={500}
+    letterSpacing={"0.46px"}
+    to={to}
+    as={to != null ? ReactRouterLink : "button"}
     {...props}
   >
-    Go back
+    {children}
   </ChakraButton>
 );
 export default Button;

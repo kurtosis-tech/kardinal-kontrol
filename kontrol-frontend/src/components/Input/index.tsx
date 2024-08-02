@@ -1,7 +1,9 @@
-import Text from "./Text";
-import Select from "./Select";
+import TextInput, { Props as TextInputProps } from "./TextInput";
+import SelectInput, { Props as SelectInputProps } from "./SelectInput";
+
+export type { TextInputProps, SelectInputProps };
 
 export default {
-  Text,
-  Select,
+  Text: TextInput,
+  Select: SelectInput,
 };

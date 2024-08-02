@@ -24,7 +24,7 @@ interface Props {
 const CytoscapeGraph = ({ elements, layout = dagreLayout }: Props) => {
   // keep a ref to the cy instance. using state will cause infinite re-renders
   const cy = useRef<cytoscape.Core>();
-  const tooltip = useRef<null | TooltipInstance>(null);
+  const tooltip = useRef<TooltipInstance | null>(null);
   const [animationsEnabled, setAnimationsEnabled] = useState(
     INIT_ANIMATIONS_ENABLED,
   );
@@ -55,9 +55,7 @@ const CytoscapeGraph = ({ elements, layout = dagreLayout }: Props) => {
         if (tooltip.current != null) {
           tooltip.current.destroy();
         }
-        const tooltipData = ele.target.data("tooltip");
-        if (tooltipData == null) return;
-        tooltip.current = createTooltip(ele.target, ele.target.data("tooltip"));
+        tooltip.current = createTooltip(ele.target);
       });
 
       // stop animations when the user is dragging nodes around
@@ -167,7 +165,7 @@ const CytoscapeGraph = ({ elements, layout = dagreLayout }: Props) => {
   return (
     <CytoscapeComponent
       elements={elements}
-      style={{ width: "100%", height: "100%", minHeight: "400px" }}
+      style={{ width: "100%", height: "100%", minHeight: "267px" }}
       layout={layout}
       // @ts-expect-error cytoscape types are not great
       stylesheet={stylesheet}

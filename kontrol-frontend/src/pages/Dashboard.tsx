@@ -1,12 +1,12 @@
-import ComingSoon from "@/components/ComingSoon";
+import EmptyState from "@/components/EmptyState";
 import { FiLayout } from "react-icons/fi";
 
 const Page = () => {
   return (
-    <ComingSoon icon={FiLayout} title={"Dashboard is coming soon"}>
+    <EmptyState icon={FiLayout} buttonText="Go back" buttonTo="">
       We’re working on getting this functionality up and running. We’ll let you
       know when it’s ready for you!
-    </ComingSoon>
+    </EmptyState>
   );
 };
 

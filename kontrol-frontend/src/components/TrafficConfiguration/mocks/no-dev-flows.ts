@@ -1,4 +1,4 @@
-import { GraphData } from ".";
+import { GraphData } from "../types";
 
 const data: GraphData = {
   edges: [
@@ -35,30 +35,35 @@ const data: GraphData = {
       label: "gateway",
       type: "gateway",
       classes: "production",
+      versions: ["prod"],
     },
     {
       id: "analytics-service",
       label: "analytics-service",
       type: "service-version",
       classes: "production",
+      versions: ["prod"],
     },
     {
       id: "order-service",
       label: "order-service",
       type: "service-version",
       classes: "production",
+      versions: ["prod"],
     },
     {
       id: "stripe",
       label: "stripe",
       type: "stripe",
       classes: "production",
+      versions: ["prod"],
     },
     {
       id: "postgres",
       label: "postgres",
       type: "postgres",
       classes: "production",
+      versions: ["prod"],
     },
   ],
 };

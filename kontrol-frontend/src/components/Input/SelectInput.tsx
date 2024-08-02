@@ -7,7 +7,7 @@ interface Option {
   value: string;
 }
 
-interface Props {
+export interface Props {
   id: string;
   label: string;
   tooltip?: string;
@@ -28,7 +28,7 @@ const SelectInput = ({
   return (
     <Stack flex={1}>
       <Flex alignItems="center">
-        <Text mr={2} htmlFor={id} as="label" m={0}>
+        <Text mr={2} htmlFor={id} as="label" m={0} fontWeight={400}>
           {label}
         </Text>
         {tooltip && (
@@ -42,7 +42,8 @@ const SelectInput = ({
       <Select
         id={id}
         placeholder={placeholder}
-        borderColor={"gray.100"}
+        color={"gray.800"}
+        borderColor={"gray.200"}
         borderRadius={"12px"}
         height={"50px"}
         onChange={onChange}

@@ -1,13 +1,13 @@
 import type { Meta, StoryObj } from "@storybook/react";
 
-import Select from "./Select";
+import SelectInput from "./SelectInput";
 
-const meta: Meta<typeof Select> = {
-  component: Select,
+const meta: Meta<typeof SelectInput> = {
+  component: SelectInput,
 };
 
 export default meta;
-type Story = StoryObj<typeof Select>;
+type Story = StoryObj<typeof SelectInput>;
 
 const options = [
   { label: "Option 1", value: "option1" },

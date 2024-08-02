@@ -1,12 +1,12 @@
-import ComingSoon from "@/components/ComingSoon";
+import EmptyState from "@/components/EmptyState";
 import { FiDatabase } from "react-icons/fi";
 
 const Page = () => {
   return (
-    <ComingSoon icon={FiDatabase} title={"Data Configuration is coming soon"}>
+    <EmptyState icon={FiDatabase} buttonText="Go back" buttonTo="">
       We’re working on getting this functionality up and running. We’ll let you
       know when it’s ready for you!
-    </ComingSoon>
+    </EmptyState>
   );
 };
 

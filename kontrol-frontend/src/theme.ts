@@ -8,25 +8,40 @@ const config: ThemeConfig = {
 };
 
 // 3. Create a custom color palette
-const colors = {
+export const colorOverrides: Record<string, Record<string, string>> = {
   gray: {
-    "50": "#FAFBFC",
-    "100": "#EAEBF0",
-    "200": "#c0bfbf",
-    "300": "#a7a6a6",
-    "400": "#8d8d8d",
-    "500": "#68727D",
-    "600": "#5A5A59",
-    "700": "#41403F",
-    "800": "#252525",
-    "900": "#1B1A19",
+    "50": "#F9FAFB",
+
+    "100": "#F3F4F6",
+    "200": "#E5E7EB",
+    "300": "#D1D5DB",
+    "400": "#9CA3AF",
+    "500": "#6B7280",
+    "600": "#4B5563",
+    "700": "#374151",
+    "800": "#1F2937",
+    "900": "#111827",
+    "950": "#030712",
+  },
+  orange: {
+    "500": "#FF602C",
+  },
+  blue: {
+    "50": "#F6FAFF",
+    "300": "#58A6FF",
+    "500": "#2170CB",
+  },
+  purple: {
+    "50": "#F7F7FF",
+    "300": "#B5B1FF",
+    "500": "#635BFF",
   },
 };
 
 // 4. extend the theme
 const theme = extendTheme({
   config,
-  colors,
+  colors: colorOverrides,
   fonts: {
     body: "'DM Sans', 'sans-serif'",
   },
@@ -45,7 +60,7 @@ const theme = extendTheme({
       html: {
         "color-scheme": "light",
         "background-color": "#f9f9f9",
-        "min-height": "100vh",
+        height: "100vh",
         "font-size": "16px",
       },
       "#root": {
@@ -56,6 +71,7 @@ const theme = extendTheme({
         color: "gray.500",
         bg: "white",
         fontWeight: 400,
+        height: "100vh",
       },
     },
   },

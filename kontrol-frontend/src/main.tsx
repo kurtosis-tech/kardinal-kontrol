@@ -7,13 +7,16 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 import Fallback from "./components/Fallback";
 import Dashboard from "@/pages/Dashboard";
 import DataConfiguration from "@/pages/DataConfiguration";
-import Flows from "@/pages/Flows";
+import FlowsCreate from "@/pages/FlowsCreate";
+import FlowsIndex from "@/pages/FlowsIndex";
 import MaturityGates from "@/pages/MaturityGates";
 import TrafficConfiguration from "@/pages/TrafficConfiguration";
 import MockTrafficConfiguration from "@/pages/MockTrafficConfiguration";
 import NotFound from "@/pages/NotFound";
 
 import { ErrorBoundary } from "react-error-boundary";
+import { NavigationContextProvider } from "@/contexts/NavigationContext";
+import { FlowsContextProvider } from "@/contexts/FlowsContext";
 
 const router = createBrowserRouter([
   {
@@ -38,7 +41,16 @@ const router = createBrowserRouter([
       },
       {
         path: "flows",
-        element: <Flows />,
+        children: [
+          {
+            index: true,
+            element: <FlowsIndex />,
+          },
+          {
+            path: "create",
+            element: <FlowsCreate />,
+          },
+        ],
       },
       {
         path: "traffic-configuration",
@@ -82,7 +94,11 @@ console.info("Using base URL:", import.meta.env.VITE_API_URL);
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ChakraProvider theme={theme} resetCSS>
-      <RouterProvider router={router} />
+      <NavigationContextProvider>
+        <FlowsContextProvider>
+          <RouterProvider router={router} />
+        </FlowsContextProvider>
+      </NavigationContextProvider>
     </ChakraProvider>
   </React.StrictMode>,
 );

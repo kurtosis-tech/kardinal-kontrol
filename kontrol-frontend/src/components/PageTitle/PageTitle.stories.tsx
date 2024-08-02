@@ -13,5 +13,7 @@ export const Example: Story = {
   args: {
     title: "Create new flow configuration",
     children: "Update traffic control and data isolation details below",
+    buttonText: "New Flow Configuration",
+    onClick: () => {},
   },
 };

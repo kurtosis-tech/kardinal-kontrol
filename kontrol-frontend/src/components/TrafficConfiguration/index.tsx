@@ -1,12 +1,12 @@
 import { useRef, useEffect, useState } from "react";
 import { Flex } from "@chakra-ui/react";
 import CytoscapeComponent from "react-cytoscapejs";
-import type { ElementDefinition } from "cytoscape";
 import { useParams } from "react-router-dom";
 import { paths } from "cli-kontrol-api/api/typescript/client/types";
 import createClient from "openapi-fetch";
 import CytoscapeGraph from "./CytoscapeGraph";
-import { demoFlow } from "./mocks";
+import { enrichEdgeData, enrichNodeData } from "./utils";
+import { ElementDefinition } from "cytoscape";
 
 const pollingIntervalSeconds = 1;
 
@@ -28,31 +28,10 @@ const TrafficConfiguration = () => {
         const response = await client.GET("/tenant/{uuid}/topology", {
           params: { path: { uuid } },
         });
-        const isFakedDevFlow = response.data!.nodes.some((node) => {
-          if (node?.label == null) return false;
-          return node.label.includes("voting-app-ui (dev)");
+        const newElems = CytoscapeComponent.normalizeElements({
+          nodes: response.data!.nodes.map(enrichNodeData),
+          edges: response.data!.edges.map(enrichEdgeData),
         });
-
-        // TODO: super hacky data transformation for demo here, this needs to be moved to the backend
-        const newElems = isFakedDevFlow
-          ? demoFlow
-          : CytoscapeComponent.normalizeElements({
-              nodes: response
-                .data!.nodes.map((node) => ({
-                  data: {
-                    ...node,
-                    classes: "production dot",
-                    label: node.label
-                      ?.replace(" (prod)", "")
-                      .replace(" (dev)", "")
-                      .replace("-prod", ""),
-                  },
-                }))
-                .filter((node) => node.data.type !== "service"),
-              edges: response.data!.edges.map((edge) => ({
-                data: edge,
-              })),
-            });
 
         // dont update react state if the API response is identical to the previous one
         // This avoids unnecessary re-renders

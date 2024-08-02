@@ -26,30 +26,20 @@ const tippyFactory: cytoscapePopper.PopperFactory = (ref, content) => {
   return tip;
 };
 
-interface TooltipContentItem {
-  color: string;
-  name: string;
-}
-
 export const createTooltip = (
   node: cytoscape.NodeSingular,
-  items: TooltipContentItem[],
-): Instance => {
+): Instance | null => {
+  console.log("node: ", node);
+  const versions = node.data("versions");
+  if (!versions || versions.length === 0) {
+    return null;
+  }
   const tip = node.popper({
     content: () => {
       const elem = document.createElement("div");
       // TODO: sanitize
-      elem.innerHTML = items
-        .map(
-          (item) =>
-            `<span class="dot" style="background-color:${item.color}"></span>${item.name}`,
-        )
-        .join("<br/>");
+      elem.innerHTML = `Versions: <ul>${versions.map((v: string) => `<li>${v.toString()}</li>`).join("")}</ul>`;
       elem.classList.add("tooltip");
-      // elem.style.padding = "10p";
-      // elem.style.backgroundColor = "white";
-      // elem.style.borderRadius = "5px";
-      // elem.style.boxShadow = "0 0 10px 0 rgba(0, 0, 0, 0.1)";
       return elem;
     },
   }) as unknown as Instance;

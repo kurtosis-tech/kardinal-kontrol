@@ -13,13 +13,15 @@ type Story = StoryObj<typeof Chip>;
 
 export const Short: Story = {
   args: {
-    icon: <FaStripeS />,
+    icon: FaStripeS,
     children: "Stripe",
+    colorScheme: "purple",
   },
 };
 export const Long: Story = {
   args: {
-    icon: <FaAmazon />,
-    children: "Amazon Relational Database Service",
+    icon: FaAmazon,
+    children: "Amazon RDS",
+    colorScheme: "blue",
   },
 };
