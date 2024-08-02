@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.5](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.4...0.1.5) (2024-08-02)
+
+
+### Features
+
+* first draft of Kontrol plane UI ([#99](https://github.com/kurtosis-tech/kardinal-kontrol/issues/99)) ([98a212b](https://github.com/kurtosis-tech/kardinal-kontrol/commit/98a212bf5de17bdb71adb8a0771c35dd88d5c953))
+* Update topology request to include flows information ([#122](https://github.com/kurtosis-tech/kardinal-kontrol/issues/122)) ([868cf46](https://github.com/kurtosis-tech/kardinal-kontrol/commit/868cf4621317a212e2b4cac8e7a592a179eab2db))
+
+
+### Bug Fixes
+
+* nix run kontrol-service  ([#125](https://github.com/kurtosis-tech/kardinal-kontrol/issues/125)) ([c71f273](https://github.com/kurtosis-tech/kardinal-kontrol/commit/c71f2732a028fd6a512192e549a9fb566c120978))
+
 ## [0.1.4](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.3...0.1.4) (2024-08-02)
 
 
