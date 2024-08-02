@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.2...0.1.3) (2024-08-02)
+
+
+### Bug Fixes
+
+* another fix for releases ([#117](https://github.com/kurtosis-tech/kardinal-kontrol/issues/117)) ([5a88fc4](https://github.com/kurtosis-tech/kardinal-kontrol/commit/5a88fc4c6d4e585c593ab17be02f07ddafc70706))
+
 ## [0.1.2](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.1...0.1.2) (2024-08-02)
 
 
