@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.3...0.1.4) (2024-08-02)
+
+
+### Bug Fixes
+
+* aws login during CI ([#119](https://github.com/kurtosis-tech/kardinal-kontrol/issues/119)) ([d2321b6](https://github.com/kurtosis-tech/kardinal-kontrol/commit/d2321b650e5530f288d491125fd23c6db265d527))
+
 ## [0.1.3](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.2...0.1.3) (2024-08-02)
 
 
