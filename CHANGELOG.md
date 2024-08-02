@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.1.1](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.0...0.1.1) (2024-08-02)
+
+
+### Features
+
+* add generalized cluster topology ([#98](https://github.com/kurtosis-tech/kardinal-kontrol/issues/98)) ([2cb6948](https://github.com/kurtosis-tech/kardinal-kontrol/commit/2cb69489075b7705df4f8a09320af7f80c10691f))
+* add generic topology data structure ([#95](https://github.com/kurtosis-tech/kardinal-kontrol/issues/95)) ([f2953bf](https://github.com/kurtosis-tech/kardinal-kontrol/commit/f2953bf11d68cb51df64e246c983ea791a6ece4d))
+* Add the associated destination rule for the http route subset ([#106](https://github.com/kurtosis-tech/kardinal-kontrol/issues/106)) ([a0d0af6](https://github.com/kurtosis-tech/kardinal-kontrol/commit/a0d0af6faa1e1d245ce2f9aa43ecaef628c41b09))
+* adding instance tag for Kardinal EKS node group ([#105](https://github.com/kurtosis-tech/kardinal-kontrol/issues/105)) ([d5eb6f3](https://github.com/kurtosis-tech/kardinal-kontrol/commit/d5eb6f397fe7903ddc6138b897c0d8cf482fa8bd))
+* create envoy filters and authorization policies for tracing ([#107](https://github.com/kurtosis-tech/kardinal-kontrol/issues/107)) ([a46d82d](https://github.com/kurtosis-tech/kardinal-kontrol/commit/a46d82d79de1926b0928e245c21c7db21cfb6960))
+* do not run CI on draft PRs ([#100](https://github.com/kurtosis-tech/kardinal-kontrol/issues/100)) ([b10b26b](https://github.com/kurtosis-tech/kardinal-kontrol/commit/b10b26bcd70ceccfbbfb789fcd2a4954692ac3b2))
+* for a stateful non http service duplicate its parent and add the right routing rule ([#113](https://github.com/kurtosis-tech/kardinal-kontrol/issues/113)) ([460e479](https://github.com/kurtosis-tech/kardinal-kontrol/commit/460e4792666e19cdd3e70dfcef73c7bb3c43ca6d))
+* Generic deploy to prod flow ([#101](https://github.com/kurtosis-tech/kardinal-kontrol/issues/101)) ([070da14](https://github.com/kurtosis-tech/kardinal-kontrol/commit/070da14bf058f1142caf62b6680b84d8c44da769))
+* graph styling update for demo flow ([#97](https://github.com/kurtosis-tech/kardinal-kontrol/issues/97)) ([ce66d85](https://github.com/kurtosis-tech/kardinal-kontrol/commit/ce66d85bf48ddecc5a58cf4f4f7a7b92d3fb70c9))
+* improvements to cli ([#112](https://github.com/kurtosis-tech/kardinal-kontrol/issues/112)) ([fcd9353](https://github.com/kurtosis-tech/kardinal-kontrol/commit/fcd9353d53ec66723b26596899574b612f440e84))
+* kontrol plane dashboard components ([#86](https://github.com/kurtosis-tech/kardinal-kontrol/issues/86)) ([fbcde84](https://github.com/kurtosis-tech/kardinal-kontrol/commit/fbcde846fcb3169f2c5f6e7a401ef7835e464831))
+* merge flows ([#110](https://github.com/kurtosis-tech/kardinal-kontrol/issues/110)) ([2adc5dc](https://github.com/kurtosis-tech/kardinal-kontrol/commit/2adc5dc4754814a85d93b888a6ff1bcfd8ba44c2))
+* only publish and deploy on releases ([#104](https://github.com/kurtosis-tech/kardinal-kontrol/issues/104)) ([e1f418e](https://github.com/kurtosis-tech/kardinal-kontrol/commit/e1f418eef7a4abd8322912a506106da73e56af8a))
+* parallelize CI ([#102](https://github.com/kurtosis-tech/kardinal-kontrol/issues/102)) ([fe0fd27](https://github.com/kurtosis-tech/kardinal-kontrol/commit/fe0fd27c358e8d18d09c4746b42bff9acf9ebd0b))
+
+
+### Bug Fixes
+
+* deploy depends on publish ([#103](https://github.com/kurtosis-tech/kardinal-kontrol/issues/103)) ([7fa0c47](https://github.com/kurtosis-tech/kardinal-kontrol/commit/7fa0c476ebb49db0d508b60faffda4ebb50234c5))
+* release please to release latest deployment changes ([#93](https://github.com/kurtosis-tech/kardinal-kontrol/issues/93)) ([22fe943](https://github.com/kurtosis-tech/kardinal-kontrol/commit/22fe943ad4d7904eedaef77e8742d6c01ce79422))
+* slow down animation speed ([#96](https://github.com/kurtosis-tech/kardinal-kontrol/issues/96)) ([6321418](https://github.com/kurtosis-tech/kardinal-kontrol/commit/63214188f6c9090f6cd61c295707311bbfa248e5))
+
 ## 0.1.0 (2024-07-16)
 
 
