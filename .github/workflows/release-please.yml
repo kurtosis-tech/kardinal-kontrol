@@ -4,6 +4,7 @@ on:
       - main
 
 permissions:
+  id-token: write
   contents: write
   pull-requests: write
 
@@ -15,7 +16,7 @@ jobs:
     # skip releases on forks
     if: github.repository == 'kurtosis-tech/kardinal-kontrol'
     outputs:
-      release_created: ${{ steps.release.outputs.release_created }}    
+      release_created: ${{ steps.release.outputs.release_created }}
     steps:
       - name: Run Release Please
         id: release
@@ -44,7 +45,7 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v7
 
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v1.7.0
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::258623609258:role/kardinal-control-publish-images
           role-session-name: GitHub_to_AWS_via_FederatedOIDC
@@ -74,7 +75,7 @@ jobs:
 
       - name: configure aws credentials
         id: aws-creds
-        uses: aws-actions/configure-aws-credentials@v1.7.0
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::258623609258:role/kardinal-kontrol-deploy-to-cluster
           role-session-name: GitHub_to_AWS_via_FederatedOIDC
