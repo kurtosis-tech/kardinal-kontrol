@@ -75,9 +75,14 @@ jobs:
         with:
           extra_nix_config: |
             extra-platforms = aarch64-linux
+            sandbox = relaxed
 
       - name: Magic cache
         uses: DeterminateSystems/magic-nix-cache-action@v7
+
+      - name: Build ${{ matrix.component }}
+        run: |
+          nix build .#${{ matrix.component }} --option sandbox relaxed
 
       - name: Build ${{ matrix.component }} for ${{ matrix.arch }}
         run: |
