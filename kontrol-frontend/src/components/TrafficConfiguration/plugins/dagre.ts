@@ -2,19 +2,13 @@ import dagre from "cytoscape-dagre";
 
 export const dagreLayout = {
   name: "dagre",
-  spacingFactor: 1.6,
+  spacingFactor: 1.3,
   nodeSep: 40,
   nodeDimensionsIncludeLabels: true,
-  // ranker: "network-simplex",
+  // Possible values: 'network-simplex', 'tight-tree' or 'longest-path'
+  ranker: "longest-path",
   rankDir: "LR",
   align: "UL",
-  transform: (_: unknown, pos: cytoscape.Position) => {
-    const roundedPos = {
-      ...pos,
-      y: Math.round(Math.ceil(pos.y / 100)) * 100,
-    };
-    return roundedPos;
-  },
 };
 
 export default dagre;

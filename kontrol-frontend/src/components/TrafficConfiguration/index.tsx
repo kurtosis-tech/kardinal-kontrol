@@ -1,11 +1,10 @@
 import { useRef, useEffect, useState } from "react";
 import { Flex } from "@chakra-ui/react";
-import CytoscapeComponent from "react-cytoscapejs";
 import { useParams } from "react-router-dom";
 import { paths } from "cli-kontrol-api/api/typescript/client/types";
 import createClient from "openapi-fetch";
 import CytoscapeGraph from "./CytoscapeGraph";
-import { enrichEdgeData, enrichNodeData } from "./utils";
+import { normalizeData } from "./utils";
 import { ElementDefinition } from "cytoscape";
 
 const pollingIntervalSeconds = 1;
@@ -28,10 +27,12 @@ const TrafficConfiguration = () => {
         const response = await client.GET("/tenant/{uuid}/topology", {
           params: { path: { uuid } },
         });
-        const newElems = CytoscapeComponent.normalizeElements({
-          nodes: response.data!.nodes.map(enrichNodeData),
-          edges: response.data!.edges.map(enrichEdgeData),
-        });
+        if (response.data == null) {
+          throw new Error(
+            "Topology response data is null, check network connection or API status",
+          );
+        }
+        const newElems = normalizeData(response.data);
 
         // dont update react state if the API response is identical to the previous one
         // This avoids unnecessary re-renders

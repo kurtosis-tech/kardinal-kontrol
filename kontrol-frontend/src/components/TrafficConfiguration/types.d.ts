@@ -1,8 +1,13 @@
-export interface ExtendedNodeDefinition extends cytoscape.NodeDataDefinition {
-  versions: string[];
+export interface ExtendedNodeData extends cytoscape.NodeDataDefinition {
+  versions?: string[];
 }
 
 export interface GraphData {
-  nodes: ExtendedNodeDefinition[];
+  nodes: ExtendedNodeData[];
   edges: cytoscape.EdgeDataDefinition[];
+}
+
+export interface ExtendedNode {
+  data: ExtendedNodeData;
+  classes: string;
 }

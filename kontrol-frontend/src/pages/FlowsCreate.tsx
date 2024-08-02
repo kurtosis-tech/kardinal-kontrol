@@ -4,7 +4,7 @@ import PageTitle from "@/components/PageTitle";
 import Footer from "@/components/Footer";
 import Input from "@/components/Input";
 import { Stack, Flex } from "@chakra-ui/react";
-import { devFlow } from "@/components/TrafficConfiguration/mocks";
+import { mockResponse } from "@/components/TrafficConfiguration/mocks";
 import CytoscapeGraph from "@/components/TrafficConfiguration/CytoscapeGraph";
 import StatefulService from "@/components/StatefulService";
 
@@ -15,7 +15,7 @@ const Page = () => {
         Update traffic control and data isolation details below
       </PageTitle>
       <Section title="Preview">
-        <CytoscapeGraph elements={devFlow} />
+        <CytoscapeGraph elements={mockResponse} />
       </Section>
       <Section title="Flow configuration">
         <Stack w={"100%"} gap={8} as={"fieldset"}>

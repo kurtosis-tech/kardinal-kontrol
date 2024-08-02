@@ -1,6 +1,6 @@
 export const trafficNodeSelector = "node[id^='traffic:']";
 
-import type { ExtendedNodeDefinition } from "./types";
+import type { ExtendedNodeData } from "./types";
 
 type Color = "blue" | "red" | "purple" | "orange" | "gray" | "green";
 
@@ -29,9 +29,7 @@ const stylesheet = [
       shape: "round-rectangle",
       "corner-radius": 12,
       content: "data(label)",
-      // "background-color": "#fff",
-      // "z-index": 2, // change?
-      "background-image": (elem: ExtendedNodeDefinition) => {
+      "background-image": (elem: ExtendedNodeData) => {
         const versions = elem.data("versions");
         return svgDot(
           versions.length.toString(),
@@ -86,18 +84,8 @@ const stylesheet = [
       "target-endpoint": "outside-to-node",
       "taxi-direction": "rightward",
       "taxi-turn": "70px",
+      "taxi-radius": "48px",
       "target-arrow-shape": "triangle",
-    },
-  },
-  {
-    selector: ".dev2",
-    css: {
-      "background-color": "#FCF7FF",
-      "border-color": "#DFAEF9",
-      color: "#9053C6",
-      "line-color": "#DFAEF9",
-      "target-arrow-color": "#DFAEF9",
-      "z-index": 3,
     },
   },
   {
@@ -108,10 +96,29 @@ const stylesheet = [
       "line-color": "#FFB79F",
       "target-arrow-color": "#FFB79F",
       color: "#ef5b2b",
+    },
+  },
+  {
+    selector: "edge.dev",
+    css: {
+      width: 3,
+      "z-index": 10,
+    },
+  },
+  {
+    selector: ".ghost",
+    css: {
       ghost: "yes",
       "ghost-offset-y": 12,
       "ghost-offset-x": 12,
-      "ghost-opacity": 0.5,
+      "ghost-opacity": 0.4,
+    },
+  },
+  {
+    selector: "edge.ghost",
+    css: {
+      "ghost-offset-x": 0,
+      width: 4,
     },
   },
   {

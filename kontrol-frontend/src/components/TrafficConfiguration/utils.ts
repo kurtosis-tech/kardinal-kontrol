@@ -1,8 +1,9 @@
-import { ExtendedNodeDefinition } from "./types";
+import CytoscapeComponent from "react-cytoscapejs";
+import type { ExtendedNode, GraphData } from "./types";
 
-export const enrichNodeData = (
+export const extendNodeData = (
   node: cytoscape.NodeDataDefinition,
-): { data: ExtendedNodeDefinition; classes: string } => {
+): ExtendedNode => {
   const versions = node.versions ?? ["UNKNOWN"];
   return {
     data: {
@@ -13,11 +14,32 @@ export const enrichNodeData = (
   };
 };
 
-export const enrichEdgeData = (
-  edge: cytoscape.EdgeDataDefinition,
-): { data: cytoscape.EdgeDataDefinition; classes: string } => {
-  return {
-    data: edge,
-    classes: "prod",
+export const extendEdgeData =
+  (nodes: ExtendedNode[]) =>
+  (
+    edge: cytoscape.EdgeDataDefinition,
+  ): { data: cytoscape.EdgeDataDefinition; classes: string } => {
+    const source = nodes.find((n) => n.data.id === edge.source);
+    const sourceIsDev = source?.classes.includes("dev");
+    const target = nodes.find((n) => n.data.id === edge.target);
+    const targetIsDev = target?.classes.includes("dev");
+    return {
+      data: edge,
+      classes: [
+        targetIsDev ? "dev" : "prod",
+        sourceIsDev && targetIsDev ? "ghost" : "",
+      ].join(" "),
+    };
   };
+
+export const normalizeData = (data: GraphData) => {
+  const nodes = data.nodes.map(extendNodeData);
+  const edges = data.edges.map(extendEdgeData(nodes));
+  return CytoscapeComponent.normalizeElements({
+    nodes,
+    // sort edges so that dev edges are rendered on top of prod edges
+    edges: edges.sort((a: { classes: string }) =>
+      a.classes.includes("dev") ? -1 : 1,
+    ),
+  });
 };

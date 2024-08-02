@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 
 import CytoscapeGraph from "./CytoscapeGraph";
-import { noDevFlows, devFlow, devFlow2 } from "./mocks";
+import { mockResponse } from "./mocks";
 type PropsAndCustomArgs = React.ComponentProps<typeof CytoscapeGraph> & {
   graphSize?: string;
 };
@@ -13,20 +13,8 @@ const meta: Meta<PropsAndCustomArgs> = {
 export default meta;
 type Story = StoryObj<typeof CytoscapeGraph>;
 
-export const NoDevFlows: Story = {
+export const OBDemo: Story = {
   args: {
-    elements: noDevFlows,
-  },
-};
-
-export const DevFlow: Story = {
-  args: {
-    elements: devFlow,
-  },
-};
-
-export const DevFlow2: Story = {
-  args: {
-    elements: devFlow2,
+    elements: mockResponse,
   },
 };
