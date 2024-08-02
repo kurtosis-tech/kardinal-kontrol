@@ -123,8 +123,11 @@ func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenant
 	logrus.Infof("getting topology for tenant '%s'", request.Uuid)
 
 	if clusterTopology, found := sv.baseClusterTopologyByTenant[request.Uuid]; found {
-		topo := topology.ClusterTopology(&clusterTopology)
-		return api.GetTenantUuidTopology200JSONResponse(*topo), nil
+		if allFlows, found := sv.clusterTopologyByTenantFlow[request.Uuid]; found {
+			allFlowsTopology := lo.Values(allFlows)
+			topo := topology.ClusterTopology(&clusterTopology, &allFlowsTopology)
+			return api.GetTenantUuidTopology200JSONResponse(*topo), nil
+		}
 	}
 
 	resourceType := "tenant"
