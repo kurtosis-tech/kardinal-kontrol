@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.6](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.5...0.1.6) (2024-08-02)
+
+
+### Bug Fixes
+
+* nix sandbox during release ([#126](https://github.com/kurtosis-tech/kardinal-kontrol/issues/126)) ([8d3be57](https://github.com/kurtosis-tech/kardinal-kontrol/commit/8d3be57699005c98b44efd63d86f28026b7a5e9f))
+
 ## [0.1.5](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.4...0.1.5) (2024-08-02)
 
 
