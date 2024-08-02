@@ -57,9 +57,6 @@ func CreateDevFlow(pluginRunner plugins.PluginRunner, flowID string, serviceID s
 		return &copiedIngress
 	})
 
-	// use deep copy the enforce immutability
-	// deepCopy(baseTopology, topology)
-
 	targetService, pos, found := FindServiceByID(topology, serviceID)
 	if !found {
 		return nil, fmt.Errorf("service with UUID %s not found", serviceID)
@@ -113,10 +110,51 @@ func CreateDevFlow(pluginRunner plugins.PluginRunner, flowID string, serviceID s
 
 			topology.Services[statefulServiceIx] = modifiedService
 			updateDependeciesInplace(topology.ServiceDependecies, statefulService, modifiedService)
+
+			// create versioned parents for non http stateful services
+			// TODO - this should be done for all non http services and not just the stateful ones
+			// 	every child should be copied; immediate parent duplicated
+			// 	if children of non http services support http then our routing will have to be modified
+			//  we should treat those http services as non http; a hack could be to remove the appProtocol HTTP marking
+			if !modifiedService.IsHTTP() {
+				logrus.Infof("Stateful service %s is non http; its parents shall be duplicated", modifiedService.ServiceID)
+				parents := findImmediateParents(topology, statefulService)
+				for _, parent := range parents {
+					logrus.Infof("Duplicating parent %s", parent.ServiceID)
+					duplicateAndUpdateService(&topology, parent, flowID)
+				}
+			}
 		}
 	}
 
 	return &topology, nil
+}
+
+// Helper function to find immediate parents of a service
+func findImmediateParents(topology resolved.ClusterTopology, service *resolved.Service) []*resolved.Service {
+	parents := make([]*resolved.Service, 0)
+	for _, dependency := range topology.ServiceDependecies {
+		if dependency.DependsOnService.ServiceID == service.ServiceID {
+			parents = append(parents, dependency.Service)
+		}
+	}
+	return parents
+}
+
+// Helper function to duplicate a service and update the topology
+func duplicateAndUpdateService(topology *resolved.ClusterTopology, service *resolved.Service, flowID string) {
+	// Don't duplicate if its already duplicated
+	for _, existingService := range topology.Services {
+		if existingService.ServiceID == service.ServiceID && existingService.Version == flowID {
+			logrus.Infof("Skipped duplicating parent %s as it already exists for current flowID")
+			return
+		}
+	}
+
+	duplicatedService := DeepCopyService(service)
+	duplicatedService.Version = flowID
+	topology.Services = append(topology.Services, duplicatedService)
+	updateDependeciesInplace(topology.ServiceDependecies, service, duplicatedService)
 }
 
 func topologyToGraph(topology resolved.ClusterTopology) graph.Graph[*resolved.Service, *resolved.Service] {

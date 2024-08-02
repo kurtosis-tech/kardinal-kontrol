@@ -132,3 +132,11 @@ func (ingress *Ingress) GetSelectorAppName() *string {
 
 	return nil
 }
+
+func (service *Service) IsHTTP() bool {
+	if len(service.ServiceSpec.Ports) == 0 {
+		return false
+	}
+	servicePort := service.ServiceSpec.Ports[0]
+	return servicePort.AppProtocol != nil && *servicePort.AppProtocol == "HTTP"
+}

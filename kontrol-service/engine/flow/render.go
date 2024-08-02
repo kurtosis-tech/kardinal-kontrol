@@ -99,12 +99,15 @@ func getTCPRoute(service *resolved.Service, servicePort *v1.ServicePort) *v1alph
 	return &v1alpha3.TCPRoute{
 		Match: []*v1alpha3.L4MatchAttributes{{
 			Port: uint32(servicePort.Port),
+			SourceLabels: map[string]string{
+				"version": service.Version,
+			},
 		}},
-		// TODO(edgar) - do we need the version here?
 		Route: []*v1alpha3.RouteDestination{
 			{
 				Destination: &v1alpha3.Destination{
-					Host: service.ServiceID,
+					Host:   service.ServiceID,
+					Subset: service.Version,
 					Port: &v1alpha3.PortSelector{
 						Number: uint32(servicePort.Port),
 					},
@@ -338,7 +341,7 @@ func getGateway(ingresses []*resolved.Ingress, namespace string) *istioclient.Ga
 }
 
 func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.EnvoyFilter {
-	if !isHttp(service) {
+	if !service.IsHTTP() {
 		return []istioclient.EnvoyFilter{}
 	}
 	inboundFilter := &istioclient.EnvoyFilter{
@@ -453,7 +456,7 @@ func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.
 // getAuthorizationPolicy returns an authorization policy that denies requests with the missing header
 // this is not really needed as we have an inbound rule
 func getAuthorizationPolicy(service *resolved.Service, namespace string) *securityv1beta1.AuthorizationPolicy {
-	if !isHttp(service) {
+	if !service.IsHTTP() {
 		return nil
 	}
 	return &securityv1beta1.AuthorizationPolicy{
@@ -638,10 +641,4 @@ function envoy_on_request(request_handle)
   request_handle:logInfo("Final headers - Trace ID: " .. trace_id .. ", Destination: " .. destination)
 end
 `, setRouteCalls.String())
-}
-
-// isHttp - TODO support multiple ports
-func isHttp(service *resolved.Service) bool {
-	servicePort := &service.ServiceSpec.Ports[0]
-	return servicePort.AppProtocol != nil && *servicePort.AppProtocol == "HTTP"
 }
