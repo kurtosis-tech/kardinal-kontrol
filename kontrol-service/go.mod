@@ -6,7 +6,7 @@ toolchain go1.22.3
 
 require (
 	github.com/dominikbraun/graph v0.23.0
-	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240801145501-ef41abb2a820
+	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240802113628-eb2e0c4d81bf
 	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240729141447-216e60670e4d
 	github.com/kurtosis-tech/stacktrace v0.0.0-20211028211901-1c67a77b5409
 	github.com/labstack/echo/v4 v4.12.0

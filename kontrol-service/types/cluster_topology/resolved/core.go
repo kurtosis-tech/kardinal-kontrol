@@ -1,6 +1,9 @@
 package resolved
 
 import (
+	"fmt"
+	"regexp"
+
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
@@ -89,6 +92,36 @@ func (ingress *Ingress) GetHost() *string {
 	}
 
 	return nil
+}
+
+func (clusterTopology *ClusterTopology) GetFlowHostMapping() map[string][]string {
+	result := make(map[string][]string)
+
+	if clusterTopology != nil && clusterTopology.Ingress != nil {
+		for _, ing := range clusterTopology.Ingress {
+			for key, value := range ing.GetFlowHostMapping() {
+				result[key] = append(result[key], value)
+			}
+		}
+	}
+	return result
+}
+
+func (ingress *Ingress) GetFlowHostMapping() map[string]string {
+	mapping := make(map[string]string)
+	if len(ingress.IngressRules) > 0 {
+		baseHost := &ingress.IngressRules[0].Host
+		for _, flowID := range ingress.ActiveFlowIDs {
+			mapping[flowID] = ReplaceOrAddSubdomain(*baseHost, flowID)
+		}
+	}
+
+	return mapping
+}
+
+func ReplaceOrAddSubdomain(url string, newSubdomain string) string {
+	re := regexp.MustCompile(`^(https?://)?(([^./]+\.)?([^./]+\.[^./]+))(.*)$`)
+	return re.ReplaceAllString(url, fmt.Sprintf("${1}%s.${4}${5}", newSubdomain))
 }
 
 func (ingress *Ingress) GetSelectorAppName() *string {

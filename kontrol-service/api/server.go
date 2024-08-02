@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"os"
 
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
@@ -50,15 +51,21 @@ func (sv *Server) GetHealth(_ context.Context, _ api.GetHealthRequestObject) (ap
 }
 
 func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUuidFlowsRequestObject) (api.GetTenantUuidFlowsResponseObject, error) {
-	if _, found := sv.baseClusterTopologyByTenant[request.Uuid]; found {
+	if clusterTopology, found := sv.baseClusterTopologyByTenant[request.Uuid]; found {
 		if allFlows, found := sv.clusterTopologyByTenantFlow[request.Uuid]; found {
-			flows := lo.Map(lo.Keys(allFlows), func(value string, _ int) apitypes.DevFlow { return apitypes.DevFlow{&value} })
-			return api.GetTenantUuidFlows200JSONResponse(flows), nil
+			finalTopology := flow.MergeClusterTopologies(clusterTopology, lo.Values(allFlows))
+			flowHostMapping := finalTopology.GetFlowHostMapping()
+			resp := lo.MapToSlice(flowHostMapping, func(flowId string, flowUrls []string) apitypes.Flow {
+				return apitypes.Flow{FlowId: flowId, FlowUrls: flowUrls}
+			})
+			return api.GetTenantUuidFlows200JSONResponse(resp), nil
+
 		}
 	}
+
 	resourceType := "tenant"
-	missing := api.NotFoundJSONResponse{ResourceType: &resourceType, Id: &request.Uuid}
-	return api.GetTenantUuidFlows404JSONResponse{missing}, nil
+	missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
+	return api.GetTenantUuidFlows404JSONResponse{NotFoundJSONResponse: missing}, nil
 }
 
 func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenantUuidDeployRequestObject) (api.PostTenantUuidDeployResponseObject, error) {
@@ -66,42 +73,49 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 	serviceConfigs := *request.Body.ServiceConfigs
 
 	flowId := "prod"
-	err := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, flowId)
+	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, flowId)
 	if err != nil {
 		return nil, err
 	}
-	resp := apitypes.DevFlow{DevFlowId: &flowId}
+
+	resp := apitypes.Flow{FlowId: flowId, FlowUrls: urls}
 	return api.PostTenantUuidDeploy200JSONResponse(resp), nil
 }
 
-func (sv *Server) PostTenantUuidFlowFlowIdDelete(_ context.Context, request api.PostTenantUuidFlowFlowIdDeleteRequestObject) (api.PostTenantUuidFlowFlowIdDeleteResponseObject, error) {
+func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.DeleteTenantUuidFlowFlowIdRequestObject) (api.DeleteTenantUuidFlowFlowIdResponseObject, error) {
 	logrus.Infof("deleting dev flow for tenant '%s'", request.Uuid)
 	if allFlows, found := sv.clusterTopologyByTenantFlow[request.Uuid]; found {
 		if _, found := allFlows[request.FlowId]; found {
 			logrus.Infof("deleting flow %s", request.FlowId)
 			delete(allFlows, request.FlowId)
-			return api.PostTenantUuidFlowFlowIdDelete2xxResponse{StatusCode: 200}, nil
+			return api.DeleteTenantUuidFlowFlowId2xxResponse{StatusCode: 200}, nil
 		}
-		return api.PostTenantUuidFlowFlowIdDelete2xxResponse{StatusCode: 204}, nil
+		return api.DeleteTenantUuidFlowFlowId2xxResponse{StatusCode: 204}, nil
 	}
 	resourceType := "tenant"
-	missing := api.NotFoundJSONResponse{ResourceType: &resourceType, Id: &request.Uuid}
-	return api.PostTenantUuidFlowFlowIdDelete404JSONResponse{missing}, nil
+	missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
+	return api.DeleteTenantUuidFlowFlowId404JSONResponse{NotFoundJSONResponse: missing}, nil
 }
 
 func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTenantUuidFlowCreateRequestObject) (api.PostTenantUuidFlowCreateResponseObject, error) {
-	serviceName := *request.Body.ServiceName
-	imageLocator := *request.Body.ImageLocator
+	if request.Body == nil || len(*request.Body) == 0 {
+		logrus.Errorf("no service config was provided for the new flow")
+		os.Exit(1)
+	}
+
+	serviceUpdate := *request.Body
+
+	// TODO: only one service config is allowed for now
+	serviceName := serviceUpdate[0].ServiceName
+	imageLocator := serviceUpdate[0].ImageLocator
 	logrus.Infof("starting new dev flow for service %v on image %v", serviceName, imageLocator)
 
-	serviceConfigs := *request.Body.ServiceConfigs
-
-	flowId, err := applyProdDevFlow(sv, request.Uuid, serviceConfigs, serviceName, imageLocator)
+	flowId, flowUrls, err := applyProdDevFlow(sv, request.Uuid, serviceName, imageLocator)
 	if err != nil {
 		logrus.Errorf("an error occured while updating dev flow. error was \n: '%v'", err.Error())
 		return nil, err
 	}
-	resp := apitypes.DevFlow{DevFlowId: flowId}
+	resp := apitypes.Flow{FlowId: *flowId, FlowUrls: flowUrls}
 	return api.PostTenantUuidFlowCreate200JSONResponse(resp), nil
 }
 
@@ -114,8 +128,8 @@ func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenant
 	}
 
 	resourceType := "tenant"
-	missing := api.NotFoundJSONResponse{ResourceType: &resourceType, Id: &request.Uuid}
-	return api.GetTenantUuidTopology404JSONResponse{missing}, nil
+	missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
+	return api.GetTenantUuidTopology404JSONResponse{NotFoundJSONResponse: missing}, nil
 }
 
 func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request managerapi.GetTenantUuidClusterResourcesRequestObject) (managerapi.GetTenantUuidClusterResourcesResponseObject, error) {
@@ -134,20 +148,22 @@ func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request manag
 }
 
 // ============================================================================================================
-func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, flowID string) error {
+func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, flowID string) (error, []string) {
 	clusterTopology, err := engine.GenerateProdOnlyCluster(flowID, serviceConfigs)
 	if err != nil {
-		return err
+		return err, []string{}
 	}
 
 	sv.pluginRunnerByTenant[tenantUuidStr] = plugins.PluginRunner{}
 	sv.baseClusterTopologyByTenant[tenantUuidStr] = *clusterTopology
 	sv.clusterTopologyByTenantFlow[tenantUuidStr] = make(map[string]resolved.ClusterTopology)
-	return nil
+	flowHostMapping := clusterTopology.GetFlowHostMapping()
+
+	return nil, flowHostMapping[flowID]
 }
 
 // ============================================================================================================
-func applyProdDevFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, devServiceName string, devImage string) (*string, error) {
+func applyProdDevFlow(sv *Server, tenantUuidStr string, devServiceName string, devImage string) (*string, []string, error) {
 	randId := GetRandFlowID()
 	flowID := fmt.Sprintf("dev-%s", randId)
 
@@ -155,7 +171,7 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitype
 
 	prodClusterTopology, found := sv.baseClusterTopologyByTenant[tenantUuidStr]
 	if !found {
-		return nil, fmt.Errorf("no base cluster topology found for tenant %s, did you deploy the cluster?", tenantUuidStr)
+		return nil, []string{}, fmt.Errorf("no base cluster topology found for tenant %s, did you deploy the cluster?", tenantUuidStr)
 	}
 
 	pluginRunner, found := sv.pluginRunnerByTenant[tenantUuidStr]
@@ -166,11 +182,13 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitype
 	logrus.Debugf("calculating cluster topology overlay for tenant %s on flowID %s", tenantUuidStr, flowID)
 	devClusterTopology, err := engine.GenerateProdDevCluster(&prodClusterTopology, pluginRunner, flowID, devServiceName, devImage)
 	if err != nil {
-		return nil, err
+		return nil, []string{}, err
 	}
 
 	sv.clusterTopologyByTenantFlow[tenantUuidStr][flowID] = *devClusterTopology
-	return &flowID, nil
+	flowHostMapping := devClusterTopology.GetFlowHostMapping()
+
+	return &flowID, flowHostMapping[flowID], nil
 }
 
 func newManagerAPIClusterResources(clusterResources types.ClusterResources) managerapitypes.ClusterResources {

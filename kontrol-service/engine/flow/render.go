@@ -49,7 +49,7 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 				gateway = &ingressService.IngressID
 				extHost = ingressService.GetHost()
 				// TODO: either update getEnvoyFilters or merge maps in case there is more than one ingress
-				versionsAgainstExtHost = lo.SliceToMap(allActiveFlows, func(item string) (string, string) { return item, ReplaceOrAddSubdomain(*extHost, item) })
+				versionsAgainstExtHost = lo.SliceToMap(allActiveFlows, func(item string) (string, string) { return item, resolved.ReplaceOrAddSubdomain(*extHost, item) })
 
 			}
 			virtualService, destinationRule := getVirtualService(serviceID, services, namespace, gateway, extHost)
@@ -165,7 +165,7 @@ func getVirtualService(serviceID string, services []*resolved.Service, namespace
 		servicePort := &service.ServiceSpec.Ports[0]
 		var flowHost *string
 		if extHost != nil {
-			flowHostTemp := ReplaceOrAddSubdomain(*extHost, service.Version)
+			flowHostTemp := resolved.ReplaceOrAddSubdomain(*extHost, service.Version)
 			flowHost = &flowHostTemp
 			extHosts = append(extHosts, *flowHost)
 		}
@@ -298,7 +298,7 @@ func getGateway(ingresses []*resolved.Ingress, namespace string) *istioclient.Ga
 	for _, ingress := range ingresses {
 		ingressHost := ingress.GetHost()
 		if ingressHost != nil {
-			allFlowHosts := lo.Map(ingress.ActiveFlowIDs, func(flowId string, _ int) string { return ReplaceOrAddSubdomain(*ingressHost, flowId) })
+			allFlowHosts := lo.Map(ingress.ActiveFlowIDs, func(flowId string, _ int) string { return resolved.ReplaceOrAddSubdomain(*ingressHost, flowId) })
 			extHosts = append(extHosts, allFlowHosts...)
 		}
 	}
