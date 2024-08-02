@@ -43,6 +43,10 @@ jobs:
 
       - name: Magic cache
         uses: DeterminateSystems/magic-nix-cache-action@v7
+        # relax sandbox due impure kontrol-service tests during build
+        with:
+          extra_nix_config: |
+            sandbox = relaxed
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

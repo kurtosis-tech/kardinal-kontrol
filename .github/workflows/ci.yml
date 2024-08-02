@@ -73,6 +73,7 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v27
         with:
+          # relax sandbox due impure kontrol-service tests during build
           extra_nix_config: |
             extra-platforms = aarch64-linux
             sandbox = relaxed
@@ -82,7 +83,7 @@ jobs:
 
       - name: Build ${{ matrix.component }}
         run: |
-          nix build .#${{ matrix.component }} --option sandbox relaxed
+          nix build .#${{ matrix.component }}
 
       - name: Build ${{ matrix.component }} for ${{ matrix.arch }}
         run: |
