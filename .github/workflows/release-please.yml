@@ -15,6 +15,9 @@ jobs:
     runs-on: ubuntu-latest
     # skip releases on forks
     if: github.repository == 'kurtosis-tech/kardinal-kontrol'
+    outputs:
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      release_created: ${{ steps.release.outputs.release_created }}
     steps:
       - name: Run Release Please
         uses: googleapis/release-please-action@v3
