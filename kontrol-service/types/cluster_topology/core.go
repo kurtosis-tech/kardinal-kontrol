@@ -6,9 +6,9 @@ import (
 )
 
 type ClusterTopology struct {
-	Ingress            Ingress
-	Services           []Service
-	ServiceDependecies []ServiceDependency
+	Ingress             Ingress
+	Services            []Service
+	ServiceDependencies []ServiceDependency
 }
 
 type Service struct {

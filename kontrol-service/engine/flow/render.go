@@ -33,7 +33,7 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 	servicesAgainstVersions := map[string][]string{}
 	serviceList := []v1.Service{}
 
-	allActiveFlows := lo.FlatMap(clusterTopology.Ingress, func(item *resolved.Ingress, _ int) []string { return item.ActiveFlowIDs })
+	allActiveFlows := lo.FlatMap(clusterTopology.Ingresses, func(item *resolved.Ingress, _ int) []string { return item.ActiveFlowIDs })
 	var versionsAgainstExtHost map[string]string
 
 	groupedServices := lo.GroupBy(clusterTopology.Services, func(item *resolved.Service) string { return item.ServiceID })
@@ -95,7 +95,7 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 			return *getDeployment(service, namespace), true
 		}),
 
-		Gateway: *getGateway(clusterTopology.Ingress, namespace),
+		Gateway: *getGateway(clusterTopology.Ingresses, namespace),
 
 		VirtualServices: virtualServices,
 

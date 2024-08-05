@@ -8,20 +8,20 @@ import (
 
 func MergeClusterTopologies(baseTopology resolved.ClusterTopology, clusterTopologies []resolved.ClusterTopology) *resolved.ClusterTopology {
 	mergedTopology := &resolved.ClusterTopology{
-		FlowID:             "all",
-		Services:           deepCopySlice(baseTopology.Services),
-		ServiceDependecies: deepCopySlice(baseTopology.ServiceDependecies),
-		Ingress:            deepCopySlice(baseTopology.Ingress),
+		FlowID:              "all",
+		Services:            deepCopySlice(baseTopology.Services),
+		ServiceDependencies: deepCopySlice(baseTopology.ServiceDependencies),
+		Ingresses:           deepCopySlice(baseTopology.Ingresses),
 	}
 	for _, topology := range clusterTopologies {
 		mergedTopology.Services = append(mergedTopology.Services, topology.Services...)
-		mergedTopology.ServiceDependecies = append(mergedTopology.ServiceDependecies, topology.ServiceDependecies...)
-		mergedTopology.Ingress = append(mergedTopology.Ingress, topology.Ingress...)
+		mergedTopology.ServiceDependencies = append(mergedTopology.ServiceDependencies, topology.ServiceDependencies...)
+		mergedTopology.Ingresses = append(mergedTopology.Ingresses, topology.Ingresses...)
 	}
 
 	mergedTopology.Services = lo.Uniq(mergedTopology.Services)
-	mergedTopology.ServiceDependecies = lo.Uniq(mergedTopology.ServiceDependecies)
-	mergedTopology.Ingress = foldAllIngress(mergedTopology.Ingress)
+	mergedTopology.ServiceDependencies = lo.Uniq(mergedTopology.ServiceDependencies)
+	mergedTopology.Ingresses = foldAllIngress(mergedTopology.Ingresses)
 
 	// fmt.Printf("topology: %s\n", SPrintJSONClusterTopology(mergedTopology))
 	return mergedTopology

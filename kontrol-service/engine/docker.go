@@ -31,9 +31,9 @@ func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceCon
 }
 
 func GenerateProdDevCluster(baseTopology *resolved.ClusterTopology, pluginRunner *plugins.PluginRunner, flowID string, devServiceName string, devImage string) (*resolved.ClusterTopology, error) {
-	devService, _, found := flow.FindServiceByID(*baseTopology, devServiceName)
-	if !found {
-		return nil, stacktrace.NewError("Service with UUID %s not found", devServiceName)
+	devService, err := baseTopology.GetService(devServiceName)
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "Service with UUID %s not found", devServiceName)
 	}
 	if devService.DeploymentSpec == nil {
 		return nil, stacktrace.NewError("Service with UUID %s has no DeploymentSpec", devServiceName)
@@ -150,7 +150,7 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 	}
 
 	clusterTopology.Services = clusterTopologyServices
-	clusterTopology.Ingress = clusterTopologyIngress
+	clusterTopology.Ingresses = clusterTopologyIngress
 
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
@@ -189,13 +189,13 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 		}
 	}
 
-	clusterTopology.ServiceDependecies = clusterTopologyServiceDependencies
+	clusterTopology.ServiceDependencies = clusterTopologyServiceDependencies
 
 	return &clusterTopology, nil
 }
 
 func isServiceIngress(clusterTopology *resolved.ClusterTopology, service v1.Service) bool {
-	return lo.SomeBy(clusterTopology.Ingress, func(item *resolved.Ingress) bool {
+	return lo.SomeBy(clusterTopology.Ingresses, func(item *resolved.Ingress) bool {
 		return item.IngressID == service.GetObjectMeta().GetName()
 	})
 }

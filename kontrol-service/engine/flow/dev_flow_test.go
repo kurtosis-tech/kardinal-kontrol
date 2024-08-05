@@ -287,7 +287,7 @@ func clusterTopologyExample() resolved.ClusterTopology {
 
 	// Create cluster topology
 	clusterTopology := resolved.ClusterTopology{
-		Ingress: []*resolved.Ingress{&ingress},
+		Ingresses: []*resolved.Ingress{&ingress},
 		Services: []*resolved.Service{
 			&frontendService,
 			&cartService,
@@ -298,7 +298,7 @@ func clusterTopologyExample() resolved.ClusterTopology {
 			&recommendationService,
 			&redisService,
 		},
-		ServiceDependecies: serviceDependencies,
+		ServiceDependencies: serviceDependencies,
 	}
 
 	// Use the clusterTopology as needed
@@ -338,8 +338,8 @@ func assertStatefulServices(t *testing.T, originalCluster *resolved.ClusterTopol
 func TestTopologyToGraph(t *testing.T) {
 	cluster := clusterTopologyExample()
 	g := topologyToGraph(cluster)
-	targetService, _, found := FindServiceByID(cluster, "checkoutservice")
-	require.Equal(t, found, true)
+	targetService, err := cluster.GetService("checkoutservice")
+	require.Nil(t, err)
 
 	resultGraph := findAllDownstreamStatefulPaths(targetService, g, cluster)
 	fmt.Println("Paths:")
@@ -418,9 +418,9 @@ func TestDevFlowImmutability(t *testing.T) {
 	assertStateLessServices(t, &cluster, devCluster, statelessServices)
 
 	require.Equal(t, len(cluster.Services), len(devCluster.Services))
-	require.Equal(t, len(cluster.ServiceDependecies), len(devCluster.ServiceDependecies))
+	require.Equal(t, len(cluster.ServiceDependencies), len(devCluster.ServiceDependencies))
 
-	for _, deps := range devCluster.ServiceDependecies {
+	for _, deps := range devCluster.ServiceDependencies {
 		require.Equal(t, true, lo.Contains(devCluster.Services, deps.Service))
 		require.Equal(t, true, lo.Contains(devCluster.Services, deps.DependsOnService))
 	}
@@ -436,7 +436,7 @@ func TestFlowMerging(t *testing.T) {
 	devCluster, err := CreateDevFlow(pluginRunner, "dev-flow-1", "checkoutservice", *checkoutservice.DeploymentSpec, cluster)
 	require.NoError(t, err)
 	require.Equal(t, len(cluster.Services), len(devCluster.Services))
-	require.Equal(t, len(cluster.ServiceDependecies), len(devCluster.ServiceDependecies))
+	require.Equal(t, len(cluster.ServiceDependencies), len(devCluster.ServiceDependencies))
 
 	mergedTopology := MergeClusterTopologies(cluster, []resolved.ClusterTopology{*devCluster})
 
@@ -449,5 +449,5 @@ func TestFlowMerging(t *testing.T) {
 	require.Equal(t, len(cluster.Services)+len(extraModifiedServices), len(mergedTopology.Services))
 
 	nunExtraDeps := 7
-	require.Equal(t, len(cluster.ServiceDependecies)+nunExtraDeps, len(mergedTopology.ServiceDependecies))
+	require.Equal(t, len(cluster.ServiceDependencies)+nunExtraDeps, len(mergedTopology.ServiceDependencies))
 }

@@ -14,41 +14,14 @@ import (
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
 )
 
-func FindServiceByID(topology resolved.ClusterTopology, serviceID string) (*resolved.Service, int, bool) {
-	var targetService *resolved.Service
-	found := false
-	pos := -1
-	for ix, service := range topology.Services {
-		if service.ServiceID == serviceID {
-			targetService = service
-			found = true
-			pos = ix
-			break
-		}
-	}
-	return targetService, pos, found
-}
-
-func updateDependenciesInplace(serviceDependencies []resolved.ServiceDependency, targetService *resolved.Service, modifiedService *resolved.Service) {
-	for ix, dependency := range serviceDependencies {
-		if dependency.Service == targetService {
-			dependency.Service = modifiedService
-		}
-		if dependency.DependsOnService == targetService {
-			dependency.DependsOnService = modifiedService
-		}
-		serviceDependencies[ix] = dependency
-	}
-}
-
 func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID string, deploymentSpec appsv1.DeploymentSpec, baseTopology resolved.ClusterTopology) (*resolved.ClusterTopology, error) {
 	// shallow copy the base topology
 	topology := baseTopology
 
 	// duplicate slices
 	topology.Services = deepCopySlice(baseTopology.Services)
-	topology.ServiceDependecies = deepCopySlice(baseTopology.ServiceDependecies)
-	topology.Ingress = lo.Map(baseTopology.Ingress, func(item *resolved.Ingress, _ int) *resolved.Ingress {
+	topology.ServiceDependencies = deepCopySlice(baseTopology.ServiceDependencies)
+	topology.Ingresses = lo.Map(baseTopology.Ingresses, func(item *resolved.Ingress, _ int) *resolved.Ingress {
 		copiedIngress := resolved.Ingress{
 			ActiveFlowIDs: []string{flowID},
 			IngressID:     item.IngressID,
@@ -58,9 +31,9 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID 
 		return &copiedIngress
 	})
 
-	targetService, pos, found := FindServiceByID(topology, serviceID)
-	if !found {
-		return nil, fmt.Errorf("service with UUID %s not found", serviceID)
+	targetService, err := topology.GetService(serviceID)
+	if err != nil {
+		return nil, err
 	}
 	logrus.Infof("calculating new flow for service %s", serviceID)
 
@@ -83,8 +56,8 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID 
 			logrus.Infof("This service contains an external dependency plugin: %v", plugin.Name)
 
 			// find the existing external service and update it in the topology to get a new version
-			externalService, _, ok := FindServiceByID(topology, plugin.ServiceName)
-			if !ok {
+			externalService, err := topology.GetService(plugin.ServiceName)
+			if err != nil {
 				return nil, fmt.Errorf("external service specified by plugin '%v' was not found in base topology.", plugin.ServiceName)
 			}
 
@@ -94,21 +67,23 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID 
 			pluginId := plugins.GetPluginId(flowID, targetService.ServiceID, pluginIdx)
 			spec, _, err := pluginRunner.CreateFlow(plugin.Name, *targetService.ServiceSpec, *resultSpec, pluginId, plugin.Args)
 			if err != nil {
-				return nil, fmt.Errorf("error creating flow for external service '%s': %v", externalService.ServiceID, err)
+				return nil, stacktrace.Propagate(err, "error creating flow for external service '%s'", externalService.ServiceID)
 			}
 			logrus.Infof("External service plugin successfully called.")
 
 			deploymentSpec = spec
-			duplicateAndUpdateService(&topology, externalService, flowID)
+			topology.DuplicateAndUpdateService(externalService, flowID)
 		}
 	}
 
 	modifiedTargetService := DeepCopyService(targetService)
 	modifiedTargetService.DeploymentSpec = &deploymentSpec
 	modifiedTargetService.Version = flowID
-
-	topology.Services[pos] = modifiedTargetService
-	updateDependenciesInplace(topology.ServiceDependecies, targetService, modifiedTargetService)
+	err = topology.UpdateService(targetService.ServiceID, modifiedTargetService)
+	if err != nil {
+		return nil, err
+	}
+	topology.UpdateDependencies(targetService, modifiedTargetService)
 
 	for statefulServiceIx, statefulService := range topology.Services {
 		if lo.Contains(statefulServices, statefulService) {
@@ -142,7 +117,7 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID 
 			modifiedService.DeploymentSpec = resultSpec
 
 			topology.Services[statefulServiceIx] = modifiedService
-			updateDependenciesInplace(topology.ServiceDependecies, statefulService, modifiedService)
+			topology.UpdateDependencies(statefulService, modifiedService)
 
 			// create versioned parents for non http stateful services
 			// TODO - this should be done for all non http services and not just the stateful ones
@@ -151,10 +126,10 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID 
 			//  we should treat those http services as non http; a hack could be to remove the appProtocol HTTP marking
 			if !modifiedService.IsHTTP() {
 				logrus.Infof("Stateful service %s is non http; its parents shall be duplicated", modifiedService.ServiceID)
-				parents := findImmediateParents(topology, statefulService)
+				parents := topology.FindImmediateParents(statefulService)
 				for _, parent := range parents {
 					logrus.Infof("Duplicating parent %s", parent.ServiceID)
-					duplicateAndUpdateService(&topology, parent, flowID)
+					topology.DuplicateAndUpdateService(parent, flowID)
 				}
 			}
 		}
@@ -187,33 +162,6 @@ func DeleteDevFlow(pluginRunner *plugins.PluginRunner, flowId string, service *r
 	return nil
 }
 
-// Helper function to find immediate parents of a service
-func findImmediateParents(topology resolved.ClusterTopology, service *resolved.Service) []*resolved.Service {
-	parents := make([]*resolved.Service, 0)
-	for _, dependency := range topology.ServiceDependecies {
-		if dependency.DependsOnService.ServiceID == service.ServiceID {
-			parents = append(parents, dependency.Service)
-		}
-	}
-	return parents
-}
-
-// Helper function to duplicate a service and update the topology
-func duplicateAndUpdateService(topology *resolved.ClusterTopology, service *resolved.Service, flowID string) {
-	// Don't duplicate if its already duplicated
-	for _, existingService := range topology.Services {
-		if existingService.ServiceID == service.ServiceID && existingService.Version == flowID {
-			logrus.Infof("Skipped duplicating parent %s as it already exists for current flowID", existingService.ServiceID)
-			return
-		}
-	}
-
-	duplicatedService := DeepCopyService(service)
-	duplicatedService.Version = flowID
-	topology.Services = append(topology.Services, duplicatedService)
-	updateDependenciesInplace(topology.ServiceDependecies, service, duplicatedService)
-}
-
 func topologyToGraph(topology resolved.ClusterTopology) graph.Graph[*resolved.Service, *resolved.Service] {
 	serviceHash := func(service *resolved.Service) *resolved.Service {
 		return service
@@ -224,7 +172,7 @@ func topologyToGraph(topology resolved.ClusterTopology) graph.Graph[*resolved.Se
 		graph.AddVertex(service)
 	}
 
-	for _, dependency := range topology.ServiceDependecies {
+	for _, dependency := range topology.ServiceDependencies {
 		graph.AddEdge(dependency.Service, dependency.DependsOnService)
 	}
 

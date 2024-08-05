@@ -38,7 +38,7 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology, flowsClusterTopo
 		}
 	})
 
-	gateways := lo.Map(clusterTopology.Ingress, func(ingress *resolved.Ingress, _ int) apiTypes.Node {
+	gateways := lo.Map(clusterTopology.Ingresses, func(ingress *resolved.Ingress, _ int) apiTypes.Node {
 		gwLabel := ingress.IngressID
 		return apiTypes.Node{
 			Id:    gwLabel,
@@ -57,7 +57,7 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology, flowsClusterTopo
 func getClusterTopologyEdges(clusterTopology *resolved.ClusterTopology) []apiTypes.Edge {
 	edges := []apiTypes.Edge{}
 
-	for _, ingress := range clusterTopology.Ingress {
+	for _, ingress := range clusterTopology.Ingresses {
 		gwLabel := ingress.IngressID
 
 		ingressAppName := ingress.GetSelectorAppName()
@@ -72,7 +72,7 @@ func getClusterTopologyEdges(clusterTopology *resolved.ClusterTopology) []apiTyp
 		}
 	}
 
-	for _, serviceDependency := range clusterTopology.ServiceDependecies {
+	for _, serviceDependency := range clusterTopology.ServiceDependencies {
 		edges = append(edges, apiTypes.Edge{
 			Source: serviceDependency.Service.ServiceID,
 			Target: serviceDependency.DependsOnService.ServiceID,

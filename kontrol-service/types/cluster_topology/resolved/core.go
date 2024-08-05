@@ -5,6 +5,7 @@ import (
 	"regexp"
 
 	"github.com/kurtosis-tech/stacktrace"
+	"github.com/mohae/deepcopy"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -12,10 +13,10 @@ import (
 )
 
 type ClusterTopology struct {
-	FlowID             string              `json:"flowID"`
-	Ingress            []*Ingress          `json:"ingress"`
-	Services           []*Service          `json:"services"`
-	ServiceDependecies []ServiceDependency `json:"serviceDependencies"`
+	FlowID              string              `json:"flowID"`
+	Ingresses           []*Ingress          `json:"ingress"`
+	Services            []*Service          `json:"services"`
+	ServiceDependencies []ServiceDependency `json:"serviceDependencies"`
 }
 
 type Service struct {
@@ -65,8 +66,19 @@ func (clusterTopology *ClusterTopology) GetService(serviceName string) (*Service
 	return nil, stacktrace.NewError("Service %s not found in the list of services", serviceName)
 }
 
+func (clusterTopology *ClusterTopology) UpdateService(serviceName string, modifiedService *Service) error {
+	for idx, service := range clusterTopology.Services {
+		if service.ServiceID == serviceName {
+			clusterTopology.Services[idx] = modifiedService
+			return nil
+		}
+	}
+
+	return stacktrace.NewError("Service %s not found in the list of services", serviceName)
+}
+
 func (clusterTopology *ClusterTopology) IsIngressDestination(service *Service) bool {
-	return lo.SomeBy(clusterTopology.Ingress, func(item *Ingress) bool {
+	return lo.SomeBy(clusterTopology.Ingresses, func(item *Ingress) bool {
 		appName, ok := item.ServiceSpec.Selector["app"]
 		if ok {
 			return appName == service.ServiceID
@@ -77,7 +89,7 @@ func (clusterTopology *ClusterTopology) IsIngressDestination(service *Service) b
 
 func (clusterTopology *ClusterTopology) GetIngressForService(service *Service) (*Ingress, bool) {
 	// TODO: How to force that a service can't have more than one ingress?
-	return lo.Find(clusterTopology.Ingress, func(item *Ingress) bool {
+	return lo.Find(clusterTopology.Ingresses, func(item *Ingress) bool {
 		appName, ok := item.ServiceSpec.Selector["app"]
 		if ok {
 			return appName == service.ServiceID
@@ -97,14 +109,50 @@ func (ingress *Ingress) GetHost() *string {
 func (clusterTopology *ClusterTopology) GetFlowHostMapping() map[string][]string {
 	result := make(map[string][]string)
 
-	if clusterTopology != nil && clusterTopology.Ingress != nil {
-		for _, ing := range clusterTopology.Ingress {
+	if clusterTopology != nil && clusterTopology.Ingresses != nil {
+		for _, ing := range clusterTopology.Ingresses {
 			for key, value := range ing.GetFlowHostMapping() {
 				result[key] = append(result[key], value)
 			}
 		}
 	}
 	return result
+}
+
+func (clusterTopology *ClusterTopology) FindImmediateParents(service *Service) []*Service {
+	parents := make([]*Service, 0)
+	for _, dependency := range clusterTopology.ServiceDependencies {
+		if dependency.DependsOnService.ServiceID == service.ServiceID {
+			parents = append(parents, dependency.Service)
+		}
+	}
+	return parents
+}
+
+func (clusterTopology *ClusterTopology) UpdateDependencies(targetService *Service, modifiedService *Service) {
+	for ix, dependency := range clusterTopology.ServiceDependencies {
+		if dependency.Service == targetService {
+			dependency.Service = modifiedService
+		}
+		if dependency.DependsOnService == targetService {
+			dependency.DependsOnService = modifiedService
+		}
+		clusterTopology.ServiceDependencies[ix] = dependency
+	}
+}
+
+func (clusterTopology *ClusterTopology) DuplicateAndUpdateService(service *Service, version string) {
+	// Don't duplicate if its already duplicated
+	for _, existingService := range clusterTopology.Services {
+		if existingService.ServiceID == service.ServiceID && existingService.Version == version {
+			return
+		}
+	}
+
+	duplicatedService := deepcopy.Copy(service).(*Service)
+	duplicatedService.Version = version
+	clusterTopology.Services = append(clusterTopology.Services, duplicatedService)
+	clusterTopology.UpdateDependencies(service, duplicatedService)
 }
 
 func (ingress *Ingress) GetFlowHostMapping() map[string]string {
