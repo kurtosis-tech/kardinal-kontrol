@@ -40,6 +40,7 @@ func GetServiceConfigs() []apitypes.ServiceConfig {
 					"kardinal.dev.service/stateful": "true",
 					"kardinal.dev.service/plugins": `
 - name: github.com/kardinaldev/redis-db-sidecar-plugin:36ed9a4
+  type: stateful
   args:
     mode: "pass-through"
 `,

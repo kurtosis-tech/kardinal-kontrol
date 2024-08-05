@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/kurtosis-tech/stacktrace"
@@ -29,7 +30,7 @@ func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceCon
 	return clusterTopology, nil
 }
 
-func GenerateProdDevCluster(baseTopology *resolved.ClusterTopology, pluginRunner plugins.PluginRunner, flowID string, devServiceName string, devImage string) (*resolved.ClusterTopology, error) {
+func GenerateProdDevCluster(baseTopology *resolved.ClusterTopology, pluginRunner *plugins.PluginRunner, flowID string, devServiceName string, devImage string) (*resolved.ClusterTopology, error) {
 	devService, _, found := flow.FindServiceByID(*baseTopology, devServiceName)
 	if !found {
 		return nil, stacktrace.NewError("Service with UUID %s not found", devServiceName)
@@ -56,6 +57,8 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 
 	clusterTopologyServices := []*resolved.Service{}
 	clusterTopologyIngress := []*resolved.Ingress{}
+	clusterTopologyServiceDependencies := []resolved.ServiceDependency{}
+
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
 		deployment := serviceConfig.Deployment
@@ -84,6 +87,7 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 		}
 
 		// Service
+		logrus.Infof("Processing service: %v", service.GetObjectMeta().GetName())
 		clusterTopologyService := resolved.Service{
 			ServiceID:      service.GetObjectMeta().GetName(),
 			Version:        version,
@@ -109,7 +113,35 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 			}
 			serviceStatefulPlugins := make([]*resolved.StatefulPlugin, len(statefulPlugins))
 			for index := range statefulPlugins {
-				serviceStatefulPlugins[index] = &statefulPlugins[index]
+				logrus.Infof("Voting App UI Plugin: %v", statefulPlugins[index].Name)
+				// TODO: consider giving external service plugins their own type, instead of using StatefulPlugins
+				// if this is an external service plugin, represent that service as a service in the cluster topology
+				plugin := statefulPlugins[index]
+				if plugin.Type == "external" {
+					logrus.Infof("Adding external service to topology..")
+					serviceName := plugin.ServiceName
+					logrus.Infof("plugin service name: %v", plugin.ServiceName)
+					if serviceName == "" {
+						serviceName = fmt.Sprintf("%v:%v", clusterTopologyService.ServiceID, "external")
+					}
+					externalService := resolved.Service{
+						ServiceID:      serviceName,
+						Version:        version,
+						ServiceSpec:    nil, // leave empty for now
+						DeploymentSpec: nil, // leave empty for now
+					}
+
+					clusterTopologyServices = append(clusterTopologyServices, &externalService)
+
+					// add a dependency between dependent service and the external service
+					externalServiceDependency := resolved.ServiceDependency{
+						Service:          &clusterTopologyService,
+						DependsOnService: &externalService,
+						DependencyPort:   nil,
+					}
+					clusterTopologyServiceDependencies = append(clusterTopologyServiceDependencies, externalServiceDependency)
+				}
+				serviceStatefulPlugins[index] = &plugin
 			}
 			clusterTopologyService.StatefulPlugins = serviceStatefulPlugins
 		}
@@ -120,7 +152,6 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 	clusterTopology.Services = clusterTopologyServices
 	clusterTopology.Ingress = clusterTopologyIngress
 
-	clusterTopologyServiceDependencies := []resolved.ServiceDependency{}
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
 		serviceAnnotations := service.GetObjectMeta().GetAnnotations()

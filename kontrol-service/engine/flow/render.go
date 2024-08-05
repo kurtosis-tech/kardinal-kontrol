@@ -38,20 +38,28 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 
 	groupedServices := lo.GroupBy(clusterTopology.Services, func(item *resolved.Service) string { return item.ServiceID })
 	for serviceID, services := range groupedServices {
+		logrus.Infof("Rendering service with id: '%v'.", serviceID)
 		servicesAgainstVersions[serviceID] = lo.Map(services, func(item *resolved.Service, _ int) string { return item.Version })
 		if len(services) > 0 {
 			// TODO: this assumes service specs didn't change. May we need a new version to ClusterTopology data structure
+
+			// ServiceSpec is nil for external services - don't process anything bc theres nothing to add to the cluster
+			if services[0].ServiceSpec == nil {
+				continue
+			}
 			serviceList = append(serviceList, *getService(services[0], namespace))
 
 			var gateway *string
 			var extHost *string
 			if ingressService, found := clusterTopology.GetIngressForService(services[0]); found {
+				logrus.Infof("The service has an ingress")
 				gateway = &ingressService.IngressID
 				extHost = ingressService.GetHost()
+
 				// TODO: either update getEnvoyFilters or merge maps in case there is more than one ingress
 				versionsAgainstExtHost = lo.SliceToMap(allActiveFlows, func(item string) (string, string) { return item, resolved.ReplaceOrAddSubdomain(*extHost, item) })
-
 			}
+
 			virtualService, destinationRule := getVirtualService(serviceID, services, namespace, gateway, extHost)
 			virtualServices = append(virtualServices, *virtualService)
 			if destinationRule != nil {
@@ -79,8 +87,12 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 	return types.ClusterResources{
 		Services: serviceList,
 
-		Deployments: lo.Map(clusterTopology.Services, func(service *resolved.Service, _ int) appsv1.Deployment {
-			return *getDeployment(service, namespace)
+		Deployments: lo.FilterMap(clusterTopology.Services, func(service *resolved.Service, _ int) (appsv1.Deployment, bool) {
+			// Deployment spec is nil for external services, don't need to add anything to cluster
+			if service.DeploymentSpec == nil {
+				return appsv1.Deployment{}, false
+			}
+			return *getDeployment(service, namespace), true
 		}),
 
 		Gateway: *getGateway(clusterTopology.Ingress, namespace),

@@ -2,6 +2,7 @@ package flow
 
 import (
 	"fmt"
+	"github.com/kurtosis-tech/stacktrace"
 
 	"github.com/dominikbraun/graph"
 	"github.com/samber/lo"
@@ -28,7 +29,7 @@ func FindServiceByID(topology resolved.ClusterTopology, serviceID string) (*reso
 	return targetService, pos, found
 }
 
-func updateDependeciesInplace(serviceDependencies []resolved.ServiceDependency, targetService *resolved.Service, modifiedService *resolved.Service) {
+func updateDependenciesInplace(serviceDependencies []resolved.ServiceDependency, targetService *resolved.Service, modifiedService *resolved.Service) {
 	for ix, dependency := range serviceDependencies {
 		if dependency.Service == targetService {
 			dependency.Service = modifiedService
@@ -40,7 +41,7 @@ func updateDependeciesInplace(serviceDependencies []resolved.ServiceDependency, 
 	}
 }
 
-func CreateDevFlow(pluginRunner plugins.PluginRunner, flowID string, serviceID string, deploymentSpec appsv1.DeploymentSpec, baseTopology resolved.ClusterTopology) (*resolved.ClusterTopology, error) {
+func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID string, deploymentSpec appsv1.DeploymentSpec, baseTopology resolved.ClusterTopology) (*resolved.ClusterTopology, error) {
 	// shallow copy the base topology
 	topology := baseTopology
 
@@ -75,12 +76,39 @@ func CreateDevFlow(pluginRunner plugins.PluginRunner, flowID string, serviceID s
 	}
 	statefulServices = lo.Uniq(statefulServices)
 
+	// handle external service plugins
+	logrus.Infof("Checking if this service has any external services...")
+	for pluginIdx, plugin := range targetService.StatefulPlugins {
+		if plugin.Type == "external" {
+			logrus.Infof("This service contains an external dependency plugin: %v", plugin.Name)
+
+			// find the existing external service and update it in the topology to get a new version
+			externalService, _, ok := FindServiceByID(topology, plugin.ServiceName)
+			if !ok {
+				return nil, fmt.Errorf("external service specified by plugin '%v' was not found in base topology.", plugin.ServiceName)
+			}
+
+			resultSpec := DeepCopyDeploymentSpec(targetService.DeploymentSpec)
+
+			logrus.Infof("Calling external service plugin...")
+			pluginId := plugins.GetPluginId(flowID, targetService.ServiceID, pluginIdx)
+			spec, _, err := pluginRunner.CreateFlow(plugin.Name, *targetService.ServiceSpec, *resultSpec, pluginId, plugin.Args)
+			if err != nil {
+				return nil, fmt.Errorf("error creating flow for external service '%s': %v", externalService.ServiceID, err)
+			}
+			logrus.Infof("External service plugin successfully called.")
+
+			deploymentSpec = spec
+			duplicateAndUpdateService(&topology, externalService, flowID)
+		}
+	}
+
 	modifiedTargetService := DeepCopyService(targetService)
 	modifiedTargetService.DeploymentSpec = &deploymentSpec
 	modifiedTargetService.Version = flowID
 
 	topology.Services[pos] = modifiedTargetService
-	updateDependeciesInplace(topology.ServiceDependecies, targetService, modifiedTargetService)
+	updateDependenciesInplace(topology.ServiceDependecies, targetService, modifiedTargetService)
 
 	for statefulServiceIx, statefulService := range topology.Services {
 		if lo.Contains(statefulServices, statefulService) {
@@ -95,9 +123,14 @@ func CreateDevFlow(pluginRunner plugins.PluginRunner, flowID string, serviceID s
 
 			// Apply a chain of stateful plugins to the stateful service
 			resultSpec := DeepCopyDeploymentSpec(modifiedService.DeploymentSpec)
-			for pluginIx, plugin := range modifiedService.StatefulPlugins {
-				pluginId := fmt.Sprintf("%s-%s-%d", flowID, serviceID, pluginIx)
-				logrus.Infof("Applying plugin %s for service %s with %s", plugin.Name, modifiedService.ServiceID, pluginId)
+			for pluginIdx, plugin := range modifiedService.StatefulPlugins {
+				if plugin.Type == "external" {
+					// we handle external plugins above
+					// might need to handle this if stateful services can have external dependencies
+					continue
+				}
+				logrus.Infof("Applying plugin %s for service %s with flow id %s", plugin.Name, modifiedService.ServiceID, flowID)
+				pluginId := plugins.GetPluginId(flowID, modifiedService.ServiceID, pluginIdx)
 				spec, _, err := pluginRunner.CreateFlow(plugin.Name, *modifiedService.ServiceSpec, *resultSpec, pluginId, plugin.Args)
 				if err != nil {
 					return nil, fmt.Errorf("error creating flow for service %s: %v", modifiedService.ServiceID, err)
@@ -109,7 +142,7 @@ func CreateDevFlow(pluginRunner plugins.PluginRunner, flowID string, serviceID s
 			modifiedService.DeploymentSpec = resultSpec
 
 			topology.Services[statefulServiceIx] = modifiedService
-			updateDependeciesInplace(topology.ServiceDependecies, statefulService, modifiedService)
+			updateDependenciesInplace(topology.ServiceDependecies, statefulService, modifiedService)
 
 			// create versioned parents for non http stateful services
 			// TODO - this should be done for all non http services and not just the stateful ones
@@ -130,6 +163,30 @@ func CreateDevFlow(pluginRunner plugins.PluginRunner, flowID string, serviceID s
 	return &topology, nil
 }
 
+func DeleteFlow(pluginRunner *plugins.PluginRunner, topology resolved.ClusterTopology, flowId string) error {
+	for _, service := range topology.Services {
+		err := DeleteDevFlow(pluginRunner, flowId, service)
+		if err != nil {
+			return stacktrace.Propagate(err, "An error occurred deleting flow '%v' for service '%v'", flowId, service.ServiceID)
+		}
+	}
+	return nil
+}
+
+func DeleteDevFlow(pluginRunner *plugins.PluginRunner, flowId string, service *resolved.Service) error {
+	// call delete flow on all the plugins in this flow
+	for pluginIdx, plugin := range service.StatefulPlugins {
+		logrus.Infof("Attempting to delete flow for plugin '%v' on flow '%v'", plugin.Name, flowId)
+		pluginId := plugins.GetPluginId(flowId, service.ServiceID, pluginIdx)
+		err := pluginRunner.DeleteFlow(plugin.Name, pluginId, map[string]string{})
+		if err != nil {
+			logrus.Errorf("Error deleting flow: %v.", err)
+			return stacktrace.Propagate(err, "An error occurred while trying to call delete flow of plugin '%v' on service '%v' for flow '%v'", plugin.Name, service.ServiceID, flowId)
+		}
+	}
+	return nil
+}
+
 // Helper function to find immediate parents of a service
 func findImmediateParents(topology resolved.ClusterTopology, service *resolved.Service) []*resolved.Service {
 	parents := make([]*resolved.Service, 0)
@@ -146,7 +203,7 @@ func duplicateAndUpdateService(topology *resolved.ClusterTopology, service *reso
 	// Don't duplicate if its already duplicated
 	for _, existingService := range topology.Services {
 		if existingService.ServiceID == service.ServiceID && existingService.Version == flowID {
-			logrus.Infof("Skipped duplicating parent %s as it already exists for current flowID")
+			logrus.Infof("Skipped duplicating parent %s as it already exists for current flowID", existingService.ServiceID)
 			return
 		}
 	}
@@ -154,7 +211,7 @@ func duplicateAndUpdateService(topology *resolved.ClusterTopology, service *reso
 	duplicatedService := DeepCopyService(service)
 	duplicatedService.Version = flowID
 	topology.Services = append(topology.Services, duplicatedService)
-	updateDependeciesInplace(topology.ServiceDependecies, service, duplicatedService)
+	updateDependenciesInplace(topology.ServiceDependecies, service, duplicatedService)
 }
 
 func topologyToGraph(topology resolved.ClusterTopology) graph.Graph[*resolved.Service, *resolved.Service] {

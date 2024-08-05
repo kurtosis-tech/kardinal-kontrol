@@ -24,14 +24,14 @@ import (
 var _ api.StrictServerInterface = (*Server)(nil)
 
 type Server struct {
-	pluginRunnerByTenant        map[string]plugins.PluginRunner
+	pluginRunnerByTenant        map[string]*plugins.PluginRunner
 	baseClusterTopologyByTenant map[string]resolved.ClusterTopology
 	clusterTopologyByTenantFlow map[string]map[string]resolved.ClusterTopology
 }
 
 func NewServer() Server {
 	return Server{
-		pluginRunnerByTenant:        make(map[string]plugins.PluginRunner),
+		pluginRunnerByTenant:        make(map[string]*plugins.PluginRunner),
 		baseClusterTopologyByTenant: make(map[string]resolved.ClusterTopology),
 		clusterTopologyByTenantFlow: make(map[string]map[string]resolved.ClusterTopology),
 	}
@@ -84,10 +84,27 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 
 func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.DeleteTenantUuidFlowFlowIdRequestObject) (api.DeleteTenantUuidFlowFlowIdResponseObject, error) {
 	logrus.Infof("deleting dev flow for tenant '%s'", request.Uuid)
+
+	runner, ok := sv.pluginRunnerByTenant[request.Uuid]
+	if !ok {
+		logrus.Errorf("Plugin Runner for requested tenant not found.")
+	}
+
 	if allFlows, found := sv.clusterTopologyByTenantFlow[request.Uuid]; found {
-		if _, found := allFlows[request.FlowId]; found {
+		if flowTopology, found := allFlows[request.FlowId]; found {
 			logrus.Infof("deleting flow %s", request.FlowId)
+			err := flow.DeleteFlow(runner, flowTopology, request.FlowId)
+			if err != nil {
+				errMsg := fmt.Sprintf("An error occurred deleting flow '%v'", request.FlowId)
+				errResp := api.ErrorJSONResponse{
+					Error: err.Error(),
+					Msg:   &errMsg,
+				}
+				return api.DeleteTenantUuidFlowFlowId500JSONResponse{errResp}, nil
+			}
+
 			delete(allFlows, request.FlowId)
+			logrus.Infof("Successfully deleted flow.")
 			return api.DeleteTenantUuidFlowFlowId2xxResponse{StatusCode: 200}, nil
 		}
 		return api.DeleteTenantUuidFlowFlowId2xxResponse{StatusCode: 204}, nil
@@ -108,6 +125,7 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 	// TODO: only one service config is allowed for now
 	serviceName := serviceUpdate[0].ServiceName
 	imageLocator := serviceUpdate[0].ImageLocator
+
 	logrus.Infof("starting new dev flow for service %v on image %v", serviceName, imageLocator)
 
 	flowId, flowUrls, err := applyProdDevFlow(sv, request.Uuid, serviceName, imageLocator)
@@ -157,7 +175,7 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apityp
 		return err, []string{}
 	}
 
-	sv.pluginRunnerByTenant[tenantUuidStr] = plugins.PluginRunner{}
+	sv.pluginRunnerByTenant[tenantUuidStr] = plugins.NewPluginRunner()
 	sv.baseClusterTopologyByTenant[tenantUuidStr] = *clusterTopology
 	sv.clusterTopologyByTenantFlow[tenantUuidStr] = make(map[string]resolved.ClusterTopology)
 	flowHostMapping := clusterTopology.GetFlowHostMapping()
@@ -179,7 +197,8 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, devServiceName string, d
 
 	pluginRunner, found := sv.pluginRunnerByTenant[tenantUuidStr]
 	if !found {
-		pluginRunner = plugins.PluginRunner{}
+		pluginRunner = plugins.NewPluginRunner()
+		sv.pluginRunnerByTenant[tenantUuidStr] = pluginRunner
 	}
 
 	logrus.Debugf("calculating cluster topology overlay for tenant %s on flowID %s", tenantUuidStr, flowID)

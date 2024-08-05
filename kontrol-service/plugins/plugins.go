@@ -3,6 +3,7 @@ package plugins
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	"os"
 	"os/exec"
@@ -11,6 +12,11 @@ import (
 	"sync"
 
 	appv1 "k8s.io/api/apps/v1"
+)
+
+const (
+	// <flow id>-<service id>-<plugin idx>
+	pluginIdFmtStr = "%s-%s-%d"
 )
 
 type PluginRunner struct {
@@ -66,6 +72,7 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceS
 		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to re-marshal config map: %v", err)
 	}
 
+	logrus.Infof("Storing config map for plugin called with uuid '%v':\n %v\n...", flowUuid, configMapString)
 	pr.memory.Store(flowUuid, string(configMapString))
 
 	return newDeploymentSpec, string(configMapString), nil
@@ -89,6 +96,10 @@ func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string, arguments map[str
 
 	pr.memory.Delete(flowUuid)
 	return nil
+}
+
+func GetPluginId(flowId, serviceId string, pluginIdx int) string {
+	return fmt.Sprintf(pluginIdFmtStr, flowId, serviceId, pluginIdx)
 }
 
 func (pr *PluginRunner) getConfigForFlow(flowUuid string) (string, error) {

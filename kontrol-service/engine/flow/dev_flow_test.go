@@ -2,6 +2,7 @@ package flow
 
 import (
 	"fmt"
+	"kardinal.kontrol-service/plugins"
 	"testing"
 
 	"github.com/samber/lo"
@@ -9,7 +10,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
-	"kardinal.kontrol-service/plugins"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
 )
 
@@ -394,7 +394,8 @@ func TestDevFlowImmutability(t *testing.T) {
 
 	cluster := clusterTopologyExample()
 	checkoutservice := getServiceRef(&cluster, "checkoutservice")
-	devCluster, err := CreateDevFlow(plugins.PluginRunner{}, "dev-flow-1", "checkoutservice", *checkoutservice.DeploymentSpec, cluster)
+	pluginRunner := plugins.NewPluginRunner()
+	devCluster, err := CreateDevFlow(pluginRunner, "dev-flow-1", "checkoutservice", *checkoutservice.DeploymentSpec, cluster)
 	require.NoError(t, err)
 
 	devCheckoutservice := getServiceRef(devCluster, "checkoutservice")
@@ -431,7 +432,8 @@ func TestFlowMerging(t *testing.T) {
 
 	cluster := clusterTopologyExample()
 	checkoutservice := getServiceRef(&cluster, "checkoutservice")
-	devCluster, err := CreateDevFlow(plugins.PluginRunner{}, "dev-flow-1", "checkoutservice", *checkoutservice.DeploymentSpec, cluster)
+	pluginRunner := plugins.NewPluginRunner()
+	devCluster, err := CreateDevFlow(pluginRunner, "dev-flow-1", "checkoutservice", *checkoutservice.DeploymentSpec, cluster)
 	require.NoError(t, err)
 	require.Equal(t, len(cluster.Services), len(devCluster.Services))
 	require.Equal(t, len(cluster.ServiceDependecies), len(devCluster.ServiceDependecies))
