@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.10](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.9...0.1.10) (2024-08-06)
+
+
+### Features
+
+* handle external services v1 ([#111](https://github.com/kurtosis-tech/kardinal-kontrol/issues/111)) ([295654a](https://github.com/kurtosis-tech/kardinal-kontrol/commit/295654abb6b45c95eaa1e40882e58498788b6d31))
+
+
+### Bug Fixes
+
+* fix frontend needlessly re-rendering the graph ([#143](https://github.com/kurtosis-tech/kardinal-kontrol/issues/143)) ([30d1580](https://github.com/kurtosis-tech/kardinal-kontrol/commit/30d1580283562624e1108c998ed8fb3338415039))
+* Sort topology nodes and edges for deterministic response ([#142](https://github.com/kurtosis-tech/kardinal-kontrol/issues/142)) ([6704ca6](https://github.com/kurtosis-tech/kardinal-kontrol/commit/6704ca62296ba82f36a90c9b1ff44f93a2a07e55))
+
 ## [0.1.9](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.8...0.1.9) (2024-08-03)
 
 
