@@ -3,16 +3,12 @@ import { GraphData } from "../types";
 const data: GraphData = {
   edges: [
     {
-      source: "frontend-external",
-      target: "frontend",
-    },
-    {
       source: "cartservice",
       target: "postgres",
     },
     {
       source: "checkoutservice",
-      target: "paymentservice",
+      target: "cartservice",
     },
     {
       source: "checkoutservice",
@@ -20,19 +16,15 @@ const data: GraphData = {
     },
     {
       source: "checkoutservice",
+      target: "paymentservice",
+    },
+    {
+      source: "checkoutservice",
       target: "productcatalogservice",
     },
     {
       source: "checkoutservice",
-      target: "cartservice",
-    },
-    {
-      source: "checkoutservice",
       target: "shippingservice",
-    },
-    {
-      source: "frontend",
-      target: "checkoutservice",
     },
     {
       source: "frontend",
@@ -40,7 +32,11 @@ const data: GraphData = {
     },
     {
       source: "frontend",
-      target: "recommendationservice",
+      target: "cartservice",
+    },
+    {
+      source: "frontend",
+      target: "checkoutservice",
     },
     {
       source: "frontend",
@@ -48,11 +44,15 @@ const data: GraphData = {
     },
     {
       source: "frontend",
-      target: "cartservice",
+      target: "recommendationservice",
     },
     {
       source: "frontend",
       target: "shippingservice",
+    },
+    {
+      source: "frontend-external",
+      target: "frontend",
     },
     {
       source: "recommendationservice",
@@ -64,17 +64,23 @@ const data: GraphData = {
       id: "cartservice",
       label: "cartservice",
       type: "service",
-      versions: ["prod", "dev-7uyjut175j"],
+      versions: ["dev-hr7dwojzkk", "prod"],
     },
     {
-      id: "postgres",
-      label: "postgres",
+      id: "checkoutservice",
+      label: "checkoutservice",
       type: "service",
-      versions: ["prod"],
+      versions: ["dev-hr7dwojzkk", "prod"],
     },
     {
-      id: "recommendationservice",
-      label: "recommendationservice",
+      id: "frontend",
+      label: "frontend",
+      type: "service",
+      versions: ["dev-hr7dwojzkk", "prod"],
+    },
+    {
+      id: "adservice",
+      label: "adservice",
       type: "service",
       versions: ["prod"],
     },
@@ -85,28 +91,28 @@ const data: GraphData = {
       versions: ["prod"],
     },
     {
+      id: "paymentservice",
+      label: "paymentservice",
+      type: "service",
+      versions: ["prod"],
+    },
+    {
+      id: "postgres",
+      label: "postgres",
+      type: "service",
+      versions: ["prod"],
+    },
+    {
       id: "productcatalogservice",
       label: "productcatalogservice",
       type: "service",
       versions: ["prod"],
     },
     {
-      id: "frontend",
-      label: "frontend",
-      type: "service",
-      versions: ["prod", "dev-7uyjut175j"],
-    },
-    {
-      id: "adservice",
-      label: "adservice",
+      id: "recommendationservice",
+      label: "recommendationservice",
       type: "service",
       versions: ["prod"],
-    },
-    {
-      id: "checkoutservice",
-      label: "checkoutservice",
-      type: "service",
-      versions: ["prod", "dev-7uyjut175j"],
     },
     {
       id: "shippingservice",
@@ -115,15 +121,10 @@ const data: GraphData = {
       versions: ["prod"],
     },
     {
-      id: "paymentservice",
-      label: "paymentservice",
-      type: "service",
-      versions: ["prod"],
-    },
-    {
       id: "frontend-external",
       label: "frontend-external",
       type: "gateway",
+      versions: [],
     },
   ],
 };

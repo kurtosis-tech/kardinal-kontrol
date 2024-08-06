@@ -29,7 +29,6 @@ const tippyFactory: cytoscapePopper.PopperFactory = (ref, content) => {
 export const createTooltip = (
   node: cytoscape.NodeSingular,
 ): Instance | null => {
-  console.log("node: ", node);
   const versions = node.data("versions");
   if (!versions || versions.length === 0) {
     return null;

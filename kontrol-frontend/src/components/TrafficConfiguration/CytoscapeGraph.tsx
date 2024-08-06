@@ -42,20 +42,17 @@ const CytoscapeGraph = ({ elements, layout = dagreLayout }: Props) => {
     (cyInstance: cytoscape.Core) => {
       // set mutable cy instance
       cy.current = cyInstance;
-      // add event listeners to handle selected state of nodes
-      cy.current.on("tap", function (ele: cytoscape.EventObject) {
-        // tap on background
-        if (ele.target === cy.current) {
-          cy.current?.elements().unselect();
-          return;
-        }
-        cy.current?.nodes().removeClass("selected");
-        ele.target.addClass("selected");
-        // TODO: re-enable
+      // add event listeners to create tooltips on hover
+      cy.current.on("mouseover", function (ele: cytoscape.EventObject) {
         if (tooltip.current != null) {
           tooltip.current.destroy();
         }
         tooltip.current = createTooltip(ele.target);
+      });
+      cy.current.on("mouseout", function () {
+        if (tooltip.current != null) {
+          tooltip.current.destroy();
+        }
       });
 
       // stop animations when the user is dragging nodes around

@@ -49,10 +49,10 @@ eval $(minikube docker-env)
 docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
 ```
 
-To build and run the service directly:
+To build and run the service directly in dev mode:
 
 ```bash
-nix run ./#kontrol-service
+nix run ./#kontrol-service -- -dev-mode
 ```
 
 ### Regenerate gomod2nix.toml

@@ -24,7 +24,13 @@ export const extendEdgeData =
     const target = nodes.find((n) => n.data.id === edge.target);
     const targetIsDev = target?.classes.includes("dev");
     return {
-      data: edge,
+      data: {
+        ...edge,
+        // overwrite the UUID returned from the API with a consistent
+        // identifier so we can make renders in the UI idempotent to equivalent
+        // topology responses
+        id: `edge-${edge.source}-${edge.target}`,
+      },
       classes: [
         targetIsDev ? "dev" : "prod",
         sourceIsDev && targetIsDev ? "ghost" : "",
