@@ -1,6 +1,8 @@
 package topology
 
 import (
+	"sort"
+
 	apiTypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	"github.com/samber/lo"
 
@@ -30,6 +32,9 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology, flowsClusterTopo
 	nodes := lo.MapToSlice(servicesToVersions, func(key string, value []string) apiTypes.Node {
 		nodeType := apiTypes.Service
 		label := key
+		sort.Slice(value, func(i, j int) bool {
+			return value[i] < value[j]
+		})
 		return apiTypes.Node{
 			Type:     nodeType,
 			Id:       label,
@@ -41,13 +46,21 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology, flowsClusterTopo
 	gateways := lo.Map(clusterTopology.Ingresses, func(ingress *resolved.Ingress, _ int) apiTypes.Node {
 		gwLabel := ingress.IngressID
 		return apiTypes.Node{
-			Id:    gwLabel,
-			Label: &gwLabel,
-			Type:  apiTypes.Gateway,
+			Id:       gwLabel,
+			Label:    &gwLabel,
+			Type:     apiTypes.Gateway,
+			Versions: &[]string{},
 		}
 	})
 
 	allNodes := append(nodes, gateways...)
+	sort.Slice(allNodes, func(i, j int) bool {
+		if len(*allNodes[i].Versions) == len(*allNodes[j].Versions) {
+			return allNodes[i].Id < allNodes[j].Id
+		} else {
+			return len(*allNodes[i].Versions) > len(*allNodes[j].Versions)
+		}
+	})
 	return &apiTypes.ClusterTopology{
 		Nodes: allNodes,
 		Edges: edges,
@@ -79,5 +92,12 @@ func getClusterTopologyEdges(clusterTopology *resolved.ClusterTopology) []apiTyp
 		})
 	}
 
+	sort.Slice(edges, func(i, j int) bool {
+		if edges[i].Source == edges[j].Source {
+			return edges[i].Target < edges[j].Target
+		} else {
+			return edges[i].Source < edges[j].Source
+		}
+	})
 	return edges
 }

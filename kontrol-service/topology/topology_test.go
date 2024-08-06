@@ -265,11 +265,11 @@ func TestServiceConfigsToTopology(t *testing.T) {
 	for _, node := range nodes {
 		if node.Id == "azure-vote-back" || node.Id == "azure-vote-front" {
 			require.Equal(t, apiTypes.Service, node.Type)
-			require.NotNil(t, *node.Versions)
-			require.Equal(t, []string{"prod", "A", "B"}, *node.Versions)
+			require.NotEmpty(t, *node.Versions)
+			require.Equal(t, []string{"A", "B", "prod"}, *node.Versions)
 		} else if node.Id == "voting-app-lb" {
 			require.Equal(t, apiTypes.Gateway, node.Type)
-			require.Nil(t, node.Versions)
+			require.Empty(t, *node.Versions)
 		} else {
 			t.Errorf("Invalid node ID %s", node.Id)
 			return
