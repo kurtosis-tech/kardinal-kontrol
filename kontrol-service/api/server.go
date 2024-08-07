@@ -12,6 +12,7 @@ import (
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
+	"kardinal.kontrol-service/database"
 	"kardinal.kontrol-service/engine"
 	"kardinal.kontrol-service/engine/flow"
 	"kardinal.kontrol-service/plugins"
@@ -27,13 +28,15 @@ type Server struct {
 	pluginRunnerByTenant        map[string]*plugins.PluginRunner
 	baseClusterTopologyByTenant map[string]resolved.ClusterTopology
 	clusterTopologyByTenantFlow map[string]map[string]resolved.ClusterTopology
+	db                          *database.Db
 }
 
-func NewServer() Server {
+func NewServer(db *database.Db) Server {
 	return Server{
 		pluginRunnerByTenant:        make(map[string]*plugins.PluginRunner),
 		baseClusterTopologyByTenant: make(map[string]resolved.ClusterTopology),
 		clusterTopologyByTenantFlow: make(map[string]map[string]resolved.ClusterTopology),
+		db:                          db,
 	}
 }
 

@@ -7,10 +7,20 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
 	"kardinal.kontrol-service/api"
+	"kardinal.kontrol-service/database"
+)
+
+const (
+	dbUsername = "postgres"
+	dbHostname = "localhost"
+	dbPort     = 5432
+	dbName     = "kardinal"
 )
 
 func main() {
 	devMode := flag.Bool("dev-mode", false, "Allow to run the service in local mode.")
+	db := flag.Bool("db", false, "Enable local DB connection.")
+	dbPassword := flag.String("db-password", "", "DB password.")
 
 	flag.Parse()
 
@@ -19,12 +29,37 @@ func main() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
-	startServer(*devMode)
+	startServer(*devMode, *db, *dbPassword)
 }
 
-func startServer(isDevMode bool) {
+func startServer(isDevMode bool, isDb bool, dbPassword string) {
+
+	var db *database.Db
+	if isDb {
+		dbConnectionInfo, err := database.NewDatabaseConnectionInfo(
+			dbUsername,
+			dbPassword,
+			dbHostname,
+			dbPort,
+			dbName,
+		)
+		if err != nil {
+			logrus.Fatal("An error occurred creating a database connection configuration based on the input provided", err)
+		}
+
+		db, err := database.NewDb(dbConnectionInfo)
+		if err != nil {
+			logrus.Fatal("An error occurred creating the db connection", err)
+		}
+
+		err = db.Migrate()
+		if err != nil {
+			logrus.Fatal("An error occurred migrating the DB", err)
+		}
+	}
+
 	// create a type that satisfies the `api.ServerInterface`, which contains an implementation of every operation from the generated code
-	server := api.NewServer()
+	server := api.NewServer(db)
 
 	e := echo.New()
 

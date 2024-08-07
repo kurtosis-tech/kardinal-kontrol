@@ -151,6 +151,24 @@ schema = 3
   [mod."github.com/iris-contrib/schema"]
     version = "v0.0.6"
     hash = "sha256-2jk46kocpQGmswalwwFI5P8B4AHR1xkTnbPdtFa9VFo="
+  [mod."github.com/jackc/pgpassfile"]
+    version = "v1.0.0"
+    hash = "sha256-H0nFbC34/3pZUFnuiQk9W7yvAMh6qJDrqvHp+akBPLM="
+  [mod."github.com/jackc/pgservicefile"]
+    version = "v0.0.0-20221227161230-091c0ba34f0a"
+    hash = "sha256-rBtUw15WPPDp2eulHXH5e2zCIed1OPFYwlCpgDOnGRM="
+  [mod."github.com/jackc/pgx/v5"]
+    version = "v5.5.5"
+    hash = "sha256-Uy9f1EVJwwf5eZtx/JuacqYMe7m/iOx/jHI81hRWqv8="
+  [mod."github.com/jackc/puddle/v2"]
+    version = "v2.2.1"
+    hash = "sha256-Edf8SLT/8l+xfHm9IjUGxs1MHtic2VgRyfqb6OzGA9k="
+  [mod."github.com/jinzhu/inflection"]
+    version = "v1.0.0"
+    hash = "sha256-3h3pHib5MaCXKyKLIMyQnSptDJ16kPjCOQPoEBoQsZg="
+  [mod."github.com/jinzhu/now"]
+    version = "v1.1.5"
+    hash = "sha256-NNLqoFx9FczBBDpD0O0aSHnC/YDZ9E/xQ340o7u63IM="
   [mod."github.com/josharian/intern"]
     version = "v1.0.0"
     hash = "sha256-LJR0QE2vOQ2/2shBbO5Yl8cVPq+NFrE3ers0vu9FRP0="
@@ -397,6 +415,12 @@ schema = 3
   [mod."gopkg.in/yaml.v3"]
     version = "v3.0.1"
     hash = "sha256-FqL9TKYJ0XkNwJFnq9j0VvJ5ZUU1RvH/52h/f5bkYAU="
+  [mod."gorm.io/driver/postgres"]
+    version = "v1.5.9"
+    hash = "sha256-C/ieKeHEsR0sS8kG4YZaMCkWCBRfcRC4RH5nIyWQGX4="
+  [mod."gorm.io/gorm"]
+    version = "v1.25.11"
+    hash = "sha256-cR0jsCCR0CpqSA0Ci5Uq0/1YDONj3dl6lRuRYcu4HpQ="
   [mod."istio.io/api"]
     version = "v1.22.1-0.20240524024004-b6815be0740d"
     hash = "sha256-crSFKGbjxvJRenCJVCTc4bgVl4//h3jDugNMjmUSQM4="
