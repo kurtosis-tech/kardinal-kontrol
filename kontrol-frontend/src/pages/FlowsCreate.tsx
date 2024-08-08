@@ -4,9 +4,8 @@ import PageTitle from "@/components/PageTitle";
 import Footer from "@/components/Footer";
 import Input from "@/components/Input";
 import { Stack, Flex } from "@chakra-ui/react";
-import { mockResponse } from "@/components/TrafficConfiguration/mocks";
-import CytoscapeGraph from "@/components/TrafficConfiguration/CytoscapeGraph";
 import StatefulService from "@/components/StatefulService";
+import TrafficConfiguration from "@/components/TrafficConfiguration";
 
 const Page = () => {
   return (
@@ -15,28 +14,31 @@ const Page = () => {
         Update traffic control and data isolation details below
       </PageTitle>
       <Section title="Preview">
-        <CytoscapeGraph elements={mockResponse} />
+        <TrafficConfiguration />
       </Section>
       <Section title="Flow configuration">
         <Stack w={"100%"} gap={8} as={"fieldset"}>
           <Input.Text
             label="Name"
             id="name"
-            value="Early development flow"
+            value="Online boutique demo flow"
             onChange={() => {}}
           />
           <Flex gap={4}>
             <Input.Select
-              label="Name"
-              options={[{ label: "Option 1", value: "option1" }]}
-              value={"option1"}
+              label="Service"
+              options={[
+                { label: "cartservice", value: "cartservice" },
+                { label: "frontend", value: "frontend" },
+              ]}
+              value={"frontend"}
               id="name"
               onChange={() => {}}
             />
             <Input.Text
               label="Image"
               id="image"
-              value="registry.kardinal.dev/pr-1234"
+              value="leoporoli/newobd-frontend:0.0.6"
               onChange={() => {}}
             />
           </Flex>

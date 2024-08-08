@@ -11,7 +11,7 @@ const NotFound = () => {
       </Text>
       <Text color={"gray.500"} mb={6}>
         Ensure the path you are accessing is valid and that the path contains
-        your cluster UUID, for example:
+        your tenant UUID, for example:
         <br /> <code>/eceb88f5-0d83-400e-ae45-3273347f2c24/flows</code>
       </Text>
     </Box>

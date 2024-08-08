@@ -1,5 +1,5 @@
 import { useRef, useEffect, useState } from "react";
-import { Flex } from "@chakra-ui/react";
+import { Grid } from "@chakra-ui/react";
 import { useParams } from "react-router-dom";
 import { paths } from "cli-kontrol-api/api/typescript/client/types";
 import createClient from "openapi-fetch";
@@ -53,14 +53,16 @@ const TrafficConfiguration = () => {
   }, [uuid]);
 
   return (
-    <Flex
-      alignItems={"center"}
-      justifyContent={"center"}
+    <Grid
       height={"100%"}
-      flexDir={"column"}
+      width={"100%"}
+      maxH={"520px"}
+      templateColumns={"1fr"}
+      templateRows={"1fr"}
+      id="traffic-configuration"
     >
       <CytoscapeGraph elements={elems} />
-    </Flex>
+    </Grid>
   );
 };
 

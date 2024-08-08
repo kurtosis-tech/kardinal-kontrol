@@ -161,8 +161,14 @@ const CytoscapeGraph = ({ elements, layout = dagreLayout }: Props) => {
 
   return (
     <CytoscapeComponent
+      id="cytoscape-graph"
       elements={elements}
-      style={{ width: "100%", height: "100%", minHeight: "267px" }}
+      // style={{
+      //   width: "100%",
+      //   height: "100%",
+      //   minHeight: "267px",
+      //   display: "flex",
+      // }}
       layout={layout}
       // @ts-expect-error cytoscape types are not great
       stylesheet={stylesheet}

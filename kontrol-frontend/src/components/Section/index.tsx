@@ -1,4 +1,4 @@
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Text } from "@chakra-ui/react";
 import { ReactNode } from "react";
 
 interface Props {
@@ -30,12 +30,10 @@ const Section = ({ title, children, offsetTop }: Props) => {
         background={"white"}
         borderColor={"gray.200"}
         alignSelf={"stretch"}
-        flexGrow={1}
         width={"100%"}
+        flex={1}
       >
-        <Flex direction={{ base: "column", md: "row" }} gap={4}>
-          {children}
-        </Flex>
+        {children}
       </Box>
     </>
   );
