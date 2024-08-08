@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.11](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.10...0.1.11) (2024-08-08)
+
+
+### Features
+
+* Postgres DB integration with ORM ([#144](https://github.com/kurtosis-tech/kardinal-kontrol/issues/144)) ([13cdd1c](https://github.com/kurtosis-tech/kardinal-kontrol/commit/13cdd1c0b72943a3dfa20d76c28616c8f2fb729a))
+* update some of the hardcoded values to represent the demo flow ([#146](https://github.com/kurtosis-tech/kardinal-kontrol/issues/146)) ([bb98cd4](https://github.com/kurtosis-tech/kardinal-kontrol/commit/bb98cd463c8e481472a0f56056d7da4dec677c27))
+
 ## [0.1.10](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.9...0.1.10) (2024-08-06)
 
 
