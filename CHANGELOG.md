@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.12](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.11...0.1.12) (2024-08-08)
+
+
+### Features
+
+* support existing trace id systems ([#148](https://github.com/kurtosis-tech/kardinal-kontrol/issues/148)) ([e4e1b84](https://github.com/kurtosis-tech/kardinal-kontrol/commit/e4e1b8459571d8f112b639197594a9cbe2346088))
+
+
+### Bug Fixes
+
+* shared headers list ([#150](https://github.com/kurtosis-tech/kardinal-kontrol/issues/150)) ([6c3b79a](https://github.com/kurtosis-tech/kardinal-kontrol/commit/6c3b79afdab4717bbd5ce94d667a10ab45845cc1))
+
 ## [0.1.11](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.10...0.1.11) (2024-08-08)
 
 
