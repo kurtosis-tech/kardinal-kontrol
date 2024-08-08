@@ -449,7 +449,7 @@ func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.
 										StructValue: &structpb.Struct{
 											Fields: map[string]*structpb.Value{
 												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
-												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: outgoingRequestTraceIDFilter}},
+												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: getOutgoingRequestTraceIDFilter()}},
 											},
 										},
 									},
@@ -595,17 +595,9 @@ func generateDynamicLuaScript(servicesAgainstVersions map[string][]string, versi
 	}
 
 	return fmt.Sprintf(`
-function get_trace_id(headers)
-  local trace_header_priorities = {
-    "x-b3-traceid",           -- Zipkin B3
-    "x-request-id",           -- General request ID, often used for tracing
-    "x-cloud-trace-context",  -- Google Cloud Trace
-    "x-amzn-trace-id",        -- AWS X-Ray
-    "traceparent",            -- W3C Trace Context
-    "uber-trace-id",          -- Jaeger
-    "x-datadog-trace-id"      -- Datadog
-  }
+%s
 
+function get_trace_id(headers)
   for _, header_name in ipairs(trace_header_priorities) do
     local trace_id = headers:get(header_name)
     if trace_id then
@@ -677,5 +669,5 @@ function envoy_on_request(request_handle)
   request_handle:headers():add("x-kardinal-destination", destination)
   request_handle:logInfo("Final headers - Trace ID: " .. trace_id .. ", Destination: " .. destination)
 end
-`, setRouteCalls.String())
+`, generateLuaTraceHeaderPriorities(), setRouteCalls.String())
 }
