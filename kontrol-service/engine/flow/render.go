@@ -595,6 +595,27 @@ func generateDynamicLuaScript(servicesAgainstVersions map[string][]string, versi
 	}
 
 	return fmt.Sprintf(`
+function get_trace_id(headers)
+  local trace_header_priorities = {
+    "x-b3-traceid",           -- Zipkin B3
+    "x-request-id",           -- General request ID, often used for tracing
+    "x-cloud-trace-context",  -- Google Cloud Trace
+    "x-amzn-trace-id",        -- AWS X-Ray
+    "traceparent",            -- W3C Trace Context
+    "uber-trace-id",          -- Jaeger
+    "x-datadog-trace-id"      -- Datadog
+  }
+
+  for _, header_name in ipairs(trace_header_priorities) do
+    local trace_id = headers:get(header_name)
+    if trace_id then
+      return trace_id, header_name
+    end
+  end
+
+  return nil, nil
+end
+
 function envoy_on_request(request_handle)
   local headers = request_handle:headers()
   local trace_id = headers:get("x-kardinal-trace-id")
@@ -603,25 +624,29 @@ function envoy_on_request(request_handle)
   request_handle:logInfo("Processing request - Initial trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none"))
 
   if not trace_id then
-    trace_id = string.format("%%032x", math.random(2^128 - 1))
-    request_handle:logInfo("Generated new trace ID: " .. trace_id)
-
-    local generate_headers, generate_body = request_handle:httpCall(
-      "outbound|8080||trace-router.default.svc.cluster.local",
-      {
-       [":method"] = "GET",
-       [":path"] = "/generate-trace-id",
-       [":authority"] = "trace-router.default.svc.cluster.local"
-      },
-      "",
-      5000
-    )
-
-    if generate_headers and generate_headers[":status"] == "200" then
-      trace_id = generate_body
-      request_handle:logInfo("Received trace ID from trace-router: " .. trace_id)
+    local found_trace_id, source_header = get_trace_id(headers)
+    if found_trace_id then
+      trace_id = found_trace_id
+      request_handle:logInfo("Using existing trace ID from " .. source_header .. ": " .. trace_id)
     else
-      request_handle:logWarn("Failed to get trace ID from trace-router, using generated: " .. trace_id)
+      local generate_headers, generate_body = request_handle:httpCall(
+        "outbound|8080||trace-router.default.svc.cluster.local",
+        {
+         [":method"] = "GET",
+         [":path"] = "/generate-trace-id",
+         [":authority"] = "trace-router.default.svc.cluster.local"
+        },
+        "",
+        5000
+      )
+
+      if generate_headers and generate_headers[":status"] == "200" then
+        trace_id = generate_body
+        request_handle:logInfo("Received trace ID from trace-router: " .. trace_id)
+      else
+        trace_id = string.format("%%032x", math.random(2^128 - 1))
+        request_handle:logWarn("Failed to get trace ID from trace-router, using locally generated: " .. trace_id)
+      end
     end
 
     request_handle:headers():add("x-kardinal-trace-id", trace_id)
