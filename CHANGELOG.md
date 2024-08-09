@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.13](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.12...0.1.13) (2024-08-09)
+
+
+### Features
+
+* allow for multi line strings ([#152](https://github.com/kurtosis-tech/kardinal-kontrol/issues/152)) ([18836da](https://github.com/kurtosis-tech/kardinal-kontrol/commit/18836da66e1f16e39942c372ed7a8881d1ced105))
+
 ## [0.1.12](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.11...0.1.12) (2024-08-08)
 
 
