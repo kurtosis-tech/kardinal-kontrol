@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.14](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.13...0.1.14) (2024-08-09)
+
+
+### Bug Fixes
+
+* apply modified spec instead copy the original one ([#155](https://github.com/kurtosis-tech/kardinal-kontrol/issues/155)) ([83a1dc3](https://github.com/kurtosis-tech/kardinal-kontrol/commit/83a1dc36d5bdf29821a784d02a04816b737fd35c))
+
 ## [0.1.13](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.12...0.1.13) (2024-08-09)
 
 
