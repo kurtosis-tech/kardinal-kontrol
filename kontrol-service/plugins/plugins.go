@@ -1,6 +1,7 @@
 package plugins
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"github.com/sirupsen/logrus"
@@ -133,11 +134,12 @@ func runPythonCreateFlow(repoPath, serviceSpecJSON, deploymentSpecJSON, flowUuid
 		}
 	}
 
+	// Convert arguments to JSON, then encode it for Python
 	argsJSON, err := json.Marshal(arguments)
 	if err != nil {
 		return "", fmt.Errorf("failed to marshal arguments: %v", err)
 	}
-	argJsonStr := string(argsJSON)
+	argJsonStr := base64.StdEncoding.EncodeToString(argsJSON)
 
 	tempResultFile, err := os.CreateTemp("", "result_*.json")
 	if err != nil {
@@ -149,13 +151,15 @@ func runPythonCreateFlow(repoPath, serviceSpecJSON, deploymentSpecJSON, flowUuid
 import sys
 import json
 import inspect
+import base64
 sys.path.append("%s")
 import main
 
 service_spec = json.loads('''%s''')
 deployment_spec = json.loads('''%s''')
 flow_uuid = %q
-args = json.loads('''%s''')
+args_json = base64.b64decode('%s').decode('utf-8')
+args = json.loads(args_json)
 
 # Get the signature of the create_flow function
 sig = inspect.signature(main.create_flow)
