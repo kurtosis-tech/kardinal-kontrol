@@ -9,17 +9,21 @@ import (
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 
-	appsv1 "k8s.io/api/apps/v1"
-
 	"kardinal.kontrol-service/plugins"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
+	"kardinal.kontrol-service/types/flow_spec"
+
+	v1 "k8s.io/api/apps/v1"
 )
 
-func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID string, deploymentSpec appsv1.DeploymentSpec, baseTopology resolved.ClusterTopology) (*resolved.ClusterTopology, error) {
+func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseTopology resolved.ClusterTopology, flowPatch flow_spec.FlowPatch) (*resolved.ClusterTopology, error) {
+	flowID := flowPatch.FlowId
+
 	// shallow copy the base topology
 	topology := baseTopology
 
 	// duplicate slices
+	topology.FlowID = flowID
 	topology.Services = deepCopySlice(baseTopology.Services)
 	topology.ServiceDependencies = deepCopySlice(baseTopology.ServiceDependencies)
 	topology.Ingresses = lo.Map(baseTopology.Ingresses, func(item *resolved.Ingress, _ int) *resolved.Ingress {
@@ -32,14 +36,32 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID 
 		return &copiedIngress
 	})
 
-	targetService, err := topology.GetService(serviceID)
-	if err != nil {
-		return nil, err
-	}
-	logrus.Infof("calculating new flow for service %s", serviceID)
+	topologyRef := &topology
 
-	g := topologyToGraph(topology)
-	statefulPaths := findAllDownstreamStatefulPaths(targetService, g, topology)
+	clusterGraph := topologyToGraph(topologyRef)
+	for _, servicePatch := range flowPatch.ServicePatches {
+		serviceID := servicePatch.Service
+		logrus.Infof("calculating new flow for service %s", serviceID)
+		targetService, err := topologyRef.GetService(serviceID)
+		if err != nil {
+			return nil, err
+		}
+		applyPatch(pluginRunner, topologyRef, clusterGraph, flowID, targetService, servicePatch.DeploymentSpec)
+	}
+
+	return topologyRef, nil
+}
+
+func applyPatch(
+	pluginRunner *plugins.PluginRunner,
+	topology *resolved.ClusterTopology,
+	clusterGraph graph.Graph[*resolved.Service, *resolved.Service],
+	flowID string,
+	targetService *resolved.Service,
+	deploymentSpec *v1.DeploymentSpec,
+) (*resolved.ClusterTopology, error) {
+	// Find downstream stateful services
+	statefulPaths := findAllDownstreamStatefulPaths(targetService, clusterGraph, topology)
 	statefulServices := make([]*resolved.Service, 0)
 	for _, path := range statefulPaths {
 		statefulService, err := lo.Last(path)
@@ -54,7 +76,7 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID 
 	logrus.Infof("Checking if this service has any external services...")
 	for pluginIdx, plugin := range targetService.StatefulPlugins {
 		if plugin.Type == "external" {
-			logrus.Infof("This service contains an external dependency plugin: %v", plugin.Name)
+			logrus.Infof("service %s contains an external dependency plugin: %v", targetService.ServiceID, plugin.Name)
 
 			// find the existing external service and update it in the topology to get a new version
 			externalService, err := topology.GetService(plugin.ServiceName)
@@ -62,7 +84,7 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID 
 				return nil, fmt.Errorf("external service specified by plugin '%v' was not found in base topology.", plugin.ServiceName)
 			}
 
-			resultSpec := DeepCopyDeploymentSpec(&deploymentSpec)
+			resultSpec := DeepCopyDeploymentSpec(deploymentSpec)
 
 			logrus.Infof("Calling external service plugin...")
 			pluginId := plugins.GetPluginId(flowID, targetService.ServiceID, pluginIdx)
@@ -72,19 +94,21 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID 
 			}
 			logrus.Infof("External service plugin successfully called.")
 
-			deploymentSpec = spec
-			topology.DuplicateAndUpdateService(externalService, flowID)
+			deploymentSpec = &spec
+			err = topology.MoveServiceToVersion(externalService, flowID)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 
 	modifiedTargetService := DeepCopyService(targetService)
-	modifiedTargetService.DeploymentSpec = &deploymentSpec
+	modifiedTargetService.DeploymentSpec = deploymentSpec
 	modifiedTargetService.Version = flowID
-	err = topology.UpdateService(targetService.ServiceID, modifiedTargetService)
+	err := topology.UpdateWithService(modifiedTargetService)
 	if err != nil {
 		return nil, err
 	}
-	topology.UpdateDependencies(targetService, modifiedTargetService)
 
 	for statefulServiceIx, statefulService := range topology.Services {
 		if lo.Contains(statefulServices, statefulService) {
@@ -130,13 +154,16 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID 
 				parents := topology.FindImmediateParents(statefulService)
 				for _, parent := range parents {
 					logrus.Infof("Duplicating parent %s", parent.ServiceID)
-					topology.DuplicateAndUpdateService(parent, flowID)
+					err = topology.MoveServiceToVersion(parent, flowID)
+					if err != nil {
+						return nil, err
+					}
 				}
 			}
 		}
 	}
 
-	return &topology, nil
+	return topology, nil
 }
 
 func DeleteFlow(pluginRunner *plugins.PluginRunner, topology resolved.ClusterTopology, flowId string) error {
@@ -163,7 +190,7 @@ func DeleteDevFlow(pluginRunner *plugins.PluginRunner, flowId string, service *r
 	return nil
 }
 
-func topologyToGraph(topology resolved.ClusterTopology) graph.Graph[*resolved.Service, *resolved.Service] {
+func topologyToGraph(topology *resolved.ClusterTopology) graph.Graph[*resolved.Service, *resolved.Service] {
 	serviceHash := func(service *resolved.Service) *resolved.Service {
 		return service
 	}
@@ -180,11 +207,11 @@ func topologyToGraph(topology resolved.ClusterTopology) graph.Graph[*resolved.Se
 	return graph
 }
 
-func findAllDownstreamStatefulPaths(targetService *resolved.Service, g graph.Graph[*resolved.Service, *resolved.Service], topology resolved.ClusterTopology) [][]*resolved.Service {
+func findAllDownstreamStatefulPaths(targetService *resolved.Service, clusterGraph graph.Graph[*resolved.Service, *resolved.Service], topology *resolved.ClusterTopology) [][]*resolved.Service {
 	allPaths := make([][]*resolved.Service, 0)
 	for _, service := range topology.Services {
 		if service.IsStateful {
-			paths, err := graph.AllPathsBetween(g, targetService, service)
+			paths, err := graph.AllPathsBetween(clusterGraph, targetService, service)
 			if err != nil {
 				logrus.Infof("Error finding paths between %s and %s: %v", targetService.ServiceID, service.ServiceID, err)
 				paths = [][]*resolved.Service{}

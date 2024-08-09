@@ -16,6 +16,7 @@ import (
 	"kardinal.kontrol-service/engine/flow"
 	"kardinal.kontrol-service/plugins"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
+	"kardinal.kontrol-service/types/flow_spec"
 )
 
 // TODO:find a better way to find the frontend
@@ -30,21 +31,35 @@ func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceCon
 	return clusterTopology, nil
 }
 
-func GenerateProdDevCluster(baseTopology *resolved.ClusterTopology, pluginRunner *plugins.PluginRunner, flowID string, devServiceName string, devImage string) (*resolved.ClusterTopology, error) {
-	devService, err := baseTopology.GetService(devServiceName)
-	if err != nil {
-		return nil, stacktrace.Propagate(err, "Service with UUID %s not found", devServiceName)
+func GenerateProdDevCluster(baseTopology *resolved.ClusterTopology, pluginRunner *plugins.PluginRunner, flowSpec flow_spec.FlowPatchSpec) (*resolved.ClusterTopology, error) {
+	patches := []flow_spec.ServicePatch{}
+	for _, item := range flowSpec.ServicePatches {
+		devServiceName := item.Service
+		devService, err := baseTopology.GetService(devServiceName)
+		if err != nil {
+			return nil, stacktrace.Propagate(err, "Service with UUID %s not found", devServiceName)
+		}
+		if devService.DeploymentSpec == nil {
+			return nil, stacktrace.NewError("Service with UUID %s has no DeploymentSpec", devServiceName)
+		}
+
+		deploymentSpec := flow.DeepCopyDeploymentSpec(devService.DeploymentSpec)
+
+		// TODO: find a better way to update deploymentSpec, this assumes there is only container in the pod
+		deploymentSpec.Template.Spec.Containers[0].Image = item.Image
+
+		patches = append(patches, flow_spec.ServicePatch{
+			Service:        devServiceName,
+			DeploymentSpec: deploymentSpec,
+		})
 	}
-	if devService.DeploymentSpec == nil {
-		return nil, stacktrace.NewError("Service with UUID %s has no DeploymentSpec", devServiceName)
+
+	flowPatch := flow_spec.FlowPatch{
+		FlowId:         flowSpec.FlowId,
+		ServicePatches: patches,
 	}
 
-	deploymentSpec := flow.DeepCopyDeploymentSpec(devService.DeploymentSpec)
-
-	// TODO: find a better way to update deploymentSpec, this assumes there is only container in the pod
-	deploymentSpec.Template.Spec.Containers[0].Image = devImage
-
-	clusterTopology, err := flow.CreateDevFlow(pluginRunner, flowID, devServiceName, *deploymentSpec, *baseTopology)
+	clusterTopology, err := flow.CreateDevFlow(pluginRunner, *baseTopology, flowPatch)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occured generating the cluster topology from the service configs")
 	}

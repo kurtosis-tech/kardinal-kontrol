@@ -66,15 +66,16 @@ func (clusterTopology *ClusterTopology) GetService(serviceName string) (*Service
 	return nil, stacktrace.NewError("Service %s not found in the list of services", serviceName)
 }
 
-func (clusterTopology *ClusterTopology) UpdateService(serviceName string, modifiedService *Service) error {
+func (clusterTopology *ClusterTopology) UpdateWithService(modifiedService *Service) error {
 	for idx, service := range clusterTopology.Services {
-		if service.ServiceID == serviceName {
+		if service.ServiceID == modifiedService.ServiceID {
 			clusterTopology.Services[idx] = modifiedService
+			clusterTopology.UpdateDependencies(service, modifiedService)
 			return nil
 		}
 	}
 
-	return stacktrace.NewError("Service %s not found in the list of services", serviceName)
+	return stacktrace.NewError("Service %s not found in the list of services", modifiedService.ServiceID)
 }
 
 func (clusterTopology *ClusterTopology) IsIngressDestination(service *Service) bool {
@@ -141,18 +142,11 @@ func (clusterTopology *ClusterTopology) UpdateDependencies(targetService *Servic
 	}
 }
 
-func (clusterTopology *ClusterTopology) DuplicateAndUpdateService(service *Service, version string) {
+func (clusterTopology *ClusterTopology) MoveServiceToVersion(service *Service, version string) error {
 	// Don't duplicate if its already duplicated
-	for _, existingService := range clusterTopology.Services {
-		if existingService.ServiceID == service.ServiceID && existingService.Version == version {
-			return
-		}
-	}
-
 	duplicatedService := deepcopy.Copy(service).(*Service)
 	duplicatedService.Version = version
-	clusterTopology.Services = append(clusterTopology.Services, duplicatedService)
-	clusterTopology.UpdateDependencies(service, duplicatedService)
+	return clusterTopology.UpdateWithService(duplicatedService)
 }
 
 func (ingress *Ingress) GetFlowHostMapping() map[string]string {

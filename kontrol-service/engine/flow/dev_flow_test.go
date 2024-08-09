@@ -2,8 +2,9 @@ package flow
 
 import (
 	"fmt"
-	"kardinal.kontrol-service/plugins"
 	"testing"
+
+	"kardinal.kontrol-service/plugins"
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
+	"kardinal.kontrol-service/types/flow_spec"
 )
 
 func clusterTopologyExample() resolved.ClusterTopology {
@@ -20,6 +22,7 @@ func clusterTopologyExample() resolved.ClusterTopology {
 			Name: "https://github.com/h4ck3rk3y/identity-plugin",
 		},
 	}
+	httpProtocol := "HTTP"
 
 	// Create services
 	frontendService := resolved.Service{
@@ -27,8 +30,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 		ServiceSpec: &v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name: "http",
-					Port: 80,
+					Name:        "http",
+					Port:        80,
+					AppProtocol: &httpProtocol,
 				},
 			},
 			Selector: map[string]string{
@@ -45,8 +49,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 		ServiceSpec: &v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name: "grpc",
-					Port: 7070,
+					Name:        "grpc",
+					Port:        7070,
+					AppProtocol: &httpProtocol,
 				},
 			},
 			Selector: map[string]string{
@@ -63,8 +68,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 		ServiceSpec: &v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name: "grpc",
-					Port: 3550,
+					Name:        "grpc",
+					Port:        3550,
+					AppProtocol: &httpProtocol,
 				},
 			},
 			Selector: map[string]string{
@@ -81,8 +87,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 		ServiceSpec: &v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name: "grpc",
-					Port: 50051,
+					Name:        "grpc",
+					Port:        50051,
+					AppProtocol: &httpProtocol,
 				},
 			},
 			Selector: map[string]string{
@@ -100,8 +107,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 		ServiceSpec: &v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name: "grpc",
-					Port: 50051,
+					Name:        "grpc",
+					Port:        50051,
+					AppProtocol: &httpProtocol,
 				},
 			},
 			Selector: map[string]string{
@@ -119,8 +127,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 		ServiceSpec: &v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name: "grpc",
-					Port: 5050,
+					Name:        "grpc",
+					Port:        5050,
+					AppProtocol: &httpProtocol,
 				},
 			},
 			Selector: map[string]string{
@@ -137,8 +146,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 		ServiceSpec: &v1.ServiceSpec{
 			Ports: []v1.ServicePort{
 				{
-					Name: "grpc",
-					Port: 8080,
+					Name:        "grpc",
+					Port:        8080,
+					AppProtocol: &httpProtocol,
 				},
 			},
 			Selector: map[string]string{
@@ -287,6 +297,7 @@ func clusterTopologyExample() resolved.ClusterTopology {
 
 	// Create cluster topology
 	clusterTopology := resolved.ClusterTopology{
+		FlowID:    "test-prod",
 		Ingresses: []*resolved.Ingress{&ingress},
 		Services: []*resolved.Service{
 			&frontendService,
@@ -313,7 +324,7 @@ func getServiceRef(cluster *resolved.ClusterTopology, serviceID string) *resolve
 	return service
 }
 
-func assertStateLessServices(t *testing.T, originalCluster *resolved.ClusterTopology, devCluster *resolved.ClusterTopology, services []string) {
+func assertSameStateLessServices(t *testing.T, originalCluster *resolved.ClusterTopology, devCluster *resolved.ClusterTopology, services []string) {
 	for _, serviceID := range services {
 		originalService := getServiceRef(originalCluster, serviceID)
 		devService := getServiceRef(devCluster, serviceID)
@@ -321,6 +332,17 @@ func assertStateLessServices(t *testing.T, originalCluster *resolved.ClusterTopo
 		require.Equal(t, originalService.IsStateful, devService.IsStateful)
 		require.Equal(t, originalService, devService)
 		require.Equal(t, originalService.Version, devService.Version)
+	}
+}
+
+func assertDuplicatedStateLessServices(t *testing.T, originalCluster *resolved.ClusterTopology, devCluster *resolved.ClusterTopology, services []string) {
+	for _, serviceID := range services {
+		originalService := getServiceRef(originalCluster, serviceID)
+		devService := getServiceRef(devCluster, serviceID)
+		require.Equal(t, false, originalService.IsStateful)
+		require.Equal(t, originalService.IsStateful, devService.IsStateful)
+		require.NotEqual(t, originalService, devService)
+		require.NotEqual(t, originalService.Version, devService.Version)
 	}
 }
 
@@ -337,11 +359,11 @@ func assertStatefulServices(t *testing.T, originalCluster *resolved.ClusterTopol
 
 func TestTopologyToGraph(t *testing.T) {
 	cluster := clusterTopologyExample()
-	g := topologyToGraph(cluster)
+	g := topologyToGraph(&cluster)
 	targetService, err := cluster.GetService("checkoutservice")
 	require.Nil(t, err)
 
-	resultGraph := findAllDownstreamStatefulPaths(targetService, g, cluster)
+	resultGraph := findAllDownstreamStatefulPaths(targetService, g, &cluster)
 	fmt.Println("Paths:")
 	for _, paths := range resultGraph {
 		fmt.Println("Segs:")
@@ -389,13 +411,20 @@ func TestDeepCopyService(t *testing.T) {
 }
 
 func TestDevFlowImmutability(t *testing.T) {
-	// TODO: review test
-	t.Skip("This test is failing, need to fix it")
-
 	cluster := clusterTopologyExample()
 	checkoutservice := getServiceRef(&cluster, "checkoutservice")
 	pluginRunner := plugins.NewPluginRunner()
-	devCluster, err := CreateDevFlow(pluginRunner, "dev-flow-1", "checkoutservice", *checkoutservice.DeploymentSpec, cluster)
+	flowSpec := flow_spec.FlowPatch{
+		FlowId: "dev-flow-1",
+		ServicePatches: []flow_spec.ServicePatch{
+			{
+				Service:        "checkoutservice",
+				DeploymentSpec: checkoutservice.DeploymentSpec,
+			},
+		},
+	}
+
+	devCluster, err := CreateDevFlow(pluginRunner, cluster, flowSpec)
 	require.NoError(t, err)
 
 	devCheckoutservice := getServiceRef(devCluster, "checkoutservice")
@@ -411,11 +440,15 @@ func TestDevFlowImmutability(t *testing.T) {
 
 	statelessServices := []string{
 		"frontend",
-		"cartservice",
 		"productcatalogservice",
 		"recommendationservice",
 	}
-	assertStateLessServices(t, &cluster, devCluster, statelessServices)
+	assertSameStateLessServices(t, &cluster, devCluster, statelessServices)
+
+	dupStatelessServices := []string{
+		"cartservice",
+	}
+	assertDuplicatedStateLessServices(t, &cluster, devCluster, dupStatelessServices)
 
 	require.Equal(t, len(cluster.Services), len(devCluster.Services))
 	require.Equal(t, len(cluster.ServiceDependencies), len(devCluster.ServiceDependencies))
@@ -427,13 +460,20 @@ func TestDevFlowImmutability(t *testing.T) {
 }
 
 func TestFlowMerging(t *testing.T) {
-	// TODO: review test
-	t.Skip("This test is failing, need to fix it")
-
 	cluster := clusterTopologyExample()
 	checkoutservice := getServiceRef(&cluster, "checkoutservice")
 	pluginRunner := plugins.NewPluginRunner()
-	devCluster, err := CreateDevFlow(pluginRunner, "dev-flow-1", "checkoutservice", *checkoutservice.DeploymentSpec, cluster)
+	flowSpec := flow_spec.FlowPatch{
+		FlowId: "dev-flow-1",
+		ServicePatches: []flow_spec.ServicePatch{
+			{
+				Service:        "checkoutservice",
+				DeploymentSpec: checkoutservice.DeploymentSpec,
+			},
+		},
+	}
+
+	devCluster, err := CreateDevFlow(pluginRunner, cluster, flowSpec)
 	require.NoError(t, err)
 	require.Equal(t, len(cluster.Services), len(devCluster.Services))
 	require.Equal(t, len(cluster.ServiceDependencies), len(devCluster.ServiceDependencies))
@@ -444,10 +484,11 @@ func TestFlowMerging(t *testing.T) {
 		"checkoutservice",
 		"paymentservice",
 		"shippingservice",
+		"cartservice",
 		"redis",
 	}
 	require.Equal(t, len(cluster.Services)+len(extraModifiedServices), len(mergedTopology.Services))
 
-	nunExtraDeps := 7
+	nunExtraDeps := 8
 	require.Equal(t, len(cluster.ServiceDependencies)+nunExtraDeps, len(mergedTopology.ServiceDependencies))
 }

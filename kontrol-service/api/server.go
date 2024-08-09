@@ -19,6 +19,7 @@ import (
 	"kardinal.kontrol-service/topology"
 	"kardinal.kontrol-service/types"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
+	"kardinal.kontrol-service/types/flow_spec"
 )
 
 // optional code omitted
@@ -123,15 +124,19 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 		os.Exit(1)
 	}
 
-	serviceUpdate := *request.Body
+	serviceUpdates := *request.Body
 
-	// TODO: only one service config is allowed for now
-	serviceName := serviceUpdate[0].ServiceName
-	imageLocator := serviceUpdate[0].ImageLocator
+	patches := []flow_spec.ServicePatchSpec{}
+	for _, serviceUpdate := range serviceUpdates {
+		patch := flow_spec.ServicePatchSpec{
+			Service: serviceUpdate.ServiceName,
+			Image:   serviceUpdate.ImageLocator,
+		}
+		logrus.Infof("starting new dev flow for service %v on image %v", patch.Service, patch.Image)
+		patches = append(patches, patch)
+	}
 
-	logrus.Infof("starting new dev flow for service %v on image %v", serviceName, imageLocator)
-
-	flowId, flowUrls, err := applyProdDevFlow(sv, request.Uuid, serviceName, imageLocator)
+	flowId, flowUrls, err := applyProdDevFlow(sv, request.Uuid, patches)
 	if err != nil {
 		logrus.Errorf("an error occured while updating dev flow. error was \n: '%v'", err.Error())
 		return nil, err
@@ -187,7 +192,7 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apityp
 }
 
 // ============================================================================================================
-func applyProdDevFlow(sv *Server, tenantUuidStr string, devServiceName string, devImage string) (*string, []string, error) {
+func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.ServicePatchSpec) (*string, []string, error) {
 	randId := GetRandFlowID()
 	flowID := fmt.Sprintf("dev-%s", randId)
 
@@ -205,7 +210,12 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, devServiceName string, d
 	}
 
 	logrus.Debugf("calculating cluster topology overlay for tenant %s on flowID %s", tenantUuidStr, flowID)
-	devClusterTopology, err := engine.GenerateProdDevCluster(&prodClusterTopology, pluginRunner, flowID, devServiceName, devImage)
+
+	flowSpec := flow_spec.FlowPatchSpec{
+		FlowId:         flowID,
+		ServicePatches: patches,
+	}
+	devClusterTopology, err := engine.GenerateProdDevCluster(&prodClusterTopology, pluginRunner, flowSpec)
 	if err != nil {
 		return nil, []string{}, err
 	}
