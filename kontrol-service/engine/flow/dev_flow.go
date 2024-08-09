@@ -2,6 +2,7 @@ package flow
 
 import (
 	"fmt"
+
 	"github.com/kurtosis-tech/stacktrace"
 
 	"github.com/dominikbraun/graph"
@@ -61,7 +62,7 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, flowID string, serviceID 
 				return nil, fmt.Errorf("external service specified by plugin '%v' was not found in base topology.", plugin.ServiceName)
 			}
 
-			resultSpec := DeepCopyDeploymentSpec(targetService.DeploymentSpec)
+			resultSpec := DeepCopyDeploymentSpec(&deploymentSpec)
 
 			logrus.Infof("Calling external service plugin...")
 			pluginId := plugins.GetPluginId(flowID, targetService.ServiceID, pluginIdx)
