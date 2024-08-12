@@ -79,7 +79,12 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 	flowId := "prod"
 	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, flowId)
 	if err != nil {
-		return nil, err
+		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", flowId)
+		errResp := api.ErrorJSONResponse{
+			Error: err.Error(),
+			Msg:   &errMsg,
+		}
+		return api.PostTenantUuidDeploy500JSONResponse{errResp}, nil
 	}
 
 	resp := apitypes.Flow{FlowId: flowId, FlowUrls: urls}

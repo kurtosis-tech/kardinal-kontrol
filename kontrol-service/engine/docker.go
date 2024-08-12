@@ -164,8 +164,15 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 		clusterTopologyServices = append(clusterTopologyServices, &clusterTopologyService)
 	}
 
-	clusterTopology.Services = clusterTopologyServices
+	if len(clusterTopologyIngress) == 0 {
+		return nil, stacktrace.NewError("At least one service needs to be annotated as an ingress service")
+	}
 	clusterTopology.Ingresses = clusterTopologyIngress
+
+	if len(clusterTopologyServices) == 0 {
+		return nil, stacktrace.NewError("At least one service is required in addition to the ingress service(s)")
+	}
+	clusterTopology.Services = clusterTopologyServices
 
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
