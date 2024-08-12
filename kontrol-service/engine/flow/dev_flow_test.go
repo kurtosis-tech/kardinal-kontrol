@@ -15,11 +15,13 @@ import (
 	"kardinal.kontrol-service/types/flow_spec"
 )
 
+const dummyPluginName = "https://github.com/kurtosis-tech/dummy-plugin"
+
 func clusterTopologyExample() resolved.ClusterTopology {
 	dummySpec := &appsv1.DeploymentSpec{}
 	testPlugins := []*resolved.StatefulPlugin{
 		{
-			Name: "https://github.com/h4ck3rk3y/identity-plugin",
+			Name: dummyPluginName,
 		},
 	}
 	httpProtocol := "HTTP"
@@ -42,6 +44,14 @@ func clusterTopologyExample() resolved.ClusterTopology {
 		DeploymentSpec: dummySpec,
 		IsExternal:     false,
 		IsStateful:     false,
+		StatefulPlugins: []*resolved.StatefulPlugin{
+			{
+				Name:        dummyPluginName,
+				ServiceName: "free-currency-api",
+				Type:        "external",
+				Args:        map[string]string{},
+			},
+		},
 	}
 
 	cartService := resolved.Service{
@@ -61,6 +71,14 @@ func clusterTopologyExample() resolved.ClusterTopology {
 		DeploymentSpec: dummySpec,
 		IsExternal:     false,
 		IsStateful:     false,
+		StatefulPlugins: []*resolved.StatefulPlugin{
+			{
+				Name:        dummyPluginName,
+				ServiceName: "neon-postgres-db",
+				Type:        "external",
+				Args:        map[string]string{},
+			},
+		},
 	}
 
 	productCatalogService := resolved.Service{
@@ -179,6 +197,25 @@ func clusterTopologyExample() resolved.ClusterTopology {
 		StatefulPlugins: testPlugins,
 	}
 
+	// external services
+	neonService := resolved.Service{
+		ServiceID:       "neon-postgres-db",
+		ServiceSpec:     nil,
+		DeploymentSpec:  nil,
+		IsExternal:      true,
+		IsStateful:      false, // neon is technically stateful but right now IsExternal and IsStateful are mutually exclusive
+		StatefulPlugins: nil,
+	}
+
+	freeCurrencyApiService := resolved.Service{
+		ServiceID:       "free-currency-api",
+		ServiceSpec:     nil,
+		DeploymentSpec:  nil,
+		IsExternal:      true,
+		IsStateful:      false,
+		StatefulPlugins: nil,
+	}
+
 	// Create service dependencies
 	serviceDependencies := []resolved.ServiceDependency{
 		{
@@ -222,6 +259,10 @@ func clusterTopologyExample() resolved.ClusterTopology {
 			},
 		},
 		{
+			Service:          &frontendService,
+			DependsOnService: &freeCurrencyApiService,
+		},
+		{
 			Service:          &checkoutService,
 			DependsOnService: &productCatalogService,
 			DependencyPort: &v1.ServicePort{
@@ -259,6 +300,14 @@ func clusterTopologyExample() resolved.ClusterTopology {
 			DependencyPort: &v1.ServicePort{
 				Name: "redis",
 				Port: 6379,
+			},
+		},
+		{
+			Service:          &cartService,
+			DependsOnService: &neonService,
+			DependencyPort: &v1.ServicePort{
+				Name: "postgres",
+				Port: 5432,
 			},
 		},
 		{
@@ -308,6 +357,8 @@ func clusterTopologyExample() resolved.ClusterTopology {
 			&checkoutService,
 			&recommendationService,
 			&redisService,
+			&freeCurrencyApiService,
+			&neonService,
 		},
 		ServiceDependencies: serviceDependencies,
 	}
@@ -328,7 +379,7 @@ func assertSameStateLessServices(t *testing.T, originalCluster *resolved.Cluster
 	for _, serviceID := range services {
 		originalService := getServiceRef(originalCluster, serviceID)
 		devService := getServiceRef(devCluster, serviceID)
-		require.Equal(t, false, originalService.IsStateful)
+		require.False(t, originalService.IsStateful)
 		require.Equal(t, originalService.IsStateful, devService.IsStateful)
 		require.Equal(t, originalService, devService)
 		require.Equal(t, originalService.Version, devService.Version)
@@ -350,7 +401,7 @@ func assertStatefulServices(t *testing.T, originalCluster *resolved.ClusterTopol
 	for _, serviceID := range services {
 		originalService := getServiceRef(originalCluster, serviceID)
 		devService := getServiceRef(devCluster, serviceID)
-		require.Equal(t, true, originalService.IsStateful)
+		require.True(t, originalService.IsStateful)
 		require.Equal(t, originalService.IsStateful, devService.IsStateful)
 		require.NotEqual(t, originalService, devService)
 		require.NotEqual(t, originalService.Version, devService.Version)
@@ -486,9 +537,87 @@ func TestFlowMerging(t *testing.T) {
 		"shippingservice",
 		"cartservice",
 		"redis",
+		"neon-postgres-db",
 	}
 	require.Equal(t, len(cluster.Services)+len(extraModifiedServices), len(mergedTopology.Services))
 
-	nunExtraDeps := 8
+	nunExtraDeps := 9
 	require.Equal(t, len(cluster.ServiceDependencies)+nunExtraDeps, len(mergedTopology.ServiceDependencies))
+}
+
+func TestExternalServicesFlowOnDependentService(t *testing.T) {
+	cluster := clusterTopologyExample()
+
+	cartservice, err := cluster.GetService("cartservice")
+	require.NoError(t, err)
+
+	// TODO: mock the plugin runner so it doesn't pull from github
+	pluginRunner := plugins.NewPluginRunner()
+	flowSpec := flow_spec.FlowPatch{
+		FlowId: "dev-flow-1",
+		ServicePatches: []flow_spec.ServicePatch{
+			{
+				Service:        "cartservice",
+				DeploymentSpec: cartservice.DeploymentSpec,
+			},
+		},
+	}
+
+	newClusterTopology, err := CreateDevFlow(pluginRunner, cluster, flowSpec)
+	require.NoError(t, err)
+
+	// the topology should have the same amount of services
+	require.Equal(t, len(cluster.Services), len(newClusterTopology.Services))
+
+	// but dev versions of cart service, redis (stateful service), neon postgres db (external service)
+	expectedDevServices := []string{
+		"cartservice",
+		"neon-postgres-db",
+		"redis",
+	}
+	assertDevVersionsFound(t, newClusterTopology, "dev-flow-1", expectedDevServices)
+}
+
+func TestExternalServicesCreateDevFlowOnNotDependentService(t *testing.T) {
+	cluster := clusterTopologyExample()
+
+	frontend, err := cluster.GetService("frontend")
+	require.NoError(t, err)
+
+	pluginRunner := plugins.NewPluginRunner()
+	flowSpec := flow_spec.FlowPatch{
+		FlowId: "dev-flow-1",
+		ServicePatches: []flow_spec.ServicePatch{
+			{
+				Service:        "frontend",
+				DeploymentSpec: frontend.DeploymentSpec,
+			},
+		},
+	}
+
+	newClusterTopology, err := CreateDevFlow(pluginRunner, cluster, flowSpec)
+	require.NoError(t, err)
+
+	// topology should have same amount of services
+	require.Equal(t, len(cluster.Services), len(newClusterTopology.Services))
+
+	// and dev versions of external service
+	expectedDevServices := []string{
+		"neon-postgres-db",
+		"free-currency-api",
+		"frontend",
+		"cartservice",
+		"shippingservice",
+		"paymentservice",
+	}
+	assertDevVersionsFound(t, newClusterTopology, "dev-flow-1", expectedDevServices)
+}
+
+func assertDevVersionsFound(t *testing.T, devCluster *resolved.ClusterTopology, flowId string, serviceIds []string) {
+	for _, serviceId := range serviceIds {
+		_, found := lo.Find(devCluster.Services, func(service *resolved.Service) bool {
+			return service.ServiceID == serviceId && service.Version == flowId
+		})
+		require.True(t, found)
+	}
 }

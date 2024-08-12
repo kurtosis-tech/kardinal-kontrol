@@ -73,7 +73,7 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceS
 		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to re-marshal config map: %v", err)
 	}
 
-	logrus.Infof("Storing config map for plugin called with uuid '%v':\n %v\n...", flowUuid, configMapString)
+	logrus.Infof("Storing config map for plugin called with uuid '%v':\n...", flowUuid)
 	pr.memory.Store(flowUuid, string(configMapString))
 
 	return newDeploymentSpec, string(configMapString), nil
@@ -302,6 +302,9 @@ func executePythonScript(venvPath, repoPath, scriptContent string) error {
 func getOrCloneRepo(repoURL string) (string, error) {
 	if !strings.HasPrefix(repoURL, "https://") {
 		repoURL = "https://" + repoURL
+	}
+	if !strings.HasSuffix(repoURL, ".git") {
+		repoURL = repoURL + ".git"
 	}
 
 	parts := strings.Split(repoURL, "/")

@@ -144,11 +144,13 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 						Version:        version,
 						ServiceSpec:    nil, // leave empty for now
 						DeploymentSpec: nil, // leave empty for now
+						IsExternal:     true,
+						// external services can definitely be stateful but for now treat external and stateful services as mutually exclusive to make plugin logic easier to handle
+						IsStateful: false,
 					}
 
 					clusterTopologyServices = append(clusterTopologyServices, &externalService)
 
-					// add a dependency between dependent service and the external service
 					externalServiceDependency := resolved.ServiceDependency{
 						Service:          &clusterTopologyService,
 						DependsOnService: &externalService,
@@ -220,28 +222,4 @@ func isServiceIngress(clusterTopology *resolved.ClusterTopology, service v1.Serv
 	return lo.SomeBy(clusterTopology.Ingresses, func(item *resolved.Ingress) bool {
 		return item.IngressID == service.GetObjectMeta().GetName()
 	})
-}
-
-func getServiceAndPort(serviceName string, servicePortName string, services []*resolved.Service) (*resolved.Service, *v1.ServicePort, error) {
-	for _, service := range services {
-		if service.ServiceID == serviceName {
-			for _, port := range service.ServiceSpec.Ports {
-				if port.Name == servicePortName {
-					return service, &port, nil
-				}
-			}
-		}
-	}
-
-	return nil, nil, stacktrace.NewError("Service %s and Port %s not found in the list of services", serviceName, servicePortName)
-}
-
-func getService(serviceName string, services []*resolved.Service) (*resolved.Service, error) {
-	for _, service := range services {
-		if service.ServiceID == serviceName {
-			return service, nil
-		}
-	}
-
-	return nil, stacktrace.NewError("Service %s not found in the list of services", serviceName)
 }
