@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.1.15](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.14...0.1.15) (2024-08-14)
+
+
+### Features
+
+* add multi-service support ([#154](https://github.com/kurtosis-tech/kardinal-kontrol/issues/154)) ([a30da4f](https://github.com/kurtosis-tech/kardinal-kontrol/commit/a30da4f7d7a9b0ddca23373465c89ebe9a11e923))
+* handle downstream external services ([#151](https://github.com/kurtosis-tech/kardinal-kontrol/issues/151)) ([c23b355](https://github.com/kurtosis-tech/kardinal-kontrol/commit/c23b355dfabc27f52b15813ec8de4f13e0556748))
+* implement basic metrics on kloud kontrol backend ([#158](https://github.com/kurtosis-tech/kardinal-kontrol/issues/158)) ([d441ff4](https://github.com/kurtosis-tech/kardinal-kontrol/commit/d441ff4071729fc491a1bcdfd9c6e01d9ab96497))
+
+
+### Bug Fixes
+
+* Ingress and Services validation ([#140](https://github.com/kurtosis-tech/kardinal-kontrol/issues/140)) ([e4575da](https://github.com/kurtosis-tech/kardinal-kontrol/commit/e4575da17f03e7c96534c46e38c06573b2073139))
+
 ## [0.1.14](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.13...0.1.14) (2024-08-09)
 
 
