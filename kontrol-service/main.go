@@ -2,6 +2,8 @@ package main
 
 import (
 	"flag"
+	"os"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -10,17 +12,8 @@ import (
 	"kardinal.kontrol-service/database"
 )
 
-const (
-	dbUsername = "postgres"
-	dbHostname = "localhost"
-	dbPort     = 5432
-	dbName     = "kardinal"
-)
-
 func main() {
 	devMode := flag.Bool("dev-mode", false, "Allow to run the service in local mode.")
-	db := flag.Bool("db", false, "Enable local DB connection.")
-	dbPassword := flag.String("db-password", "", "DB password.")
 
 	flag.Parse()
 
@@ -29,18 +22,26 @@ func main() {
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
-	startServer(*devMode, *db, *dbPassword)
+	startServer(*devMode)
 }
 
-func startServer(isDevMode bool, isDb bool, dbPassword string) {
+func startServer(isDevMode bool) {
 
 	var db *database.Db
-	if isDb {
+	dbHostname := os.Getenv("DB_HOSTNAME")
+	if dbHostname != "" {
+		dbUsername := os.Getenv("DB_USERNAME")
+		dbPassword := os.Getenv("DB_PASSWORD")
+		dbName := os.Getenv("DB_NAME")
+		dbPort, err := strconv.Atoi(os.Getenv("DB_PORT"))
+		if err != nil {
+			logrus.Fatal("An error occurred parsing the DB port number", err)
+		}
 		dbConnectionInfo, err := database.NewDatabaseConnectionInfo(
 			dbUsername,
 			dbPassword,
 			dbHostname,
-			dbPort,
+			uint16(dbPort),
 			dbName,
 		)
 		if err != nil {
