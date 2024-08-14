@@ -30,14 +30,16 @@ type Server struct {
 	baseClusterTopologyByTenant map[string]resolved.ClusterTopology
 	clusterTopologyByTenantFlow map[string]map[string]resolved.ClusterTopology
 	db                          *database.Db
+	analyticsWrapper            *AnalyticsWrapper
 }
 
-func NewServer(db *database.Db) Server {
+func NewServer(db *database.Db, analyticsWrapper *AnalyticsWrapper) Server {
 	return Server{
 		pluginRunnerByTenant:        make(map[string]*plugins.PluginRunner),
 		baseClusterTopologyByTenant: make(map[string]resolved.ClusterTopology),
 		clusterTopologyByTenantFlow: make(map[string]map[string]resolved.ClusterTopology),
 		db:                          db,
+		analyticsWrapper:            analyticsWrapper,
 	}
 }
 
@@ -74,6 +76,7 @@ func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUui
 
 func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenantUuidDeployRequestObject) (api.PostTenantUuidDeployResponseObject, error) {
 	logrus.Infof("deploying prod cluster for tenant '%s'", request.Uuid)
+	sv.analyticsWrapper.TrackEvent(EVENT_DEPLOY, request.Uuid)
 	serviceConfigs := *request.Body.ServiceConfigs
 
 	flowId := "prod"
@@ -93,6 +96,7 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 
 func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.DeleteTenantUuidFlowFlowIdRequestObject) (api.DeleteTenantUuidFlowFlowIdResponseObject, error) {
 	logrus.Infof("deleting dev flow for tenant '%s'", request.Uuid)
+	sv.analyticsWrapper.TrackEvent(EVENT_FLOW_DELETE, request.Uuid)
 
 	runner, ok := sv.pluginRunnerByTenant[request.Uuid]
 	if !ok {
@@ -124,6 +128,7 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 }
 
 func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTenantUuidFlowCreateRequestObject) (api.PostTenantUuidFlowCreateResponseObject, error) {
+	sv.analyticsWrapper.TrackEvent(EVENT_FLOW_CREATE, request.Uuid)
 	if request.Body == nil || len(*request.Body) == 0 {
 		logrus.Errorf("no service config was provided for the new flow")
 		os.Exit(1)

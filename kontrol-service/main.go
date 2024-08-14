@@ -58,8 +58,13 @@ func startServer(isDevMode bool, isDb bool, dbPassword string) {
 		}
 	}
 
+	// Create a new Segment analytics client instance.
+	// analyticsClient is not initialized in dev mode so events are not reported to Segment
+	analyticsWrapper := api.NewAnalyticsWrapper(isDevMode)
+	defer analyticsWrapper.Close()
+
 	// create a type that satisfies the `api.ServerInterface`, which contains an implementation of every operation from the generated code
-	server := api.NewServer(db)
+	server := api.NewServer(db, analyticsWrapper)
 
 	e := echo.New()
 
