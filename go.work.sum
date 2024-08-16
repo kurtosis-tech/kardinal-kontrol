@@ -135,6 +135,14 @@ github.com/klauspost/cpuid/v2 v2.2.5 h1:0E5MSMDEoAulmXNFquVs//DdoomxaoTY1kUhbc/q
 github.com/klauspost/cpuid/v2 v2.2.5/go.mod h1:Lcz8mBdAVJIBVzewtcLocK12l3Y+JytZYpaMropDUws=
 github.com/knz/go-libedit v1.10.1 h1:0pHpWtx9vcvC0xGZqEQlQdfSQs7WRlAjuPvk3fOZDCo=
 github.com/kr/pty v1.1.1 h1:VkoXIwSboBpnk99O/KFauAEILuNHv5DVFKZMBN/gUgw=
+github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814135254-a0724da5a551 h1:8n+mZSzCiG+hJvFw026UjTEX8//0dsI270o9wKbARFg=
+github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814135254-a0724da5a551/go.mod h1:Zlbpg7q5pTUaddoMN9zaraCNvvuD4KJNPPC8WyUF8DI=
+github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814140453-975ebac24b93 h1:hijv6grblylZS82qnFei4L3t/60MD0cPVV0XDrHUL9I=
+github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814140453-975ebac24b93/go.mod h1:Zlbpg7q5pTUaddoMN9zaraCNvvuD4KJNPPC8WyUF8DI=
+github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240814135254-a0724da5a551 h1:D+ct39Xc/rE4nvgyueIZyc44dFm+Gyp3C9daAjlxjIw=
+github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240814135254-a0724da5a551/go.mod h1:lj6oLhpXgnc9ZaulV7jysgRaeZUDPK6XiM2TxpcGRqM=
+github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240814140453-975ebac24b93 h1:s5cXvxg52er5nMCy+9v9wR+4nv+CxHOzXwIf2q2vRA0=
+github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240814140453-975ebac24b93/go.mod h1:lj6oLhpXgnc9ZaulV7jysgRaeZUDPK6XiM2TxpcGRqM=
 github.com/leodido/go-urn v1.2.4 h1:XlAE/cm/ms7TE/VMVoduSpNBoyc2dOxHs5MZSwAN63Q=
 github.com/leodido/go-urn v1.2.4/go.mod h1:7ZrI8mTSeBSHl/UaRyKQW1qZeMgak41ANeCNaVckg+4=
 github.com/mailgun/raymond/v2 v2.0.48 h1:5dmlB680ZkFG2RN/0lvTAghrSxIESeu9/2aeDqACtjw=

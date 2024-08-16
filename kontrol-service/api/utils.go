@@ -7,9 +7,11 @@ const (
 	letterIdxBits = 6
 	letterIdxMask = 1<<letterIdxBits - 1
 	letterIdxMax  = 63 / letterIdxBits
+
+	templatePrefix = "template-"
 )
 
-func GetRandFlowID() string {
+func getRandID() string {
 	n := 10
 	b := make([]byte, n)
 	// A rand.Int63() generates 63 random bits, enough for letterIdxMax letters!
@@ -26,4 +28,12 @@ func GetRandFlowID() string {
 	}
 
 	return string(b)
+}
+
+func getRandFlowID() string {
+	return getRandID()
+}
+
+func getRandTemplateID() string {
+	return templatePrefix + getRandID()
 }

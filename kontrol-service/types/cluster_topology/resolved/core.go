@@ -2,14 +2,13 @@ package resolved
 
 import (
 	"fmt"
-	"regexp"
-
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/mohae/deepcopy"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	net "k8s.io/api/networking/v1"
+	"regexp"
 )
 
 type ClusterTopology struct {

@@ -31,11 +31,11 @@ func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceCon
 	return clusterTopology, nil
 }
 
-func GenerateProdDevCluster(baseTopology *resolved.ClusterTopology, pluginRunner *plugins.PluginRunner, flowSpec flow_spec.FlowPatchSpec) (*resolved.ClusterTopology, error) {
+func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resolved.ClusterTopology, baseTopology *resolved.ClusterTopology, pluginRunner *plugins.PluginRunner, flowSpec flow_spec.FlowPatchSpec) (*resolved.ClusterTopology, error) {
 	patches := []flow_spec.ServicePatch{}
 	for _, item := range flowSpec.ServicePatches {
 		devServiceName := item.Service
-		devService, err := baseTopology.GetService(devServiceName)
+		devService, err := baseClusterTopologyMaybeWithTemplateOverrides.GetService(devServiceName)
 		if err != nil {
 			return nil, stacktrace.Propagate(err, "Service with UUID %s not found", devServiceName)
 		}
@@ -59,7 +59,7 @@ func GenerateProdDevCluster(baseTopology *resolved.ClusterTopology, pluginRunner
 		ServicePatches: patches,
 	}
 
-	clusterTopology, err := flow.CreateDevFlow(pluginRunner, *baseTopology, flowPatch)
+	clusterTopology, err := flow.CreateDevFlow(pluginRunner, *baseClusterTopologyMaybeWithTemplateOverrides, *baseTopology, flowPatch)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occured generating the cluster topology from the service configs")
 	}

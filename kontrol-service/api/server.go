@@ -3,15 +3,12 @@ package api
 import (
 	"context"
 	"fmt"
-	"os"
-
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	managerapi "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/server"
 	managerapitypes "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/types"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
-
 	"kardinal.kontrol-service/database"
 	"kardinal.kontrol-service/engine"
 	"kardinal.kontrol-service/engine/flow"
@@ -20,6 +17,11 @@ import (
 	"kardinal.kontrol-service/types"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
 	"kardinal.kontrol-service/types/flow_spec"
+	"kardinal.kontrol-service/types/templates"
+)
+
+const (
+	prodFlowId = "prod"
 )
 
 // optional code omitted
@@ -29,6 +31,8 @@ type Server struct {
 	pluginRunnerByTenant        map[string]*plugins.PluginRunner
 	baseClusterTopologyByTenant map[string]resolved.ClusterTopology
 	clusterTopologyByTenantFlow map[string]map[string]resolved.ClusterTopology
+	templatesByNameAndTenant    map[string]map[string]templates.Template
+	serviceConfigsByTenant      map[string][]apitypes.ServiceConfig // New field
 	db                          *database.Db
 	analyticsWrapper            *AnalyticsWrapper
 }
@@ -38,6 +42,8 @@ func NewServer(db *database.Db, analyticsWrapper *AnalyticsWrapper) Server {
 		pluginRunnerByTenant:        make(map[string]*plugins.PluginRunner),
 		baseClusterTopologyByTenant: make(map[string]resolved.ClusterTopology),
 		clusterTopologyByTenantFlow: make(map[string]map[string]resolved.ClusterTopology),
+		templatesByNameAndTenant:    make(map[string]map[string]templates.Template),
+		serviceConfigsByTenant:      make(map[string][]apitypes.ServiceConfig),
 		db:                          db,
 		analyticsWrapper:            analyticsWrapper,
 	}
@@ -79,10 +85,9 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 	sv.analyticsWrapper.TrackEvent(EVENT_DEPLOY, request.Uuid)
 	serviceConfigs := *request.Body.ServiceConfigs
 
-	flowId := "prod"
-	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, flowId)
+	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, prodFlowId)
 	if err != nil {
-		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", flowId)
+		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", prodFlowId)
 		errResp := api.ErrorJSONResponse{
 			Error: err.Error(),
 			Msg:   &errMsg,
@@ -90,7 +95,7 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 		return api.PostTenantUuidDeploy500JSONResponse{errResp}, nil
 	}
 
-	resp := apitypes.Flow{FlowId: flowId, FlowUrls: urls}
+	resp := apitypes.Flow{FlowId: prodFlowId, FlowUrls: urls}
 	return api.PostTenantUuidDeploy200JSONResponse(resp), nil
 }
 
@@ -129,12 +134,8 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 
 func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTenantUuidFlowCreateRequestObject) (api.PostTenantUuidFlowCreateResponseObject, error) {
 	sv.analyticsWrapper.TrackEvent(EVENT_FLOW_CREATE, request.Uuid)
-	if request.Body == nil || len(*request.Body) == 0 {
-		logrus.Errorf("no service config was provided for the new flow")
-		os.Exit(1)
-	}
-
-	serviceUpdates := *request.Body
+	serviceUpdates := request.Body.FlowSpec
+	templateSpec := request.Body.TemplateSpec
 
 	patches := []flow_spec.ServicePatchSpec{}
 	for _, serviceUpdate := range serviceUpdates {
@@ -146,7 +147,7 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 		patches = append(patches, patch)
 	}
 
-	flowId, flowUrls, err := applyProdDevFlow(sv, request.Uuid, patches)
+	flowId, flowUrls, err := applyProdDevFlow(sv, request.Uuid, patches, templateSpec)
 	if err != nil {
 		logrus.Errorf("an error occured while updating dev flow. error was \n: '%v'", err.Error())
 		return nil, err
@@ -186,6 +187,64 @@ func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request manag
 	return nil, nil
 }
 
+func (sv *Server) GetTenantUuidTemplates(ctx context.Context, request api.GetTenantUuidTemplatesRequestObject) (api.GetTenantUuidTemplatesResponseObject, error) {
+	var allTemplatesForTenant []templates.Template
+
+	for _, template := range sv.templatesByNameAndTenant[request.Uuid] {
+		allTemplatesForTenant = append(allTemplatesForTenant, template)
+	}
+
+	return api.GetTenantUuidTemplates200JSONResponse(newClIAPITemplates(allTemplatesForTenant)), nil
+}
+
+func (sv *Server) DeleteTenantUuidTemplatesTemplateName(_ context.Context, request api.DeleteTenantUuidTemplatesTemplateNameRequestObject) (api.DeleteTenantUuidTemplatesTemplateNameResponseObject, error) {
+	tenantUuid := request.Uuid
+	templateName := request.TemplateName
+
+	if templatesForTenant, ok := sv.templatesByNameAndTenant[tenantUuid]; ok {
+		if _, exists := templatesForTenant[templateName]; exists {
+			delete(templatesForTenant, templateName)
+
+			if len(templatesForTenant) == 0 {
+				delete(sv.templatesByNameAndTenant, tenantUuid)
+			}
+
+			return api.DeleteTenantUuidTemplatesTemplateName2xxResponse{StatusCode: 202}, nil
+		}
+	}
+
+	resourceType := "template"
+	missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: templateName}
+	return api.DeleteTenantUuidTemplatesTemplateName404JSONResponse{NotFoundJSONResponse: missing}, nil
+}
+
+func (sv *Server) PostTenantUuidTemplatesCreate(_ context.Context, request api.PostTenantUuidTemplatesCreateRequestObject) (api.PostTenantUuidTemplatesCreateResponseObject, error) {
+	tenantUuid := request.Uuid
+	templateName := request.Body.Name
+	templateDescriptionPtr := request.Body.Description
+	templateOverrides := request.Body.Service
+	templateId := getRandTemplateID()
+
+	// Initialize the map for the tenant if it doesn't exist
+	if _, ok := sv.templatesByNameAndTenant[tenantUuid]; !ok {
+		sv.templatesByNameAndTenant[tenantUuid] = make(map[string]templates.Template)
+	}
+
+	if _, found := sv.templatesByNameAndTenant[tenantUuid][templateName]; found {
+		logrus.Infof("Template with name '%v' exists; will be overwritten", templateName)
+	}
+
+	template := templates.NewTemplate(templateOverrides, templateDescriptionPtr, templateName, templateId)
+
+	sv.templatesByNameAndTenant[tenantUuid][templateName] = template
+
+	return api.PostTenantUuidTemplatesCreate200JSONResponse{
+		Description: template.GetDescription(),
+		Name:        template.GetName(),
+		TemplateId:  template.GetID(),
+	}, nil
+}
+
 // ============================================================================================================
 func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, flowID string) (error, []string) {
 	clusterTopology, err := engine.GenerateProdOnlyCluster(flowID, serviceConfigs)
@@ -193,24 +252,48 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apityp
 		return err, []string{}
 	}
 
+	// TODO there is an issue here where one of these get updated and failure happens
+	// Perhaps have a super map / something that accounts for this
+	// we need to keep this in consistent state
 	sv.pluginRunnerByTenant[tenantUuidStr] = plugins.NewPluginRunner()
 	sv.baseClusterTopologyByTenant[tenantUuidStr] = *clusterTopology
 	sv.clusterTopologyByTenantFlow[tenantUuidStr] = make(map[string]resolved.ClusterTopology)
+	sv.serviceConfigsByTenant[tenantUuidStr] = serviceConfigs
 	flowHostMapping := clusterTopology.GetFlowHostMapping()
 
 	return nil, flowHostMapping[flowID]
 }
 
 // ============================================================================================================
-func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.ServicePatchSpec) (*string, []string, error) {
-	randId := GetRandFlowID()
+func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.ServicePatchSpec, templateSpec *apitypes.TemplateSpec) (*string, []string, error) {
+	randId := getRandFlowID()
 	flowID := fmt.Sprintf("dev-%s", randId)
 
 	logrus.Debugf("generating base cluster topology for tenant %s on flowID %s", tenantUuidStr, flowID)
 
-	prodClusterTopology, found := sv.baseClusterTopologyByTenant[tenantUuidStr]
+	baseTopology, found := sv.baseClusterTopologyByTenant[tenantUuidStr]
 	if !found {
 		return nil, []string{}, fmt.Errorf("no base cluster topology found for tenant %s, did you deploy the cluster?", tenantUuidStr)
+	}
+
+	baseClusterTopologyMaybeWithTemplateOverrides := baseTopology
+	if templateSpec != nil {
+		logrus.Debugf("Using template '%v'", templateSpec.TemplateName)
+		serviceConfigs, found := sv.serviceConfigsByTenant[tenantUuidStr]
+		if !found {
+			return nil, []string{}, fmt.Errorf("no service configs found for tenant %s, did you deploy the cluster?", tenantUuidStr)
+		}
+
+		template, found := sv.templatesByNameAndTenant[tenantUuidStr][templateSpec.TemplateName]
+		if !found {
+			return nil, []string{}, fmt.Errorf("template with name '%v' doesn't exist for tenant uuid '%v'", templateSpec.TemplateName, tenantUuidStr)
+		}
+		serviceConfigs = template.ApplyTemplateOverrides(serviceConfigs, templateSpec)
+		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(prodFlowId, serviceConfigs)
+		if err != nil {
+			return nil, []string{}, fmt.Errorf("an error occurred while creating base cluster topology from templates:\n %s", err)
+		}
+		baseClusterTopologyMaybeWithTemplateOverrides = *baseClusterTopologyWithTemplateOverridesPtr
 	}
 
 	pluginRunner, found := sv.pluginRunnerByTenant[tenantUuidStr]
@@ -225,7 +308,7 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 		FlowId:         flowID,
 		ServicePatches: patches,
 	}
-	devClusterTopology, err := engine.GenerateProdDevCluster(&prodClusterTopology, pluginRunner, flowSpec)
+	devClusterTopology, err := engine.GenerateProdDevCluster(&baseClusterTopologyMaybeWithTemplateOverrides, &baseTopology, pluginRunner, flowSpec)
 	if err != nil {
 		return nil, []string{}, err
 	}
@@ -234,6 +317,19 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 	flowHostMapping := devClusterTopology.GetFlowHostMapping()
 
 	return &flowID, flowHostMapping[flowID], nil
+}
+
+func newClIAPITemplates(templates []templates.Template) []apitypes.Template {
+	var apiTypeTemplates []apitypes.Template
+	for _, template := range templates {
+		apiTypeTemplate := apitypes.Template{
+			Description: template.GetDescription(),
+			Name:        template.GetName(),
+			TemplateId:  template.GetID(),
+		}
+		apiTypeTemplates = append(apiTypeTemplates, apiTypeTemplate)
+	}
+	return apiTypeTemplates
 }
 
 func newManagerAPIClusterResources(clusterResources types.ClusterResources) managerapitypes.ClusterResources {

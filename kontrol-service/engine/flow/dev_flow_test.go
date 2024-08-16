@@ -475,7 +475,7 @@ func TestDevFlowImmutability(t *testing.T) {
 		},
 	}
 
-	devCluster, err := CreateDevFlow(pluginRunner, cluster, flowSpec)
+	devCluster, err := CreateDevFlow(pluginRunner, cluster, cluster, flowSpec)
 	require.NoError(t, err)
 
 	devCheckoutservice := getServiceRef(devCluster, "checkoutservice")
@@ -524,7 +524,7 @@ func TestFlowMerging(t *testing.T) {
 		},
 	}
 
-	devCluster, err := CreateDevFlow(pluginRunner, cluster, flowSpec)
+	devCluster, err := CreateDevFlow(pluginRunner, cluster, cluster, flowSpec)
 	require.NoError(t, err)
 	require.Equal(t, len(cluster.Services), len(devCluster.Services))
 	require.Equal(t, len(cluster.ServiceDependencies), len(devCluster.ServiceDependencies))
@@ -563,7 +563,7 @@ func TestExternalServicesFlowOnDependentService(t *testing.T) {
 		},
 	}
 
-	newClusterTopology, err := CreateDevFlow(pluginRunner, cluster, flowSpec)
+	newClusterTopology, err := CreateDevFlow(pluginRunner, cluster, cluster, flowSpec)
 	require.NoError(t, err)
 
 	// the topology should have the same amount of services
@@ -595,7 +595,7 @@ func TestExternalServicesCreateDevFlowOnNotDependentService(t *testing.T) {
 		},
 	}
 
-	newClusterTopology, err := CreateDevFlow(pluginRunner, cluster, flowSpec)
+	newClusterTopology, err := CreateDevFlow(pluginRunner, cluster, cluster, flowSpec)
 	require.NoError(t, err)
 
 	// topology should have same amount of services

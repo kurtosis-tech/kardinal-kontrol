@@ -16,17 +16,20 @@ import (
 	v1 "k8s.io/api/apps/v1"
 )
 
-func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseTopology resolved.ClusterTopology, flowPatch flow_spec.FlowPatch) (*resolved.ClusterTopology, error) {
+// CreateDevFlow creates a dev flow from the given topologies
+// baseClusterTopologyMaybeWithTemplateOverrides - if a template is used then this is a modified version of the baseTopology
+// we pass in the base topology anyway as we use services which remain in `prod` version from it
+func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseClusterTopologyMaybeWithTemplateOverrides resolved.ClusterTopology, baseTopology resolved.ClusterTopology, flowPatch flow_spec.FlowPatch) (*resolved.ClusterTopology, error) {
 	flowID := flowPatch.FlowId
 
 	// shallow copy the base topology
-	topology := baseTopology
+	topology := baseClusterTopologyMaybeWithTemplateOverrides
 
 	// duplicate slices
 	topology.FlowID = flowID
-	topology.Services = deepCopySlice(baseTopology.Services)
-	topology.ServiceDependencies = deepCopySlice(baseTopology.ServiceDependencies)
-	topology.Ingresses = lo.Map(baseTopology.Ingresses, func(item *resolved.Ingress, _ int) *resolved.Ingress {
+	topology.Services = deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.Services)
+	topology.ServiceDependencies = deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.ServiceDependencies)
+	topology.Ingresses = lo.Map(baseClusterTopologyMaybeWithTemplateOverrides.Ingresses, func(item *resolved.Ingress, _ int) *resolved.Ingress {
 		copiedIngress := resolved.Ingress{
 			ActiveFlowIDs: []string{flowID},
 			IngressID:     item.IngressID,
@@ -49,6 +52,35 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseTopology resolved.Clu
 		_, err = applyPatch(pluginRunner, topologyRef, clusterGraph, flowID, targetService, servicePatch.DeploymentSpec)
 		if err != nil {
 			return nil, err
+		}
+	}
+
+	// Replace "prod" version services with baseTopology versions
+	for i, service := range topologyRef.Services {
+		if service.Version == "prod" {
+			prodService, err := baseTopology.GetService(service.ServiceID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get prod service %s: %v", service.ServiceID, err)
+			}
+			topologyRef.Services[i] = prodService
+		}
+	}
+
+	// Update service dependencies
+	for i, dependency := range topologyRef.ServiceDependencies {
+		if dependency.Service.Version == "prod" {
+			prodService, err := baseTopology.GetService(dependency.Service.ServiceID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get prod service %s for dependency: %v", dependency.Service.ServiceID, err)
+			}
+			topologyRef.ServiceDependencies[i].Service = prodService
+		}
+		if dependency.DependsOnService.Version == "prod" {
+			prodDependsOnService, err := baseTopology.GetService(dependency.DependsOnService.ServiceID)
+			if err != nil {
+				return nil, fmt.Errorf("failed to get prod service %s for dependsOn: %v", dependency.DependsOnService.ServiceID, err)
+			}
+			topologyRef.ServiceDependencies[i].DependsOnService = prodDependsOnService
 		}
 	}
 
