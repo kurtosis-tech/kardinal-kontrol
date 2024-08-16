@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.1.16](https://github.com/kurtosis-tech/kardinal-kontrol-private/compare/0.1.15...0.1.16) (2024-08-16)
+
+
+### Features
+
+* allow for templates to work ([#160](https://github.com/kurtosis-tech/kardinal-kontrol-private/issues/160)) ([3f70e0a](https://github.com/kurtosis-tech/kardinal-kontrol-private/commit/3f70e0a001cc4027fb7e17d54c4529152cb491a9))
+* RDS cloud formation and DB secrets exposed to kontrol service pods ([#147](https://github.com/kurtosis-tech/kardinal-kontrol-private/issues/147)) ([a34e81a](https://github.com/kurtosis-tech/kardinal-kontrol-private/commit/a34e81a0e0ffdbb33ee1fb8443c341b1591800cb))
+
+
+### Bug Fixes
+
+* allow for job to run on kontrol private repo ([#170](https://github.com/kurtosis-tech/kardinal-kontrol-private/issues/170)) ([786e7be](https://github.com/kurtosis-tech/kardinal-kontrol-private/commit/786e7be2fb02b89ce296aecd393da81af38c8825))
+
 ## [0.1.15](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.14...0.1.15) (2024-08-14)
 
 
