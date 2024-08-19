@@ -73,15 +73,11 @@ func getClusterTopologyEdges(clusterTopology *resolved.ClusterTopology) []apiTyp
 	for _, ingress := range clusterTopology.Ingresses {
 		gwLabel := ingress.IngressID
 
-		ingressAppName := ingress.GetSelectorAppName()
-		if ingressAppName != nil {
-			ingressTargetService, _ := clusterTopology.GetService(*ingressAppName)
-			if ingressTargetService != nil {
-				edges = append(edges, apiTypes.Edge{
-					Source: gwLabel,
-					Target: ingressTargetService.ServiceID,
-				})
-			}
+		for _, targetService := range ingress.GetTargetServices() {
+			edges = append(edges, apiTypes.Edge{
+				Source: gwLabel,
+				Target: targetService,
+			})
 		}
 	}
 

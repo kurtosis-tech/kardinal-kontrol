@@ -84,8 +84,10 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 	logrus.Infof("deploying prod cluster for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_DEPLOY, request.Uuid)
 	serviceConfigs := *request.Body.ServiceConfigs
+	ingressConfigs := *request.Body.IngressConfigs
 
-	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, prodFlowId)
+	flowId := "prod"
+	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, flowId)
 	if err != nil {
 		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", prodFlowId)
 		errResp := api.ErrorJSONResponse{
@@ -246,8 +248,8 @@ func (sv *Server) PostTenantUuidTemplatesCreate(_ context.Context, request api.P
 }
 
 // ============================================================================================================
-func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, flowID string) (error, []string) {
-	clusterTopology, err := engine.GenerateProdOnlyCluster(flowID, serviceConfigs)
+func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, flowID string) (error, []string) {
+	clusterTopology, err := engine.GenerateProdOnlyCluster(flowID, serviceConfigs, ingressConfigs)
 	if err != nil {
 		return err, []string{}
 	}
@@ -289,7 +291,7 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 			return nil, []string{}, fmt.Errorf("template with name '%v' doesn't exist for tenant uuid '%v'", templateSpec.TemplateName, tenantUuidStr)
 		}
 		serviceConfigs = template.ApplyTemplateOverrides(serviceConfigs, templateSpec)
-		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(prodFlowId, serviceConfigs)
+		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(prodFlowId, serviceConfigs, []apitypes.IngressConfig{})
 		if err != nil {
 			return nil, []string{}, fmt.Errorf("an error occurred while creating base cluster topology from templates:\n %s", err)
 		}

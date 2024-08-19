@@ -6,11 +6,38 @@ import (
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-const ()
+func GetIngressConfigs() []apitypes.IngressConfig {
+	return []apitypes.IngressConfig{
+		{
+			Ingress: net.Ingress{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Ingress",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "kontrol-ingress",
+					Annotations: map[string]string{
+						"kardinal.dev.service/ingress": "true",
+					},
+				},
+				Spec: net.IngressSpec{
+					Rules: []net.IngressRule{
+						{
+							Host:             "app.kardinal.dev",
+							IngressRuleValue: net.IngressRuleValue{},
+						},
+					},
+				},
+				Status: net.IngressStatus{},
+			},
+		},
+	}
+}
 
 func GetServiceConfigs() []apitypes.ServiceConfig {
 	serviceConfigs := []apitypes.ServiceConfig{}

@@ -6,6 +6,8 @@ import (
 	"github.com/mohae/deepcopy"
 	"github.com/samber/lo"
 	appsv1 "k8s.io/api/apps/v1"
+	"slices"
+
 	corev1 "k8s.io/api/core/v1"
 	net "k8s.io/api/networking/v1"
 	"regexp"
@@ -35,10 +37,14 @@ type ServiceDependency struct {
 }
 
 type Ingress struct {
-	ActiveFlowIDs []string            `json:"activeFlowIDs"`
-	IngressID     string              `json:"ingressID"`
-	IngressRules  []*net.IngressRule  `json:"ingressRules"`
-	ServiceSpec   *corev1.ServiceSpec `json:"serviceSpec"`
+	ActiveFlowIDs []string           `json:"activeFlowIDs"`
+	IngressID     string             `json:"ingressID"`
+	IngressRules  []*net.IngressRule `json:"ingressRules"`
+	// IngressSpec and ServiceSpec are mutually exclusive
+	// IngressSpec is set if a k8s Ingress type is being used for this Ingress
+	// ServiceSpec is set if a k8s Service type is acting as an Ingress (eg. LoadBalancer, custom gateway)
+	IngressSpec *net.IngressSpec    `json:"ingressSpec"`
+	ServiceSpec *corev1.ServiceSpec `json:"serviceSpec"`
 }
 
 func (clusterTopology *ClusterTopology) GetServiceAndPort(serviceName string, servicePortName string) (*Service, *corev1.ServicePort, error) {
@@ -79,22 +85,14 @@ func (clusterTopology *ClusterTopology) UpdateWithService(modifiedService *Servi
 
 func (clusterTopology *ClusterTopology) IsIngressDestination(service *Service) bool {
 	return lo.SomeBy(clusterTopology.Ingresses, func(item *Ingress) bool {
-		appName, ok := item.ServiceSpec.Selector["app"]
-		if ok {
-			return appName == service.ServiceID
-		}
-		return false
+		return slices.Contains(item.GetTargetServices(), service.ServiceID)
 	})
 }
 
 func (clusterTopology *ClusterTopology) GetIngressForService(service *Service) (*Ingress, bool) {
 	// TODO: How to force that a service can't have more than one ingress?
 	return lo.Find(clusterTopology.Ingresses, func(item *Ingress) bool {
-		appName, ok := item.ServiceSpec.Selector["app"]
-		if ok {
-			return appName == service.ServiceID
-		}
-		return false
+		return slices.Contains(item.GetTargetServices(), service.ServiceID)
 	})
 }
 
@@ -102,7 +100,6 @@ func (ingress *Ingress) GetHost() *string {
 	if len(ingress.IngressRules) > 0 {
 		return &ingress.IngressRules[0].Host
 	}
-
 	return nil
 }
 
@@ -165,13 +162,22 @@ func ReplaceOrAddSubdomain(url string, newSubdomain string) string {
 	return re.ReplaceAllString(url, fmt.Sprintf("${1}%s.${4}${5}", newSubdomain))
 }
 
-func (ingress *Ingress) GetSelectorAppName() *string {
-	appName, ok := ingress.ServiceSpec.Selector["app"]
-	if ok {
-		return &appName
+func (ingress *Ingress) GetTargetServices() []string {
+	targetServices := []string{}
+	if ingress.IngressSpec != nil {
+		for _, rule := range ingress.IngressSpec.Rules {
+			for _, httpPath := range rule.HTTP.Paths {
+				targetServices = append(targetServices, httpPath.Backend.Service.Name)
+			}
+		}
 	}
-
-	return nil
+	if ingress.ServiceSpec != nil {
+		appName, ok := ingress.ServiceSpec.Selector["app"]
+		if ok {
+			targetServices = append(targetServices, appName)
+		}
+	}
+	return targetServices
 }
 
 func (service *Service) IsHTTP() bool {
