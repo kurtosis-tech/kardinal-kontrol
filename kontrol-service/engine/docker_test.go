@@ -11,9 +11,10 @@ import (
 func TestServiceConfigsToClusterTopology(t *testing.T) {
 	testServiceConfigs := test.GetServiceConfigs()
 	testVersion := "prod"
+	testNamespace := "prod"
 
 	testIngressConfigs := []apitypes.IngressConfig{}
-	cluster, err := generateClusterTopology(testServiceConfigs, testIngressConfigs, testVersion)
+	cluster, err := generateClusterTopology(testServiceConfigs, testIngressConfigs, testVersion, testNamespace)
 	if err != nil {
 		t.Errorf("Error generating cluster: %s", err)
 	}
@@ -50,8 +51,9 @@ func TestIngressConfigsTakePrecedenceOverK8sServicesActingAsIngresses(t *testing
 	// this should take precedence over any Ingress defined elsewhere in the k8s manifest
 	testIngressConfigs := test.GetIngressConfigs()
 	testVersion := "prod"
+	testNamespace := "prod"
 
-	cluster, err := generateClusterTopology(testServiceConfigs, testIngressConfigs, testVersion)
+	cluster, err := generateClusterTopology(testServiceConfigs, testIngressConfigs, testVersion, testNamespace)
 	if err != nil {
 		t.Errorf("Error generating cluster: %s", err)
 	}

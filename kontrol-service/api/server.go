@@ -33,6 +33,7 @@ type Server struct {
 	clusterTopologyByTenantFlow map[string]map[string]resolved.ClusterTopology
 	templatesByNameAndTenant    map[string]map[string]templates.Template
 	serviceConfigsByTenant      map[string][]apitypes.ServiceConfig // New field
+	ingressConfigsByTenant      map[string][]apitypes.IngressConfig // New field
 	db                          *database.Db
 	analyticsWrapper            *AnalyticsWrapper
 }
@@ -85,9 +86,14 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 	sv.analyticsWrapper.TrackEvent(EVENT_DEPLOY, request.Uuid)
 	serviceConfigs := *request.Body.ServiceConfigs
 	ingressConfigs := *request.Body.IngressConfigs
+	namespace := *request.Body.Namespace
+
+	if namespace == "" {
+		namespace = "prod"
+	}
 
 	flowId := "prod"
-	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, flowId)
+	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, namespace, flowId)
 	if err != nil {
 		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", prodFlowId)
 		errResp := api.ErrorJSONResponse{
@@ -175,9 +181,8 @@ func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenant
 }
 
 func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request managerapi.GetTenantUuidClusterResourcesRequestObject) (managerapi.GetTenantUuidClusterResourcesResponseObject, error) {
-	namespace := "prod"
-
 	if clusterTopology, found := sv.baseClusterTopologyByTenant[request.Uuid]; found {
+		namespace := clusterTopology.Namespace
 		if allFlows, found := sv.clusterTopologyByTenantFlow[request.Uuid]; found {
 			finalTopology := flow.MergeClusterTopologies(clusterTopology, lo.Values(allFlows))
 			clusterResources := flow.RenderClusterResources(finalTopology, namespace)
@@ -248,8 +253,8 @@ func (sv *Server) PostTenantUuidTemplatesCreate(_ context.Context, request api.P
 }
 
 // ============================================================================================================
-func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, flowID string) (error, []string) {
-	clusterTopology, err := engine.GenerateProdOnlyCluster(flowID, serviceConfigs, ingressConfigs)
+func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string, flowID string) (error, []string) {
+	clusterTopology, err := engine.GenerateProdOnlyCluster(flowID, serviceConfigs, ingressConfigs, namespace)
 	if err != nil {
 		return err, []string{}
 	}
@@ -261,6 +266,7 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apityp
 	sv.baseClusterTopologyByTenant[tenantUuidStr] = *clusterTopology
 	sv.clusterTopologyByTenantFlow[tenantUuidStr] = make(map[string]resolved.ClusterTopology)
 	sv.serviceConfigsByTenant[tenantUuidStr] = serviceConfigs
+	sv.ingressConfigsByTenant[tenantUuidStr] = ingressConfigs
 	flowHostMapping := clusterTopology.GetFlowHostMapping()
 
 	return nil, flowHostMapping[flowID]
@@ -285,13 +291,17 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 		if !found {
 			return nil, []string{}, fmt.Errorf("no service configs found for tenant %s, did you deploy the cluster?", tenantUuidStr)
 		}
+		ingressConfigs, found := sv.ingressConfigsByTenant[tenantUuidStr]
+		if !found {
+			return nil, []string{}, fmt.Errorf("no ingress configs found for tenant %s, did you deploy the cluster?", tenantUuidStr)
+		}
 
 		template, found := sv.templatesByNameAndTenant[tenantUuidStr][templateSpec.TemplateName]
 		if !found {
 			return nil, []string{}, fmt.Errorf("template with name '%v' doesn't exist for tenant uuid '%v'", templateSpec.TemplateName, tenantUuidStr)
 		}
 		serviceConfigs = template.ApplyTemplateOverrides(serviceConfigs, templateSpec)
-		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(prodFlowId, serviceConfigs, []apitypes.IngressConfig{})
+		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(prodFlowId, serviceConfigs, ingressConfigs, baseTopology.Namespace)
 		if err != nil {
 			return nil, []string{}, fmt.Errorf("an error occurred while creating base cluster topology from templates:\n %s", err)
 		}

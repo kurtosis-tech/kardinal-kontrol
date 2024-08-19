@@ -18,6 +18,7 @@ type ClusterTopology struct {
 	Ingresses           []*Ingress          `json:"ingress"`
 	Services            []*Service          `json:"services"`
 	ServiceDependencies []ServiceDependency `json:"serviceDependencies"`
+	Namespace           string              `json:"namespace"`
 }
 
 type Service struct {

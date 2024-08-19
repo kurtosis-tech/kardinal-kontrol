@@ -19,8 +19,8 @@ import (
 	"kardinal.kontrol-service/types/flow_spec"
 )
 
-func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig) (*resolved.ClusterTopology, error) {
-	clusterTopology, err := generateClusterTopology(serviceConfigs, ingressConfigs, flowID)
+func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string) (*resolved.ClusterTopology, error) {
+	clusterTopology, err := generateClusterTopology(serviceConfigs, ingressConfigs, namespace, flowID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occured generating the cluster topology from the service configs")
 	}
@@ -64,12 +64,13 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 	return clusterTopology, nil
 }
 
-func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, version string) (*resolved.ClusterTopology, error) {
+func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace, version string) (*resolved.ClusterTopology, error) {
 	clusterTopology := resolved.ClusterTopology{}
 
 	clusterTopologyServices := []*resolved.Service{}
 	clusterTopologyIngress := []*resolved.Ingress{}
 	clusterTopologyServiceDependencies := []resolved.ServiceDependency{}
+	clusterTopology.Namespace = namespace
 
 	alreadyFoundIngress := false
 	for _, ingressConfig := range ingressConfigs {
@@ -146,10 +147,10 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, ingressCon
 		}
 
 		// Service plugin?
-		plugins, ok := serviceAnnotations["kardinal.dev.service/plugins"]
+		sPlugins, ok := serviceAnnotations["kardinal.dev.service/plugins"]
 		if ok {
 			var statefulPlugins []resolved.StatefulPlugin
-			err := yaml.Unmarshal([]byte(plugins), &statefulPlugins)
+			err := yaml.Unmarshal([]byte(sPlugins), &statefulPlugins)
 			if err != nil {
 				return nil, stacktrace.Propagate(err, "An error occurred parsing the plugins for service %s", service.GetObjectMeta().GetName())
 			}
