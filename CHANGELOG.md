@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.1.17](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.16...0.1.17) (2024-08-20)
+
+
+### Features
+
+* add logic for shared annotation ([#6](https://github.com/kurtosis-tech/kardinal-kontrol/issues/6)) ([fe88e57](https://github.com/kurtosis-tech/kardinal-kontrol/commit/fe88e57f8181524b189d62ecda5aa54d2d817863))
+* handle k8s `Ingress` objects ([#163](https://github.com/kurtosis-tech/kardinal-kontrol/issues/163)) ([4b0283e](https://github.com/kurtosis-tech/kardinal-kontrol/commit/4b0283eddcac892298d596282577799c90f6ab05))
+* handle namespaces  ([#173](https://github.com/kurtosis-tech/kardinal-kontrol/issues/173)) ([120f972](https://github.com/kurtosis-tech/kardinal-kontrol/commit/120f97226bb2eda2a1910156ecc854417bfe73a1))
+* kontrol-frontend API implementation ([#3](https://github.com/kurtosis-tech/kardinal-kontrol/issues/3)) ([061b542](https://github.com/kurtosis-tech/kardinal-kontrol/commit/061b5427611252a956b0a3cd65c2b08683a78417))
+
+
+### Bug Fixes
+
+* uinitialized map bug ([#8](https://github.com/kurtosis-tech/kardinal-kontrol/issues/8)) ([6d83383](https://github.com/kurtosis-tech/kardinal-kontrol/commit/6d8338394d0e56278ec26764eea9ee9b75c13125))
+
+
+### Miscellaneous Chores
+
+* release 0.1.17 ([c604f1b](https://github.com/kurtosis-tech/kardinal-kontrol/commit/c604f1b6b78eaf1f88da73f0a1f01b04f92030cf))
+
 ## [0.1.16](https://github.com/kurtosis-tech/kardinal-kontrol-private/compare/0.1.15...0.1.16) (2024-08-16)
 
 
