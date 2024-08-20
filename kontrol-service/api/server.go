@@ -45,6 +45,7 @@ func NewServer(db *database.Db, analyticsWrapper *AnalyticsWrapper) Server {
 		clusterTopologyByTenantFlow: make(map[string]map[string]resolved.ClusterTopology),
 		templatesByNameAndTenant:    make(map[string]map[string]templates.Template),
 		serviceConfigsByTenant:      make(map[string][]apitypes.ServiceConfig),
+		ingressConfigsByTenant:      make(map[string][]apitypes.IngressConfig),
 		db:                          db,
 		analyticsWrapper:            analyticsWrapper,
 	}
