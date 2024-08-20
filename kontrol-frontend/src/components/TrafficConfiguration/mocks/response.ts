@@ -1,6 +1,6 @@
-import { GraphData } from "../types";
+import { ClusterTopology } from "../types";
 
-const data: GraphData = {
+const data: ClusterTopology = {
   edges: [
     {
       source: "cartservice",
