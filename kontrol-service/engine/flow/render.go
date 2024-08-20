@@ -2,6 +2,7 @@ package flow
 
 import (
 	"fmt"
+	"kardinal.kontrol-service/constants"
 	"strings"
 
 	"github.com/samber/lo"
@@ -80,8 +81,15 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 
 	logrus.Infof("have total of %d envoy filters", len(envoyFilters))
 
+	sharedServiceBackupVersions := map[string][]string{}
+	for _, service := range clusterTopology.Services {
+		if service.IsShared && service.Version == constants.SharedVersionVersionString {
+			logrus.Infof("Found original version '%v' for service '%v'", service.OriginalVersionIfShared, service.ServiceID)
+			sharedServiceBackupVersions[service.ServiceID] = append(sharedServiceBackupVersions[service.ServiceID], service.OriginalVersionIfShared)
+		}
+	}
 	// TODO: make it to use a list of Ingresses
-	gatewayFilter := getEnvoyFilterForGateway(servicesAgainstVersions, versionsAgainstExtHost)
+	gatewayFilter := getEnvoyFilterForGateway(servicesAgainstVersions, versionsAgainstExtHost, sharedServiceBackupVersions)
 	envoyFilters = append(envoyFilters, *gatewayFilter)
 
 	return types.ClusterResources{
@@ -220,14 +228,21 @@ func getVirtualService(serviceID string, services []*resolved.Service, namespace
 }
 
 func getDestinationRule(serviceID string, services []*resolved.Service, namespace string) *istioclient.DestinationRule {
-	subsets := lo.Map(services, func(service *resolved.Service, _ int) *v1alpha3.Subset {
-		return &v1alpha3.Subset{
-			Name: service.Version,
-			Labels: map[string]string{
-				"version": service.Version,
-			},
-		}
-	})
+	// TODO(shared-annotation) - we could store "shared" versions somewhere so that the pointers are the same
+	// if we do that then the render work around isn't necessary
+	subsets := lo.UniqBy(
+		lo.Map(services, func(service *resolved.Service, _ int) *v1alpha3.Subset {
+			return &v1alpha3.Subset{
+				Name: service.Version,
+				Labels: map[string]string{
+					"version": service.Version,
+				},
+			}
+		}),
+		func(subset *v1alpha3.Subset) string {
+			return subset.Name
+		},
+	)
 
 	return &istioclient.DestinationRule{
 		TypeMeta: metav1.TypeMeta{
@@ -497,8 +512,8 @@ func getAuthorizationPolicy(service *resolved.Service, namespace string) *securi
 	}
 }
 
-func getEnvoyFilterForGateway(servicesAgainstVersions map[string][]string, serviceAndVersionAgainstExtHost map[string]string) *istioclient.EnvoyFilter {
-	luaScript := generateDynamicLuaScript(servicesAgainstVersions, serviceAndVersionAgainstExtHost)
+func getEnvoyFilterForGateway(servicesAgainstVersions map[string][]string, serviceAndVersionAgainstExtHost map[string]string, serviceAgainstBackupVersions map[string][]string) *istioclient.EnvoyFilter {
+	luaScript := generateDynamicLuaScript(servicesAgainstVersions, serviceAndVersionAgainstExtHost, serviceAgainstBackupVersions)
 
 	return &istioclient.EnvoyFilter{
 		TypeMeta: metav1.TypeMeta{
@@ -554,7 +569,7 @@ func getEnvoyFilterForGateway(servicesAgainstVersions map[string][]string, servi
 	}
 }
 
-func generateDynamicLuaScript(servicesAgainstVersions map[string][]string, versionAgainstExtHost map[string]string) string {
+func generateDynamicLuaScript(servicesAgainstVersions map[string][]string, versionAgainstExtHost map[string]string, serviceAgainstBackupVersions map[string][]string) string {
 	var setRouteCalls strings.Builder
 
 	// Helper function to add a setRoute call
@@ -574,14 +589,28 @@ func generateDynamicLuaScript(servicesAgainstVersions map[string][]string, versi
 `, service, destination))
 	}
 
-	// This is the one we are interested in
 	// For prod host all goes to prod
 	// For non prod host we add a non prod mapping for the non prod service and everything else falls back
 	for service, versions := range servicesAgainstVersions {
 		for _, version := range versions {
+			if version == constants.SharedVersionVersionString {
+				continue
+			}
 			setRouteCalls.WriteString(fmt.Sprintf(`
     if hostname == "%s" then`, versionAgainstExtHost[version]))
 			destination := fmt.Sprintf("%s-%s", service, version)
+			addSetRouteCall(service, destination)
+			setRouteCalls.WriteString(`
+    end`)
+		}
+	}
+
+	// we handle shared versions separately by finding host markings for original version
+	for service, originalVersions := range serviceAgainstBackupVersions {
+		for _, originalVersion := range originalVersions {
+			setRouteCalls.WriteString(fmt.Sprintf(`
+    if hostname == "%s" then`, versionAgainstExtHost[originalVersion]))
+			destination := fmt.Sprintf("%s-%s", service, constants.SharedVersionVersionString)
 			addSetRouteCall(service, destination)
 			setRouteCalls.WriteString(`
     end`)

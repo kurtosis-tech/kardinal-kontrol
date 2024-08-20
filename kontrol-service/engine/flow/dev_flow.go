@@ -2,6 +2,7 @@ package flow
 
 import (
 	"fmt"
+	"kardinal.kontrol-service/constants"
 
 	"github.com/kurtosis-tech/stacktrace"
 
@@ -66,6 +67,28 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseClusterTopologyMaybeW
 		}
 	}
 
+	// TODO(shared-annotation) - we could store "shared" versions somewhere so that the pointers are the same
+	// if we do that then the render work around isn't necessary
+	// perhaps top sort this; currently the following is possible
+	// postgres is marked as shared, we mark its parent "cartservice" as shared
+	// cartservice then happens in the loop and we try again (currently we don't as we check if version isn't shared)
+	for _, service := range topology.Services {
+		if service.IsShared && service.Version != "prod" && service.Version != constants.SharedVersionVersionString {
+			logrus.Infof("Marking service '%v' as shared, current version '%v'", service.ServiceID, service.Version)
+			originalVersion := service.Version
+			service.Version = constants.SharedVersionVersionString
+			service.OriginalVersionIfShared = originalVersion
+
+			if !service.IsHTTP() {
+				logrus.Infof("Service '%v' isn't http; marking its parents as shared", service.ServiceID)
+				err := markParentsAsShared(&topology, service)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
+	}
+
 	// Update service dependencies
 	for i, dependency := range topologyRef.ServiceDependencies {
 		if dependency.Service.Version == "prod" {
@@ -85,6 +108,28 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseClusterTopologyMaybeW
 	}
 
 	return topologyRef, nil
+}
+
+func markParentsAsShared(topology *resolved.ClusterTopology, service *resolved.Service) error {
+	parents := topology.FindImmediateParents(service)
+	for _, parent := range parents {
+		if parent.Version == constants.SharedVersionVersionString {
+			continue
+		}
+		logrus.Infof("Marking parent '%v' as shared, current verson '%s'", parent.ServiceID, parent.Version)
+		parent.IsShared = true
+		originalVersion := parent.Version
+		parent.Version = constants.SharedVersionVersionString
+		parent.OriginalVersionIfShared = originalVersion
+
+		if !parent.IsHTTP() {
+			err := markParentsAsShared(topology, parent)
+			if err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 func applyPatch(
