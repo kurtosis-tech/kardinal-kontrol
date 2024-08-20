@@ -19,11 +19,8 @@ import (
 	"kardinal.kontrol-service/types/flow_spec"
 )
 
-// TODO:find a better way to find the frontend
-const frontendServiceName = "voting-app-ui"
-
-func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceConfig) (*resolved.ClusterTopology, error) {
-	clusterTopology, err := generateClusterTopology(serviceConfigs, flowID)
+func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string) (*resolved.ClusterTopology, error) {
+	clusterTopology, err := generateClusterTopology(serviceConfigs, ingressConfigs, namespace, flowID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occured generating the cluster topology from the service configs")
 	}
@@ -67,12 +64,41 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 	return clusterTopology, nil
 }
 
-func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version string) (*resolved.ClusterTopology, error) {
+func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace, version string) (*resolved.ClusterTopology, error) {
 	clusterTopology := resolved.ClusterTopology{}
 
 	clusterTopologyServices := []*resolved.Service{}
 	clusterTopologyIngress := []*resolved.Ingress{}
 	clusterTopologyServiceDependencies := []resolved.ServiceDependency{}
+	clusterTopology.Namespace = namespace
+
+	alreadyFoundIngress := false
+	for _, ingressConfig := range ingressConfigs {
+		ingress := ingressConfig.Ingress
+		ingressAnnotations := ingress.GetObjectMeta().GetAnnotations()
+
+		// Ingress?
+		isIngress, ok := ingressAnnotations["kardinal.dev.service/ingress"]
+		if ok && isIngress == "true" {
+			ingressObj := resolved.Ingress{
+				ActiveFlowIDs: []string{version},
+				IngressID:     ingress.ObjectMeta.Name,
+				IngressSpec:   &ingress.Spec,
+			}
+			_, ok := ingressAnnotations["kardinal.dev.service/host"]
+			if ok {
+				logrus.Debugf("Found hostname Kardinal annotation on Ingress '%v' but using Ingress Rules provided by k8s Ingress object instead.", ingress.Name)
+			}
+
+			// A k8s ingress object should specify the Ingress rules so use those instead of creating one manually
+			for _, ingressRule := range ingress.Spec.Rules {
+				ingressObj.IngressRules = append(ingressObj.IngressRules, &ingressRule)
+			}
+
+			clusterTopologyIngress = append(clusterTopologyIngress, &ingressObj)
+			alreadyFoundIngress = true
+		}
+	}
 
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
@@ -82,21 +108,23 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 		// Ingress?
 		isIngress, ok := serviceAnnotations["kardinal.dev.service/ingress"]
 		if ok && isIngress == "true" {
-			ingress := resolved.Ingress{
-				ActiveFlowIDs: []string{version},
-				IngressID:     service.ObjectMeta.Name,
-				ServiceSpec:   &service.Spec,
-			}
-			host, ok := serviceAnnotations["kardinal.dev.service/host"]
-			if ok {
-				ingress.IngressRules = []*net.IngressRule{
-					{
-						Host: host,
-					},
+			if !alreadyFoundIngress {
+				ingress := resolved.Ingress{
+					ActiveFlowIDs: []string{version},
+					IngressID:     service.ObjectMeta.Name,
+					ServiceSpec:   &service.Spec,
 				}
+				host, ok := serviceAnnotations["kardinal.dev.service/host"]
+				if ok {
+					ingress.IngressRules = []*net.IngressRule{
+						{
+							Host: host,
+						},
+					}
+				}
+				clusterTopologyIngress = append(clusterTopologyIngress, &ingress)
 			}
-			clusterTopologyIngress = append(clusterTopologyIngress, &ingress)
-			// TODO: why this need to be a separeted service?
+			// TODO: why this need to be a separated service?
 			// Don't add ingress services to the list of resolved services
 			continue
 		}
@@ -119,10 +147,10 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 		}
 
 		// Service plugin?
-		plugins, ok := serviceAnnotations["kardinal.dev.service/plugins"]
+		sPlugins, ok := serviceAnnotations["kardinal.dev.service/plugins"]
 		if ok {
 			var statefulPlugins []resolved.StatefulPlugin
-			err := yaml.Unmarshal([]byte(plugins), &statefulPlugins)
+			err := yaml.Unmarshal([]byte(sPlugins), &statefulPlugins)
 			if err != nil {
 				return nil, stacktrace.Propagate(err, "An error occurred parsing the plugins for service %s", service.GetObjectMeta().GetName())
 			}
@@ -180,7 +208,7 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, version st
 		service := serviceConfig.Service
 		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
 
-		if isServiceIngress(&clusterTopology, service) {
+		if isServiceIngress(&clusterTopology, service) || alreadyFoundIngress {
 			logrus.Infof("Service %s is an ingress service, skipping dependency resolution", service.GetObjectMeta().GetName())
 			continue
 		}
