@@ -280,7 +280,7 @@ func getService(service *resolved.Service, namespace string) *v1.Service {
 func getDeployment(service *resolved.Service, namespace string) *appsv1.Deployment {
 	deployment := appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "v1",
+			APIVersion: "apps/v1",
 			Kind:       "Deployment",
 		},
 		ObjectMeta: metav1.ObjectMeta{
