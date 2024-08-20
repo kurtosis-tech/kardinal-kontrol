@@ -1,7 +1,5 @@
 export const trafficNodeSelector = "node[id^='traffic:']";
 
-import type { ExtendedNodeData } from "./types";
-
 type Color = "blue" | "red" | "purple" | "orange" | "gray" | "green";
 
 export const colors: Record<Color, string> = {
@@ -29,7 +27,7 @@ const stylesheet = [
       shape: "round-rectangle",
       "corner-radius": 12,
       content: "data(label)",
-      "background-image": (elem: ExtendedNodeData) => {
+      "background-image": (elem: cytoscape.NodeSingular) => {
         const versions = elem.data("versions");
         return svgDot(
           versions.length.toString(),

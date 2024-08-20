@@ -16,6 +16,7 @@ import NotFound from "@/pages/NotFound";
 import { ErrorBoundary } from "react-error-boundary";
 import { NavigationContextProvider } from "@/contexts/NavigationContext";
 import { FlowsContextProvider } from "@/contexts/FlowsContext";
+import { ApiContextProvider } from "@/contexts/ApiContext";
 
 const router = createBrowserRouter([
   {
@@ -67,16 +68,16 @@ const router = createBrowserRouter([
   },
 ]);
 
-console.info("Using base URL:", import.meta.env.VITE_API_URL);
-
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <ChakraProvider theme={theme} resetCSS>
-      <NavigationContextProvider>
-        <FlowsContextProvider>
-          <RouterProvider router={router} />
-        </FlowsContextProvider>
-      </NavigationContextProvider>
+      <ApiContextProvider>
+        <NavigationContextProvider>
+          <FlowsContextProvider>
+            <RouterProvider router={router} />
+          </FlowsContextProvider>
+        </NavigationContextProvider>
+      </ApiContextProvider>
     </ChakraProvider>
   </React.StrictMode>,
 );

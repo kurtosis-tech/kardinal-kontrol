@@ -1,9 +1,7 @@
 import CytoscapeComponent from "react-cytoscapejs";
-import type { ExtendedNode, GraphData } from "./types";
+import type { ClusterTopology, ExtendedNode, Node } from "./types";
 
-export const extendNodeData = (
-  node: cytoscape.NodeDataDefinition,
-): ExtendedNode => {
+export const extendNodeData = (node: Node): ExtendedNode => {
   const versions = node.versions ?? ["UNKNOWN"];
   return {
     data: {
@@ -38,7 +36,7 @@ export const extendEdgeData =
     };
   };
 
-export const normalizeData = (data: GraphData) => {
+export const normalizeData = (data: ClusterTopology) => {
   const nodes = data.nodes.map(extendNodeData);
   const edges = data.edges.map(extendEdgeData(nodes));
   return CytoscapeComponent.normalizeElements({

@@ -1,13 +1,10 @@
-export interface ExtendedNodeData extends cytoscape.NodeDataDefinition {
-  versions?: string[];
-}
+import type { components } from "cli-kontrol-api/api/typescript/client/types";
 
-export interface GraphData {
-  nodes: ExtendedNodeData[];
-  edges: cytoscape.EdgeDataDefinition[];
-}
+export type ClusterTopology = components["schemas"]["ClusterTopology"];
+export type Node = components["schemas"]["Node"];
+export type Edge = components["schemas"]["Edge"];
 
 export interface ExtendedNode {
-  data: ExtendedNodeData;
+  data: Node;
   classes: string;
 }
