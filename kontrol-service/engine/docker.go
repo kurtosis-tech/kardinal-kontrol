@@ -146,6 +146,11 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, ingressCon
 			clusterTopologyService.IsExternal = true
 		}
 
+		isShared, ok := serviceAnnotations["kardinal.dev.service/shared"]
+		if ok && isShared == "true" {
+			clusterTopologyService.IsShared = true
+		}
+
 		// Service plugin?
 		sPlugins, ok := serviceAnnotations["kardinal.dev.service/plugins"]
 		if ok {
