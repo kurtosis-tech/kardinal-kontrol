@@ -73,11 +73,11 @@ jobs:
 
       - name: Install Nix
         uses: cachix/install-nix-action@v27
-        # with:
+        with:
           # relax sandbox due impure kontrol-service tests during build
-          # extra_nix_config: |
+          extra_nix_config: |
+            sandbox = relaxed
           #   extra-platforms = aarch64-linux
-          #   sandbox = relaxed
 
       - name: Magic cache
         uses: DeterminateSystems/magic-nix-cache-action@v7
