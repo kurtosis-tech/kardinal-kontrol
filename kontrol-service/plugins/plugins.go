@@ -319,18 +319,6 @@ func (pr *PluginRunner) getOrCloneRepo(repoURL string) (string, error) {
 	}
 
 	repoPath := filepath.Join(tempDir, repoName)
-	//if _, err := os.Stat(repoPath); os.IsNotExist(err) {
-	//	cmd := exec.Command("git", "clone", repoURL, repoPath)
-	//	if output, err := cmd.CombinedOutput(); err != nil {
-	//		return "", fmt.Errorf("git clone failed: %v\nOutput: %s", err, output)
-	//	}
-	//} else {
-	//	// If the repository already exists, pull the latest changes
-	//	cmd := exec.Command("git", "-C", repoPath, "pull")
-	//	if output, err := cmd.CombinedOutput(); err != nil {
-	//		return "", fmt.Errorf("git pull failed: %v\nOutput: %s", err, output)
-	//	}
-	//}
 	err := pr.gitPluginProvider.PullGitHubPlugin(repoPath, repoURL)
 	if err != nil {
 		return "", fmt.Errorf("An error occurred pulling plugin from GitHub:\n%v", err.Error())

@@ -30,7 +30,6 @@ func (gpp *GitPluginProviderImpl) PullGitHubPlugin(repoPath, repoUrl string) err
 			return fmt.Errorf("git pull failed: %v\nOutput: %s", err, output)
 		}
 	}
-
 	return nil
 }
 
