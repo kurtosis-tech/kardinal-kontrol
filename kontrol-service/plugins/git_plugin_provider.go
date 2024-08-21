@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 )
 
+const (
+	mockProviderPerms = 0644
+)
+
 type GitPluginProvider interface {
 	PullGitHubPlugin(repoPath, repoUrl string) error
 }
@@ -50,14 +54,14 @@ func (mgpp *MockGitPluginProvider) PullGitHubPlugin(repoPath, repoUrl string) er
 		return fmt.Errorf("Repo with url '%v' not found in github", repoUrl)
 	}
 	// repoPath should already exist but in case, create it
-	err := os.MkdirAll(repoPath, 0744)
+	err := os.MkdirAll(repoPath, mockProviderPerms)
 	if err != nil {
 
 	}
 	for filename, contents := range repoContents {
 		filePath := filepath.Join(repoPath, filename)
 
-		err := os.WriteFile(filePath, []byte(contents), 0744)
+		err := os.WriteFile(filePath, []byte(contents), mockProviderPerms)
 		if err != nil {
 			return fmt.Errorf("An error occurred writing to filepath '%v' with contents:\n%v", repoPath, contents)
 		}
