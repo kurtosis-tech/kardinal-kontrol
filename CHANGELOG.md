@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.18](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.17...0.1.18) (2024-08-21)
+
+
+### Features
+
+* Migrate tenant topologies from in-memory to DB ([#4](https://github.com/kurtosis-tech/kardinal-kontrol/issues/4)) ([6e60a4c](https://github.com/kurtosis-tech/kardinal-kontrol/commit/6e60a4c3750207bef27d9c5d334492c90a8d7d56))
+
+
+### Bug Fixes
+
+* small frontend fixes ([#11](https://github.com/kurtosis-tech/kardinal-kontrol/issues/11)) ([ff7a604](https://github.com/kurtosis-tech/kardinal-kontrol/commit/ff7a60457c4a6b68d399fe63bd41e360b573cdad))
+
 ## [0.1.17](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.16...0.1.17) (2024-08-20)
 
 
