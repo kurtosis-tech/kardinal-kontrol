@@ -32,6 +32,7 @@ const Section = ({ title, children, offsetTop }: Props) => {
         alignSelf={"stretch"}
         width={"100%"}
         flex={1}
+        maxH={"520px"}
       >
         {children}
       </Box>

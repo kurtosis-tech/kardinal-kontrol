@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 
-import CytoscapeGraph from "./CytoscapeGraph";
+import CytoscapeGraph from ".";
 import { mockResponse } from "./mocks";
 type PropsAndCustomArgs = React.ComponentProps<typeof CytoscapeGraph> & {
   graphSize?: string;
