@@ -11,10 +11,10 @@ import (
 )
 
 const (
-	simplePlugin   = "https://github.com/h4ck3rk3y/a-test-plugin"
-	complexPlugin  = "https://github.com/h4ck3rk3y/slightly-more-complex-plugin"
-	identityPlugin = "https://github.com/h4ck3rk3y/identity-plugin"
-	redisPlugin    = "https://github.com/h4ck3rk3y/redis-sidecar-plugin"
+	simplePlugin   = "https://github.com/h4ck3rk3y/a-test-plugin.git"
+	complexPlugin  = "https://github.com/h4ck3rk3y/slightly-more-complex-plugin.git"
+	identityPlugin = "https://github.com/h4ck3rk3y/identity-plugin.git"
+	redisPlugin    = "https://github.com/h4ck3rk3y/redis-sidecar-plugin.git"
 	flowUuid       = "test-flow-uuid"
 )
 
@@ -56,8 +56,7 @@ var deploymentSpec = appv1.DeploymentSpec{
 }
 
 func TestSimplePlugin(t *testing.T) {
-	t.Skip("skipping this as this pulls from the internet")
-	runner := NewPluginRunner()
+	runner := NewPluginRunner(NewMockGitPluginProvider(MockGitHub))
 
 	arguments := map[string]string{
 		"text_to_replace": "helloworld",
@@ -87,8 +86,7 @@ func TestSimplePlugin(t *testing.T) {
 }
 
 func TestIdentityPlugin(t *testing.T) {
-	t.Skip("skipping this as this pulls from the internet")
-	runner := NewPluginRunner()
+	runner := NewPluginRunner(NewMockGitPluginProvider(MockGitHub))
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
@@ -112,8 +110,7 @@ func TestIdentityPlugin(t *testing.T) {
 }
 
 func TestComplexPlugin(t *testing.T) {
-	t.Skip("skipping this as this pulls from the internet")
-	runner := NewPluginRunner()
+	runner := NewPluginRunner(NewMockGitPluginProvider(MockGitHub))
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(complexPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
@@ -138,8 +135,7 @@ func TestComplexPlugin(t *testing.T) {
 }
 
 func TestRedisPluginTest(t *testing.T) {
-	t.Skip("skipping this as this pulls from the internet")
-	runner := NewPluginRunner()
+	runner := NewPluginRunner(NewMockGitPluginProvider(MockGitHub))
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(redisPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)

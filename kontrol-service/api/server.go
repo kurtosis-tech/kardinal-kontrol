@@ -263,7 +263,7 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apityp
 	// TODO there is an issue here where one of these get updated and failure happens
 	// Perhaps have a super map / something that accounts for this
 	// we need to keep this in consistent state
-	sv.pluginRunnerByTenant[tenantUuidStr] = plugins.NewPluginRunner()
+	sv.pluginRunnerByTenant[tenantUuidStr] = plugins.NewPluginRunner(plugins.NewGitPluginProviderImpl())
 	sv.baseClusterTopologyByTenant[tenantUuidStr] = *clusterTopology
 	sv.clusterTopologyByTenantFlow[tenantUuidStr] = make(map[string]resolved.ClusterTopology)
 	sv.serviceConfigsByTenant[tenantUuidStr] = serviceConfigs
@@ -311,7 +311,7 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 
 	pluginRunner, found := sv.pluginRunnerByTenant[tenantUuidStr]
 	if !found {
-		pluginRunner = plugins.NewPluginRunner()
+		pluginRunner = plugins.NewPluginRunner(plugins.NewGitPluginProviderImpl())
 		sv.pluginRunnerByTenant[tenantUuidStr] = pluginRunner
 	}
 
