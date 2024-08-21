@@ -34,6 +34,7 @@ type Server struct {
 	templatesByNameAndTenant    map[string]map[string]templates.Template
 	serviceConfigsByTenant      map[string][]apitypes.ServiceConfig // New field
 	ingressConfigsByTenant      map[string][]apitypes.IngressConfig // New field
+	flowTemplateMapping         map[string]string
 	db                          *database.Db
 	analyticsWrapper            *AnalyticsWrapper
 }
@@ -46,6 +47,7 @@ func NewServer(db *database.Db, analyticsWrapper *AnalyticsWrapper) Server {
 		templatesByNameAndTenant:    make(map[string]map[string]templates.Template),
 		serviceConfigsByTenant:      make(map[string][]apitypes.ServiceConfig),
 		ingressConfigsByTenant:      make(map[string][]apitypes.IngressConfig),
+		flowTemplateMapping:         make(map[string]string),
 		db:                          db,
 		analyticsWrapper:            analyticsWrapper,
 	}
@@ -70,7 +72,11 @@ func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUui
 			finalTopology := flow.MergeClusterTopologies(clusterTopology, lo.Values(allFlows))
 			flowHostMapping := finalTopology.GetFlowHostMapping()
 			resp := lo.MapToSlice(flowHostMapping, func(flowId string, flowUrls []string) apitypes.Flow {
-				return apitypes.Flow{FlowId: flowId, FlowUrls: flowUrls}
+				templateName, found := sv.flowTemplateMapping[flowId]
+				if !found {
+					templateName = "default"
+				}
+				return apitypes.Flow{FlowId: flowId, FlowUrls: flowUrls, TemplateName: &templateName}
 			})
 			return api.GetTenantUuidFlows200JSONResponse(resp), nil
 
@@ -94,6 +100,7 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 	}
 
 	flowId := "prod"
+	sv.flowTemplateMapping["prod"] = "default"
 	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, namespace, flowId)
 	if err != nil {
 		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", prodFlowId)
@@ -161,6 +168,12 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 		logrus.Errorf("an error occured while updating dev flow. error was \n: '%v'", err.Error())
 		return nil, err
 	}
+
+	sv.flowTemplateMapping[*flowId] = "default"
+	if templateSpec != nil {
+		sv.flowTemplateMapping[*flowId] = templateSpec.TemplateName
+	}
+
 	resp := apitypes.Flow{FlowId: *flowId, FlowUrls: flowUrls}
 	return api.PostTenantUuidFlowCreate200JSONResponse(resp), nil
 }
