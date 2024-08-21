@@ -83,8 +83,8 @@ jobs:
 
       - name: Build ${{ matrix.component }}
         run: |
-          nix build .#${{ matrix.component }}
+          nix build .#${{ matrix.component }} --print-build-logs
 
       - name: Build ${{ matrix.component }} for ${{ matrix.arch }}
         run: |
-          nix build ./#containers.x86_64-linux.${{ matrix.component }}.${{ matrix.arch }} --no-link --print-out-paths
+          nix build ./#containers.x86_64-linux.${{ matrix.component }}.${{ matrix.arch }} --no-link --print-out-paths --print-build-logs
