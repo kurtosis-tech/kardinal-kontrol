@@ -1,4 +1,13 @@
-import { Box, Flex, Avatar, Text, Link, Image, Spacer } from "@chakra-ui/react";
+import {
+  Box,
+  Flex,
+  Avatar,
+  Text,
+  Link,
+  Image,
+  Spacer,
+  AvatarBadge,
+} from "@chakra-ui/react";
 
 const Navbar = () => {
   return (
@@ -29,11 +38,9 @@ const Navbar = () => {
 
         {/* User Profile */}
         <Flex alignItems="center">
-          <Avatar
-            size="sm"
-            name="Charlie Brown"
-            src="https://via.placeholder.com/150"
-          />
+          <Avatar size="sm" name="Charlie Brown">
+            <AvatarBadge boxSize="1.25em" bg="green.500" />
+          </Avatar>
           <Box ml={2}>
             <Text>Charlie Brown</Text>
             <Text fontSize="sm" color="gray.500">

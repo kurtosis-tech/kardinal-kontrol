@@ -8,7 +8,7 @@ export const extendNodeData = (node: Node): ExtendedNode => {
       ...node,
       versions,
     },
-    classes: versions.length >= 2 ? "dev" : "prod",
+    classes: versions.length >= 2 ? "dev ghost" : "prod",
   };
 };
 

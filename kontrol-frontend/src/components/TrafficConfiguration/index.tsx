@@ -36,7 +36,6 @@ const TrafficConfiguration = () => {
     <Grid
       height={"100%"}
       width={"100%"}
-      maxH={"520px"}
       templateColumns={"1fr"}
       templateRows={"1fr"}
       id="traffic-configuration"

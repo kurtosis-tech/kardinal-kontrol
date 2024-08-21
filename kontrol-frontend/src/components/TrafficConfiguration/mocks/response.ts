@@ -20,15 +20,7 @@ const data: ClusterTopology = {
     },
     {
       source: "checkoutservice",
-      target: "productcatalogservice",
-    },
-    {
-      source: "checkoutservice",
       target: "shippingservice",
-    },
-    {
-      source: "frontend",
-      target: "adservice",
     },
     {
       source: "frontend",
@@ -40,23 +32,11 @@ const data: ClusterTopology = {
     },
     {
       source: "frontend",
-      target: "productcatalogservice",
-    },
-    {
-      source: "frontend",
-      target: "recommendationservice",
-    },
-    {
-      source: "frontend",
       target: "shippingservice",
     },
     {
-      source: "frontend-external",
+      source: "ingress",
       target: "frontend",
-    },
-    {
-      source: "recommendationservice",
-      target: "productcatalogservice",
     },
   ],
   nodes: [
@@ -79,12 +59,6 @@ const data: ClusterTopology = {
       versions: ["dev-hr7dwojzkk", "prod"],
     },
     {
-      id: "adservice",
-      label: "adservice",
-      type: "service",
-      versions: ["prod"],
-    },
-    {
       id: "emailservice",
       label: "emailservice",
       type: "service",
@@ -103,29 +77,18 @@ const data: ClusterTopology = {
       versions: ["prod"],
     },
     {
-      id: "productcatalogservice",
-      label: "productcatalogservice",
-      type: "service",
-      versions: ["prod"],
-    },
-    {
-      id: "recommendationservice",
-      label: "recommendationservice",
-      type: "service",
-      versions: ["prod"],
-    },
-    {
       id: "shippingservice",
       label: "shippingservice",
       type: "service",
       versions: ["prod"],
     },
     {
-      id: "frontend-external",
-      label: "frontend-external",
+      id: "ingress",
+      label: "ingress",
       type: "gateway",
-      versions: [],
+      versions: ["prod"],
     },
   ],
 };
+
 export default data;
