@@ -54,10 +54,11 @@ func (mgpp *MockGitPluginProvider) PullGitHubPlugin(repoPath, repoUrl string) er
 		return fmt.Errorf("Repo with url '%v' not found in github", repoUrl)
 	}
 	// repoPath should already exist but in case, create it
-	err := os.MkdirAll(repoPath, mockProviderPerms)
+	err := os.MkdirAll(repoPath, 0744)
 	if err != nil {
-
+		return fmt.Errorf("An error occurred ensuring directory for '%v' exists:\n%v", repoUrl, err.Error())
 	}
+
 	for filename, contents := range repoContents {
 		filePath := filepath.Join(repoPath, filename)
 
