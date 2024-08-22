@@ -48,7 +48,7 @@ func startServer(isDevMode bool) {
 			logrus.Fatal("An error occurred creating a database connection configuration based on the input provided", err)
 		}
 
-		db, err := database.NewDb(dbConnectionInfo)
+		db, err = database.NewDb(dbConnectionInfo)
 		if err != nil {
 			logrus.Fatal("An error occurred creating the db connection", err)
 		}

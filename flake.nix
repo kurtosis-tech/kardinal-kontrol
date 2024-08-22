@@ -98,28 +98,42 @@
               };
           };
 
+        getPkgsCrossSystem = targetSystem:
+          builtins.trace "${targetSystem}" (
+            if "aarch64-darwin" == targetSystem
+            then pkgs.pkgsCross.${targetSystem}
+            else if "x86_64-darwin" == targetSystem
+            then pkgs.pkgsCross.${targetSystem}
+            else if "aarch64-linux" == targetSystem
+            then pkgs.pkgsCross.aarch64-multiplatform
+            else if "x86_64-linux" == targetSystem
+            then pkgs.pkgsCross.gnu64
+            else throw "Unsupported targetSystem type: ${targetSystem}"
+          );
+
         mkGoApplicationImage = {
           pkgs,
           container_pkgs,
           service_name,
-          service,
           arch,
           os,
           needsCrossCompilation,
         }: let
+          targetSystem = container_pkgs.stdenv.hostPlatform.system;
+          targetCrossPkgs = getPkgsCrossSystem targetSystem;
+          serviceCross = import (./. + builtins.toPath "/${service_name}/default.nix") {pkgs = targetCrossPkgs;};
+          serviceNative = import (./. + builtins.toPath "/${service_name}/default.nix") {inherit pkgs;};
           overrideService =
             if !needsCrossCompilation
             then
-              service.overrideAttrs
+              serviceNative.overrideAttrs
               (old: old // {doCheck = false;})
             else
-              service.overrideAttrs (old:
+              serviceCross.overrideAttrs (old:
                 old
                 // {
                   GOOS = os;
                   GOARCH = arch;
-                  # CGO_ENABLED = disabled breaks the CLI compilation
-                  # CGO_ENABLED = 0;
                   doCheck = false;
                 });
         in
@@ -213,7 +227,6 @@
                     else
                       mkGoApplicationImage {
                         inherit pkgs container_pkgs service_name arch os needsCrossCompilation;
-                        service = packages.${service_name};
                       };
                 };
               }) {
