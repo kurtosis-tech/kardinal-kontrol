@@ -408,10 +408,14 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 // - Base ingress configs
 // TOOD: Could return a struct if it becomes too heavy to manipulate the return values.
 func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTopology, map[string]resolved.ClusterTopology, map[string]templates.Template, []apitypes.ServiceConfig, []apitypes.IngressConfig, error) {
-	tenant, err := sv.db.GetOrCreateTenant(tenantUuidStr)
+	tenant, err := sv.db.GetTenant(tenantUuidStr)
 	if err != nil {
 		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
 		return nil, nil, nil, nil, nil, err
+	}
+
+	if tenant == nil {
+		return nil, nil, nil, nil, nil, fmt.Errorf("Cannot find tenant %s", tenantUuidStr)
 	}
 
 	var clusterTopology resolved.ClusterTopology

@@ -27,36 +27,37 @@ func main() {
 
 func startServer(isDevMode bool) {
 
-	var db *database.Db
 	dbHostname := os.Getenv("DB_HOSTNAME")
-	if dbHostname != "" {
-		dbUsername := os.Getenv("DB_USERNAME")
-		dbPassword := os.Getenv("DB_PASSWORD")
-		dbName := os.Getenv("DB_NAME")
-		dbPort, err := strconv.Atoi(os.Getenv("DB_PORT"))
-		if err != nil {
-			logrus.Fatal("An error occurred parsing the DB port number", err)
-		}
-		dbConnectionInfo, err := database.NewDatabaseConnectionInfo(
-			dbUsername,
-			dbPassword,
-			dbHostname,
-			uint16(dbPort),
-			dbName,
-		)
-		if err != nil {
-			logrus.Fatal("An error occurred creating a database connection configuration based on the input provided", err)
-		}
+	dbUsername := os.Getenv("DB_USERNAME")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+	if dbHostname == "" || dbUsername == "" || dbPassword == "" || dbName == "" {
+		logrus.Fatal("One of the following environment variables is not set: DB_HOSTNAME, DB_USERNAME, DB_PASSWORD, DB_NAME")
+	}
+	dbPort, err := strconv.Atoi(os.Getenv("DB_PORT"))
+	if err != nil {
+		logrus.Fatal("An error occurred parsing the DB port number", err)
+	}
 
-		db, err = database.NewDb(dbConnectionInfo)
-		if err != nil {
-			logrus.Fatal("An error occurred creating the db connection", err)
-		}
+	dbConnectionInfo, err := database.NewDatabaseConnectionInfo(
+		dbUsername,
+		dbPassword,
+		dbHostname,
+		uint16(dbPort),
+		dbName,
+	)
+	if err != nil {
+		logrus.Fatal("An error occurred creating a database connection configuration based on the input provided", err)
+	}
 
-		err = db.Migrate()
-		if err != nil {
-			logrus.Fatal("An error occurred migrating the DB", err)
-		}
+	db, err := database.NewDb(dbConnectionInfo)
+	if err != nil {
+		logrus.Fatal("An error occurred creating the db connection", err)
+	}
+
+	err = db.Migrate()
+	if err != nil {
+		logrus.Fatal("An error occurred migrating the DB", err)
 	}
 
 	// Create a new Segment analytics client instance.
