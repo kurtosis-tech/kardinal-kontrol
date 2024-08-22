@@ -4,13 +4,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"github.com/sirupsen/logrus"
-	corev1 "k8s.io/api/core/v1"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
+
+	"github.com/sirupsen/logrus"
+	corev1 "k8s.io/api/core/v1"
+	"kardinal.kontrol-service/database"
 
 	appv1 "k8s.io/api/apps/v1"
 )
@@ -22,12 +23,17 @@ const (
 
 type PluginRunner struct {
 	gitPluginProvider GitPluginProvider
-	memory            sync.Map
+
+	tenantId string
+
+	db *database.Db
 }
 
-func NewPluginRunner(gitPluginProvider GitPluginProvider) *PluginRunner {
+func NewPluginRunner(gitPluginProvider GitPluginProvider, tenantId string, db *database.Db) *PluginRunner {
 	return &PluginRunner{
 		gitPluginProvider: gitPluginProvider,
+		tenantId:          tenantId,
+		db:                db,
 	}
 }
 
@@ -71,15 +77,18 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceS
 		return appv1.DeploymentSpec{}, "", fmt.Errorf("invalid config map: %v", err)
 	}
 
-	configMapString, err := json.Marshal(configMap)
+	configMapBytes, err := json.Marshal(configMap)
 	if err != nil {
 		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to re-marshal config map: %v", err)
 	}
 
-	logrus.Infof("Storing config map for plugin called with uuid '%v':\n...", flowUuid)
-	pr.memory.Store(flowUuid, string(configMapString))
+	logrus.Infof("Storing config map for plugin called with uuid '%v':\n %s\n...", flowUuid, string(configMapBytes))
+	_, err = pr.db.CreatePluginConfig(flowUuid, string(configMapBytes), pr.tenantId)
+	if err != nil {
+		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to store the config map: %v", err)
+	}
 
-	return newDeploymentSpec, string(configMapString), nil
+	return newDeploymentSpec, string(configMapBytes), nil
 }
 
 func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string, arguments map[string]string) error {
@@ -98,7 +107,11 @@ func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string, arguments map[str
 		return err
 	}
 
-	pr.memory.Delete(flowUuid)
+	err = pr.db.DeletePluginConfig(pr.tenantId, flowUuid)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -107,15 +120,14 @@ func GetPluginId(flowId, serviceId string, pluginIdx int) string {
 }
 
 func (pr *PluginRunner) getConfigForFlow(flowUuid string) (string, error) {
-	configMapInterface, ok := pr.memory.Load(flowUuid)
-	if !ok {
+	pluginConfig, err := pr.db.GetPluginConfigByFlowID(pr.tenantId, flowUuid)
+	if err != nil {
+		return "", err
+	}
+	if pluginConfig == nil {
 		return "", fmt.Errorf("no config map found for flow UUID: %s", flowUuid)
 	}
-	configMap, ok := configMapInterface.(string)
-	if !ok {
-		return "", fmt.Errorf("invalid config map type for flow UUID: %s", flowUuid)
-	}
-	return configMap, nil
+	return pluginConfig.Config, nil
 }
 
 func runPythonCreateFlow(repoPath, serviceSpecJSON, deploymentSpecJSON, flowUuid string, arguments map[string]string) (string, error) {

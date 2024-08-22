@@ -8,6 +8,7 @@ import (
 	appv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"kardinal.kontrol-service/database"
 )
 
 const (
@@ -55,8 +56,25 @@ var deploymentSpec = appv1.DeploymentSpec{
 	},
 }
 
+func getPluginRunner(t *testing.T) *PluginRunner {
+	db, err := database.NewSQLiteDB()
+	require.NoError(t, err)
+	err = db.Clear()
+	require.NoError(t, err)
+	err = db.AutoMigrate(&database.Tenant{}, &database.Flow{}, &database.PluginConfig{})
+	require.NoError(t, err)
+	_, err = db.GetOrCreateTenant("tenant-test")
+	require.NoError(t, err)
+	pluginRunner := NewPluginRunner(
+		NewMockGitPluginProvider(MockGitHub),
+		"tenant-test",
+		db,
+	)
+	return pluginRunner
+}
+
 func TestSimplePlugin(t *testing.T) {
-	runner := NewPluginRunner(NewMockGitPluginProvider(MockGitHub))
+	runner := getPluginRunner(t)
 
 	arguments := map[string]string{
 		"text_to_replace": "helloworld",
@@ -86,7 +104,7 @@ func TestSimplePlugin(t *testing.T) {
 }
 
 func TestIdentityPlugin(t *testing.T) {
-	runner := NewPluginRunner(NewMockGitPluginProvider(MockGitHub))
+	runner := getPluginRunner(t)
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
@@ -110,7 +128,7 @@ func TestIdentityPlugin(t *testing.T) {
 }
 
 func TestComplexPlugin(t *testing.T) {
-	runner := NewPluginRunner(NewMockGitPluginProvider(MockGitHub))
+	runner := getPluginRunner(t)
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(complexPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
@@ -135,7 +153,7 @@ func TestComplexPlugin(t *testing.T) {
 }
 
 func TestRedisPluginTest(t *testing.T) {
-	runner := NewPluginRunner(NewMockGitPluginProvider(MockGitHub))
+	runner := getPluginRunner(t)
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(redisPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)

@@ -6,10 +6,13 @@ import (
 	"hash/fnv"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/sirupsen/logrus"
 	"gorm.io/driver/postgres"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // Run scripts/genereate_db_snapshot.sh when the cloud backend deployment results in a schema change so the cloud backend package seeds the DB with recent data.
@@ -34,6 +37,30 @@ func NewDb(
 		return nil, stacktrace.Propagate(err, "An error occurred opening the connection to the database with dsn %s", dsn)
 	}
 
+	return &Db{
+		db: db,
+	}, nil
+}
+
+func NewMockDb() (*Db, error) {
+	mockDb, _, _ := sqlmock.New()
+	dialector := postgres.New(postgres.Config{
+		Conn:       mockDb,
+		DriverName: "postgres",
+	})
+	db, _ := gorm.Open(dialector, &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Info),
+	})
+	return &Db{
+		db: db,
+	}, nil
+}
+
+func NewSQLiteDB() (*Db, error) {
+	db, err := gorm.Open(sqlite.Open("gorm.db"), &gorm.Config{})
+	if err != nil {
+		return nil, stacktrace.Propagate(err, "An error occurred opening the connection to the SQLite database")
+	}
 	return &Db{
 		db: db,
 	}, nil
@@ -118,9 +145,18 @@ func (db *Db) Migrate() error {
 	}
 	defer unlockFunc()
 
-	err = db.AutoMigrate(&User{})
+	err = db.AutoMigrate(&Tenant{}, &Flow{}, &PluginConfig{}, &Template{})
 	if err != nil {
 		return stacktrace.Propagate(err, "An internal error has occurred migrating the tables")
+	}
+
+	return nil
+}
+
+func (db *Db) Clear() error {
+	err := db.db.Migrator().DropTable(&Tenant{}, &Flow{}, &PluginConfig{}, &Template{})
+	if err != nil {
+		return stacktrace.Propagate(err, "An internal error has occurred clearing the tables")
 	}
 
 	return nil

@@ -16,7 +16,7 @@ in
     pwd = ./.;
     src = ./.;
     modules = ./gomod2nix.toml;
-    CGO_ENABLED = 0;
+    CGO_ENABLED = 1;
     nativeBuildInputs = with pkgs; [git cacert python3];
 
     # Tests do access the network to fecth the plugins. To avoid breaking it with sandboxed

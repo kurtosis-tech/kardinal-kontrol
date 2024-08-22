@@ -5,6 +5,7 @@ import { Stack, Flex, Text, Select, Tooltip, Icon } from "@chakra-ui/react";
 interface Option {
   label: string;
   value: string;
+  disabled?: boolean;
 }
 
 export interface Props {
@@ -47,9 +48,14 @@ const SelectInput = ({
         borderRadius={"12px"}
         height={"50px"}
         onChange={onChange}
+        value={options.find((o) => !o.disabled && o.value === value)?.value}
       >
         {options.map((option) => (
-          <option value={option.value} selected={option.value === value}>
+          <option
+            value={option.value}
+            selected={option.value === value}
+            disabled={option.disabled}
+          >
             {option.label}
           </option>
         ))}

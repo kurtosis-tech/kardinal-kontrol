@@ -1,5 +1,5 @@
 import CytoscapeComponent from "react-cytoscapejs";
-import type { ClusterTopology, ExtendedNode, Node } from "./types";
+import type { ClusterTopology, ExtendedNode, Node } from "@/types";
 
 export const extendNodeData = (node: Node): ExtendedNode => {
   const versions = node.versions ?? ["UNKNOWN"];
