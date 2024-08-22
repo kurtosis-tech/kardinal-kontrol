@@ -370,15 +370,6 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 		baseClusterTopologyMaybeWithTemplateOverrides = *baseClusterTopologyWithTemplateOverridesPtr
 	}
 
-<<<<<<< HEAD
-	pluginRunner, found := sv.pluginRunnerByTenant[tenantUuidStr]
-	if !found {
-		pluginRunner = plugins.NewPluginRunner(plugins.NewGitPluginProviderImpl())
-		sv.pluginRunnerByTenant[tenantUuidStr] = pluginRunner
-	}
-
-=======
->>>>>>> main
 	logrus.Debugf("calculating cluster topology overlay for tenant %s on flowID %s", tenantUuidStr, flowID)
 
 	flowSpec := flow_spec.FlowPatchSpec{
@@ -386,7 +377,7 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 		ServicePatches: patches,
 	}
 
-	pluginRunner := plugins.NewPluginRunner(tenantUuidStr, sv.db)
+	pluginRunner := plugins.NewPluginRunner(plugins.NewGitPluginProviderImpl(), tenantUuidStr, sv.db)
 	devClusterTopology, err := engine.GenerateProdDevCluster(&baseClusterTopologyMaybeWithTemplateOverrides, baseTopology, pluginRunner, flowSpec)
 	if err != nil {
 		return nil, []string{}, err
