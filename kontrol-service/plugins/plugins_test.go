@@ -56,8 +56,8 @@ var deploymentSpec = appv1.DeploymentSpec{
 	},
 }
 
-func getPluginRunner(t *testing.T) *PluginRunner {
-	db, err := database.NewSQLiteDB()
+func getPluginRunner(t *testing.T) (*PluginRunner, func() error) {
+	db, cleanUpDbFunc, err := database.NewSQLiteDB()
 	require.NoError(t, err)
 	err = db.Clear()
 	require.NoError(t, err)
@@ -70,11 +70,12 @@ func getPluginRunner(t *testing.T) *PluginRunner {
 		"tenant-test",
 		db,
 	)
-	return pluginRunner
+	return pluginRunner, cleanUpDbFunc
 }
 
 func TestSimplePlugin(t *testing.T) {
-	runner := getPluginRunner(t)
+	runner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
 
 	arguments := map[string]string{
 		"text_to_replace": "helloworld",
@@ -104,7 +105,8 @@ func TestSimplePlugin(t *testing.T) {
 }
 
 func TestIdentityPlugin(t *testing.T) {
-	runner := getPluginRunner(t)
+	runner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
@@ -128,7 +130,8 @@ func TestIdentityPlugin(t *testing.T) {
 }
 
 func TestComplexPlugin(t *testing.T) {
-	runner := getPluginRunner(t)
+	runner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(complexPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
@@ -153,7 +156,8 @@ func TestComplexPlugin(t *testing.T) {
 }
 
 func TestRedisPluginTest(t *testing.T) {
-	runner := getPluginRunner(t)
+	runner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(redisPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
