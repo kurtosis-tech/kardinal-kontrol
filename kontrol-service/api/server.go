@@ -30,16 +30,16 @@ const (
 var _ api.StrictServerInterface = (*Server)(nil)
 
 type Server struct {
-	flowTemplateMapping         map[string]string
-	db                          *database.Db
-	analyticsWrapper *AnalyticsWrapper
+	flowTemplateMapping map[string]string
+	db                  *database.Db
+	analyticsWrapper    *AnalyticsWrapper
 }
 
 func NewServer(db *database.Db, analyticsWrapper *AnalyticsWrapper) Server {
 	return Server{
-		flowTemplateMapping:         make(map[string]string),
-		db:                          db,
-		analyticsWrapper:            analyticsWrapper,
+		flowTemplateMapping: make(map[string]string),
+		db:                  db,
+		analyticsWrapper:    analyticsWrapper,
 	}
 }
 
@@ -67,11 +67,11 @@ func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUui
 	finalTopology := flow.MergeClusterTopologies(*clusterTopology, lo.Values(allFlows))
 	flowHostMapping := finalTopology.GetFlowHostMapping()
 	resp := lo.MapToSlice(flowHostMapping, func(flowId string, flowUrls []string) apitypes.Flow {
-				templateName, found := sv.flowTemplateMapping[flowId]
-				if !found {
-					templateName = "default"
-				}
-				return apitypes.Flow{FlowId: flowId, FlowUrls: flowUrls, TemplateName: &templateName}
+		templateName, found := sv.flowTemplateMapping[flowId]
+		if !found {
+			templateName = "default"
+		}
+		return apitypes.Flow{FlowId: flowId, FlowUrls: flowUrls, TemplateName: &templateName}
 	})
 	return api.GetTenantUuidFlows200JSONResponse(resp), nil
 }
@@ -317,7 +317,9 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apityp
 		return err, []string{}
 	}
 
+	logrus.Warn("Okay this did happen")
 	tenant, err := sv.db.GetOrCreateTenant(tenantUuidStr)
+	logrus.Info("This happens just fine!!!")
 	if err != nil {
 		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
 		return err, nil
