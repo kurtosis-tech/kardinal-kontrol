@@ -3,10 +3,12 @@ import Hat from "./Hat";
 import Head from "./Head";
 import Row from "./Row";
 import { useState } from "react";
+import { Template } from "@/types";
 
-const rows = ["a"];
-
-const FlowConfigurationTable = () => {
+interface Props {
+  templates: Template[];
+}
+const FlowConfigurationTable = ({ templates }: Props) => {
   const [expandedRowId, setExpandedRowId] = useState<string | null>(null);
 
   const handleExpandRow = (rowId: string | null) => {
@@ -26,10 +28,11 @@ const FlowConfigurationTable = () => {
       <Table variant="simple">
         <Head />
         <Tbody>
-          {rows.map((rowId) => (
+          {templates.map((t) => (
             <Row
-              id={rowId}
-              isExpanded={expandedRowId === rowId}
+              template={t}
+              id={t["template-id"]}
+              isExpanded={expandedRowId === t["template-id"]}
               onExpandRow={handleExpandRow}
             />
           ))}

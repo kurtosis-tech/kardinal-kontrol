@@ -15,8 +15,6 @@ interface Props {
 }
 
 const Fallback = ({ error, resetErrorBoundary }: Props) => {
-  // Call resetErrorBoundary() to reset the error boundary and retry the render.
-  console.debug({ error });
   const { onClose } = useDisclosure();
 
   return (

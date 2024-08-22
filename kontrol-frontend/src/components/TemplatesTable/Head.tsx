@@ -14,14 +14,16 @@ const Head = () => {
           {/* empty */}
         </Th>
         <Th textTransform={"none"} fontSize={"sm"} fontWeight={500} pl={0}>
-          Flow template
+          Template name
         </Th>
         <Th textTransform={"none"} fontSize={"sm"} fontWeight={500}>
-          Service
+          Template ID
         </Th>
+        {/*
         <Th textTransform={"none"} fontSize={"sm"} fontWeight={500}>
           Data layer
         </Th>
+        */}
         <Th
           textTransform={"none"}
           fontSize={"sm"}

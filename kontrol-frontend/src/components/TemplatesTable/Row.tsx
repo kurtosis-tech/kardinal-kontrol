@@ -8,7 +8,7 @@ import {
   IconButton,
   Stack,
 } from "@chakra-ui/react";
-import { FaGithub, FaStripeS, FaAmazon } from "react-icons/fa";
+import { FaGithub } from "react-icons/fa";
 import {
   FiGitBranch,
   FiPlay,
@@ -17,8 +17,8 @@ import {
   FiChevronRight,
   FiChevronDown,
 } from "react-icons/fi";
-import Chip from "../Chip";
 import { useFlowsContext } from "@/contexts/FlowsContext";
+import { Template } from "@/types";
 
 const TableCell = ({
   children,
@@ -44,12 +44,13 @@ const TableCell = ({
 };
 
 interface Props {
+  template: Template;
   id: string;
   isExpanded: boolean;
   onExpandRow: (rowIndex: string | null) => void;
 }
 
-const Row = ({ id, isExpanded, onExpandRow }: Props) => {
+const Row = ({ template, id, isExpanded, onExpandRow }: Props) => {
   const { deleteExampleFlow } = useFlowsContext();
   return (
     <Tr>
@@ -80,7 +81,7 @@ const Row = ({ id, isExpanded, onExpandRow }: Props) => {
         }
       >
         <Box as={FiGitBranch} />
-        <Link textDecor={"underline"}>Early development flow</Link>
+        <Link textDecor={"underline"}>{template.name}</Link>
       </TableCell>
       <TableCell
         isExpanded={isExpanded}
@@ -96,8 +97,9 @@ const Row = ({ id, isExpanded, onExpandRow }: Props) => {
         }
       >
         <Box as={FaGithub} />
-        <Text textDecor={"underline"}>awesome-kardinal-example</Text>
+        <Text textDecor={"underline"}>{template["template-id"]}</Text>
       </TableCell>
+      {/*
       <Td verticalAlign={"baseline"}>
         <Flex alignItems="flex-start" gap={1} height={"100%"}>
           <Chip icon={FaStripeS} colorScheme="purple">
@@ -108,6 +110,7 @@ const Row = ({ id, isExpanded, onExpandRow }: Props) => {
           </Chip>
         </Flex>
       </Td>
+      */}
       <Td pr={4} py={0} verticalAlign={"baseline"}>
         <Flex gap={1} justifyContent={"flex-end"}>
           <IconButton icon={<FiPlay />} aria-label="Play" variant="ghost" />

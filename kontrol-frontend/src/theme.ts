@@ -1,13 +1,11 @@
-// 1. import `extendTheme` function
 import { extendTheme, type ThemeConfig } from "@chakra-ui/react";
+import { MultiSelectTheme } from "chakra-multiselect";
 
-// 2. Add your color mode config
 const config: ThemeConfig = {
   initialColorMode: "light",
   useSystemColorMode: false,
 };
 
-// 3. Create a custom color palette
 export const colorOverrides: Record<string, Record<string, string>> = {
   gray: {
     "50": "#F9FAFB",
@@ -38,10 +36,43 @@ export const colorOverrides: Record<string, Record<string, string>> = {
   },
 };
 
-// 4. extend the theme
+// extend the theme
 const theme = extendTheme({
   config,
   colors: colorOverrides,
+  components: {
+    MultiSelect: {
+      ...MultiSelectTheme,
+      baseStyle: (props: Record<string, unknown>) => {
+        const baseStyles = MultiSelectTheme.baseStyle(props);
+        return {
+          ...baseStyles,
+          input: {
+            ...baseStyles.input,
+            flexGrow: 1,
+          },
+          defaultProps: {
+            size: "lg",
+            w: "100%",
+          },
+          list: {
+            ...baseStyles.list,
+            borderRadius: "12px",
+          },
+          control: {
+            ...baseStyles.control,
+            borderRadius: "12px",
+            height: "48px",
+            flexGrow: 0,
+          },
+          actionGroup: {
+            ...baseStyles.actionGroup,
+            flexGrow: 0,
+          },
+        };
+      },
+    },
+  },
   fonts: {
     body: "'DM Sans', 'sans-serif'",
   },
