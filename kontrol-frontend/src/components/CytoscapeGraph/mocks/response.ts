@@ -1,4 +1,4 @@
-import { ClusterTopology } from "../types";
+import { ClusterTopology } from "@/types";
 
 const data: ClusterTopology = {
   edges: [

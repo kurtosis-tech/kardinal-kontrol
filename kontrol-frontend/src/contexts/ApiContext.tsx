@@ -67,7 +67,7 @@ const ApiContext = createContext<ApiContextType>(defaultContextValue);
 export const ApiContextProvider = ({ children }: PropsWithChildren) => {
   const match = matchPath(
     {
-      path: "/:uuid/:pathname",
+      path: "/:uuid/*",
     },
     location.pathname,
   );
@@ -140,7 +140,10 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
 
   // GET "/tenant/{uuid}/topology"
   const getTopology = useCallback(async () => {
-    if (uuid == null) throw new Error("Invalid or missing tenant UUID");
+    if (uuid == null) {
+      debugger;
+      throw new Error("Invalid or missing tenant UUID");
+    }
     const topology = await handleApiCall(
       client.GET("/tenant/{uuid}/topology", {
         params: { path: { uuid } },

@@ -19,8 +19,8 @@ func TestApplyTemplateOverrides(t *testing.T) {
 		{
 			name: "Nil TemplateSpec",
 			template: &Template{
-				name: "test-template",
-				template: []corev1.Service{
+				Name: "test-template",
+				Template: []corev1.Service{
 					{ObjectMeta: metav1.ObjectMeta{Name: "service1"}},
 				},
 			},
@@ -35,8 +35,8 @@ func TestApplyTemplateOverrides(t *testing.T) {
 		{
 			name: "Apply Annotations",
 			template: &Template{
-				name: "test-template",
-				template: []corev1.Service{
+				Name: "test-template",
+				Template: []corev1.Service{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "service1",
@@ -72,8 +72,8 @@ func TestApplyTemplateOverrides(t *testing.T) {
 		{
 			name: "Multiple Services",
 			template: &Template{
-				name: "test-template",
-				template: []corev1.Service{
+				Name: "test-template",
+				Template: []corev1.Service{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "service1",
@@ -128,8 +128,8 @@ func TestApplyTemplateOverrides(t *testing.T) {
 		{
 			name: "Replace Existing Annotation",
 			template: &Template{
-				name: "test-template",
-				template: []corev1.Service{
+				Name: "test-template",
+				Template: []corev1.Service{
 					{
 						ObjectMeta: metav1.ObjectMeta{
 							Name: "service1",

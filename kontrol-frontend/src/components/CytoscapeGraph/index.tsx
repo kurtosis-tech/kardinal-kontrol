@@ -176,4 +176,6 @@ const CytoscapeGraph = ({ elements, layout = dagreLayout }: Props) => {
     />
   );
 };
+
 export default CytoscapeGraph;
+export * as utils from "./utils";

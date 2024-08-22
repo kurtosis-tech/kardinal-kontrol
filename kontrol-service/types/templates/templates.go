@@ -2,43 +2,28 @@ package templates
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
+
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
-	"regexp"
-	"strings"
 )
 
 type Template struct {
-	template    []corev1.Service
-	description *string
-	name        string
-	id          string
+	Template    []corev1.Service
+	Description *string
+	Name        string
+	Id          string
 }
 
 func NewTemplate(services []corev1.Service, description *string, name string, id string) Template {
 	return Template{
-		template:    services,
-		description: description,
-		name:        name,
-		id:          id,
+		Template:    services,
+		Description: description,
+		Name:        name,
+		Id:          id,
 	}
-}
-
-func (t *Template) GetTemplate() []corev1.Service {
-	return t.template
-}
-
-func (t *Template) GetDescription() *string {
-	return t.description
-}
-
-func (t *Template) GetName() string {
-	return t.name
-}
-
-func (t *Template) GetID() string {
-	return t.id
 }
 
 func (t *Template) ApplyTemplateOverrides(serviceConfigs []apitypes.ServiceConfig, templateSpec *apitypes.TemplateSpec) []apitypes.ServiceConfig {
@@ -51,11 +36,11 @@ func (t *Template) ApplyTemplateOverrides(serviceConfigs []apitypes.ServiceConfi
 	logrus.Infof("Processing template '%v' with args '%v'", templateSpec.TemplateName, args)
 
 	for i, serviceConfig := range serviceConfigs {
-		for _, templateService := range t.GetTemplate() {
+		for _, templateService := range t.Template {
 			if templateService.Name != serviceConfig.Service.Name {
 				continue
 			}
-			logrus.Infof("Found overrides for service '%s' in template '%s'", templateService.Name, t.name)
+			logrus.Infof("Found overrides for service '%s' in template '%s'", templateService.Name, t.Name)
 			for key, value := range templateService.Annotations {
 				if strings.HasPrefix(key, "kardinal.dev.service/") {
 					if serviceConfig.Service.Annotations == nil {
