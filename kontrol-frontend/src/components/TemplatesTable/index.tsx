@@ -15,6 +15,10 @@ const FlowConfigurationTable = ({ templates }: Props) => {
     setExpandedRowId(rowId);
   };
 
+  const handleDelete = (templateId: string) => {
+    console.log("DELETE TEMPLATE", templateId);
+  };
+
   return (
     <Box
       borderWidth="1px"
@@ -34,6 +38,7 @@ const FlowConfigurationTable = ({ templates }: Props) => {
               id={t["template-id"]}
               isExpanded={expandedRowId === t["template-id"]}
               onExpandRow={handleExpandRow}
+              onDelete={handleDelete}
             />
           ))}
         </Tbody>

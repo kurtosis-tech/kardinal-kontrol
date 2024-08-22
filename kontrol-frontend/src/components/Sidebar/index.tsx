@@ -102,7 +102,7 @@ const Sidebar = () => {
           href="flows"
           isCollapsed={isSidebarCollapsed}
         >
-          Flows
+          Flow Templates
         </SidebarLink>
         <SidebarLink
           icon={FiRepeat}

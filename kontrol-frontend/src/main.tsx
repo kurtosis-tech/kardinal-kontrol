@@ -15,7 +15,6 @@ import NotFound from "@/pages/NotFound";
 
 import { ErrorBoundary } from "react-error-boundary";
 import { NavigationContextProvider } from "@/contexts/NavigationContext";
-import { FlowsContextProvider } from "@/contexts/FlowsContext";
 import { ApiContextProvider } from "@/contexts/ApiContext";
 
 const router = createBrowserRouter([
@@ -73,9 +72,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <ChakraProvider theme={theme} resetCSS>
       <ApiContextProvider>
         <NavigationContextProvider>
-          <FlowsContextProvider>
-            <RouterProvider router={router} />
-          </FlowsContextProvider>
+          <RouterProvider router={router} />
         </NavigationContextProvider>
       </ApiContextProvider>
     </ChakraProvider>
