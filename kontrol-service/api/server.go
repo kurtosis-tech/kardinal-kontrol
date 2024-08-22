@@ -109,7 +109,7 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 
 	if flowTopology, found := allFlows[request.FlowId]; found {
 		logrus.Infof("deleting flow %s", request.FlowId)
-		pluginRunner := plugins.NewPluginRunner(request.Uuid, sv.db)
+		pluginRunner := plugins.NewPluginRunner(plugins.NewGitPluginProviderImpl(), request.Uuid, sv.db)
 		err := flow.DeleteFlow(pluginRunner, flowTopology, request.FlowId)
 		if err != nil {
 			errMsg := fmt.Sprintf("An error occurred deleting flow '%v'", request.FlowId)
