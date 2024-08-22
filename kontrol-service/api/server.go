@@ -70,7 +70,8 @@ func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUui
 	resp := lo.MapToSlice(flowHostMapping, func(flowId string, flowUrls []string) apitypes.Flow {
 		templateName, found := sv.flowTemplateMapping[flowId]
 		if !found {
-			templateName = "default"
+			// setting this to N/A for now as it might restart and say everything is default
+			templateName = "N/A"
 		}
 		return apitypes.Flow{FlowId: flowId, FlowUrls: flowUrls, TemplateName: &templateName}
 	})
