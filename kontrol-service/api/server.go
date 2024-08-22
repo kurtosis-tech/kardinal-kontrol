@@ -30,6 +30,7 @@ const (
 var _ api.StrictServerInterface = (*Server)(nil)
 
 type Server struct {
+	// TODO persist this
 	flowTemplateMapping map[string]string
 	db                  *database.Db
 	analyticsWrapper    *AnalyticsWrapper
