@@ -304,16 +304,6 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apityp
 		return err, []string{}
 	}
 
-<<<<<<< HEAD
-	// TODO there is an issue here where one of these get updated and failure happens
-	// Perhaps have a super map / something that accounts for this
-	// we need to keep this in consistent state
-	sv.pluginRunnerByTenant[tenantUuidStr] = plugins.NewPluginRunner(plugins.NewGitPluginProviderImpl())
-	sv.baseClusterTopologyByTenant[tenantUuidStr] = *clusterTopology
-	sv.clusterTopologyByTenantFlow[tenantUuidStr] = make(map[string]resolved.ClusterTopology)
-	sv.serviceConfigsByTenant[tenantUuidStr] = serviceConfigs
-	sv.ingressConfigsByTenant[tenantUuidStr] = ingressConfigs
-=======
 	tenant, err := sv.db.GetOrCreateTenant(tenantUuidStr)
 	if err != nil {
 		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
@@ -347,7 +337,6 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apityp
 		return err, nil
 	}
 
->>>>>>> main
 	flowHostMapping := clusterTopology.GetFlowHostMapping()
 
 	return nil, flowHostMapping[flowID]
