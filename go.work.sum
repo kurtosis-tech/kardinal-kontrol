@@ -140,10 +140,14 @@ github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814135254-a07
 github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814135254-a0724da5a551/go.mod h1:Zlbpg7q5pTUaddoMN9zaraCNvvuD4KJNPPC8WyUF8DI=
 github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814140453-975ebac24b93 h1:hijv6grblylZS82qnFei4L3t/60MD0cPVV0XDrHUL9I=
 github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814140453-975ebac24b93/go.mod h1:Zlbpg7q5pTUaddoMN9zaraCNvvuD4KJNPPC8WyUF8DI=
+github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240822134904-7c1aa8c65258 h1:uhJDm5IlUbGNOeorKh1jUPgH/wzEYZjZPOOd02nZPqY=
+github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240822134904-7c1aa8c65258/go.mod h1:Zlbpg7q5pTUaddoMN9zaraCNvvuD4KJNPPC8WyUF8DI=
 github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240814135254-a0724da5a551 h1:D+ct39Xc/rE4nvgyueIZyc44dFm+Gyp3C9daAjlxjIw=
 github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240814135254-a0724da5a551/go.mod h1:lj6oLhpXgnc9ZaulV7jysgRaeZUDPK6XiM2TxpcGRqM=
 github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240814140453-975ebac24b93 h1:s5cXvxg52er5nMCy+9v9wR+4nv+CxHOzXwIf2q2vRA0=
 github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240814140453-975ebac24b93/go.mod h1:lj6oLhpXgnc9ZaulV7jysgRaeZUDPK6XiM2TxpcGRqM=
+github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240822134904-7c1aa8c65258 h1:ZhCXbNjKc02Zdo64MAmnwYexf7TE4W0V2bS3sFaCwCo=
+github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240822134904-7c1aa8c65258/go.mod h1:lj6oLhpXgnc9ZaulV7jysgRaeZUDPK6XiM2TxpcGRqM=
 github.com/leodido/go-urn v1.2.4 h1:XlAE/cm/ms7TE/VMVoduSpNBoyc2dOxHs5MZSwAN63Q=
 github.com/leodido/go-urn v1.2.4/go.mod h1:7ZrI8mTSeBSHl/UaRyKQW1qZeMgak41ANeCNaVckg+4=
 github.com/mailgun/raymond/v2 v2.0.48 h1:5dmlB680ZkFG2RN/0lvTAghrSxIESeu9/2aeDqACtjw=

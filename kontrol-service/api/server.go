@@ -317,9 +317,7 @@ func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apityp
 		return err, []string{}
 	}
 
-	logrus.Warn("Okay this did happen")
 	tenant, err := sv.db.GetOrCreateTenant(tenantUuidStr)
-	logrus.Info("This happens just fine!!!")
 	if err != nil {
 		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
 		return err, nil
