@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.1.19](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.18...0.1.19) (2024-08-23)
+
+
+### Features
+
+* add build mode banner ([#25](https://github.com/kurtosis-tech/kardinal-kontrol/issues/25)) ([bb7e3e3](https://github.com/kurtosis-tech/kardinal-kontrol/commit/bb7e3e36a9d6864e32b77a3588feea6293a08ea2))
+* adding the cluster resources manifest endpoint ([#23](https://github.com/kurtosis-tech/kardinal-kontrol/issues/23)) ([93ff08a](https://github.com/kurtosis-tech/kardinal-kontrol/commit/93ff08aed00d06a51edec73b236f6b52c9b1bb4a))
+* Frontend for templates creation part 2 ([#13](https://github.com/kurtosis-tech/kardinal-kontrol/issues/13)) ([7a4e678](https://github.com/kurtosis-tech/kardinal-kontrol/commit/7a4e67806f16f48c45122dd610192bec5c62a2eb))
+* Templates UI part 3 ([#18](https://github.com/kurtosis-tech/kardinal-kontrol/issues/18)) ([daeb553](https://github.com/kurtosis-tech/kardinal-kontrol/commit/daeb5538b92e7f657d1365b321228f12acdeb973))
+* Templates UI part 4: delete and run templates ([#24](https://github.com/kurtosis-tech/kardinal-kontrol/issues/24)) ([3970965](https://github.com/kurtosis-tech/kardinal-kontrol/commit/3970965c11a821315dc79eb79730d6566ee1e1ba))
+
+
+### Bug Fixes
+
+* DB env vars validation + Tenant create only on deploy ([#19](https://github.com/kurtosis-tech/kardinal-kontrol/issues/19)) ([882fb95](https://github.com/kurtosis-tech/kardinal-kontrol/commit/882fb95f6cdf080f9b871e9c0e7fe64e54fdff8e))
+* disable arm64 builds in ci temporarily ([#15](https://github.com/kurtosis-tech/kardinal-kontrol/issues/15)) ([59aa3ba](https://github.com/kurtosis-tech/kardinal-kontrol/commit/59aa3ba6d7c7d0f56f2333d8c6d63b5fb9917971))
+* re-enable sandbox ([#17](https://github.com/kurtosis-tech/kardinal-kontrol/issues/17)) ([fac285f](https://github.com/kurtosis-tech/kardinal-kontrol/commit/fac285fccc5f5c98483fe7356535026ee63b7c81))
+
 ## [0.1.18](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.17...0.1.18) (2024-08-21)
 
 
