@@ -2,6 +2,7 @@ import { paths, components } from "cli-kontrol-api/api/typescript/client/types";
 import { matchPath } from "react-router-dom";
 import createClient from "openapi-fetch";
 import type { HttpMethod } from "openapi-typescript-helpers";
+import { Flow, Template } from "@/types";
 
 const client = createClient<paths>({ baseUrl: import.meta.env.VITE_API_URL });
 
@@ -13,10 +14,6 @@ import {
   // useEffect,
   PropsWithChildren,
 } from "react";
-
-// Type aliases for ease of use
-export type Template = components["schemas"]["Template"];
-export type Flow = components["schemas"]["Flow"];
 
 // infer the request body type from the OpenAPI schema
 export type RequestBody<
@@ -141,7 +138,6 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
   // GET "/tenant/{uuid}/topology"
   const getTopology = useCallback(async () => {
     if (uuid == null) {
-      debugger;
       throw new Error("Invalid or missing tenant UUID");
     }
     const topology = await handleApiCall(
