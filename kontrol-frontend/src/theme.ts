@@ -23,6 +23,7 @@ export const colorOverrides: Record<string, Record<string, string>> = {
   },
   orange: {
     "500": "#FF602C",
+    "100": "#FCA0610D",
   },
   blue: {
     "50": "#F6FAFF",

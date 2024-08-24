@@ -1,16 +1,19 @@
 import { createContext, useContext, useState, ReactNode } from "react";
 
-// Define the shape of your context
 interface NavigationContextType {
-  // Add your context properties here
   isSidebarCollapsed: boolean;
   setIsSidebarCollapsed: (c: boolean) => void;
+  isBannerVisible: boolean;
+  setIsBannerVisible: (c: boolean) => void;
 }
 
 // Create the context with a default value
-const NavigationContext = createContext<NavigationContextType | undefined>(
-  undefined,
-);
+const NavigationContext = createContext<NavigationContextType>({
+  isSidebarCollapsed: false,
+  setIsSidebarCollapsed: () => {},
+  isBannerVisible: true,
+  setIsBannerVisible: () => {},
+});
 
 // Create a provider component
 interface NavigationContextProviderProps {
@@ -21,12 +24,15 @@ export const NavigationContextProvider = ({
   children,
 }: NavigationContextProviderProps) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [isBannerVisible, setIsBannerVisible] = useState(true);
 
   return (
     <NavigationContext.Provider
       value={{
         isSidebarCollapsed,
         setIsSidebarCollapsed,
+        isBannerVisible,
+        setIsBannerVisible,
       }}
     >
       {children}

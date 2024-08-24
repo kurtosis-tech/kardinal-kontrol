@@ -49,10 +49,10 @@ eval $(minikube docker-env)
 docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
 ```
 
-To build and run the service directly in dev mode:
+To build and run the service directly in dev mode (a locally running Postgres DB is required):
 
 ```bash
-nix run ./#kontrol-service -- -dev-mode
+DB_HOSTNAME=localhost DB_USERNAME=postgres DB_NAME=kardinal DB_PORT=5432 DB_PASSWORD=<database password> nix run ./#kontrol-service -- -dev-mode
 ```
 
 ### Regenerate gomod2nix.toml

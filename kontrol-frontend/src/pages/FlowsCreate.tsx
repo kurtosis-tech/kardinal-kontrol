@@ -125,7 +125,7 @@ const Page = () => {
   const formIsValid = formState.name.length > 0 && formState.service.length > 0;
 
   return (
-    <Layout>
+    <Layout showBanner>
       <PageTitle title="Create new flow configuration">
         Update traffic control and data isolation details below
       </PageTitle>
