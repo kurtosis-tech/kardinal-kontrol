@@ -42,7 +42,15 @@ jobs:
       - name: Build and load kontrol service image
         run: | 
           docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
-          docker images
 
       - name: Start kontrol service and Postgres 
-        run: docker compose -f docker-compose.yml up
+        run: docker compose -f docker-compose.yml up -d
+
+      - name: Deploy boutique demo manifest
+        run: kardinal deploy -k obd-demo.yaml
+
+      - name: Create flow
+        run: kardinal flow create frontend kurtosistech/frontend:demo-frontend
+
+      - name: Create more complex flow
+        run: kardinal flow create frontend kurtosistech/frontend:demo-on-sale -s productcatalogservice=kurtosistech/productcatalogservice:demo-on-sale
