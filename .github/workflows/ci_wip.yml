@@ -1,0 +1,33 @@
+# Our desired pipeline using only a Nix shell environment
+name: Check and build Kardinal
+
+permissions:
+  id-token: write
+  contents: read
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  e2e_tests:
+    name: E2E tests
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Git checkout
+        uses: actions/checkout@v3
+
+      - name: Install CLI 
+        run: curl get.kardinal.dev -sL | sh
+      
+      - name: Verify kardinal command
+        run: bash -c 'source ~/.bashrc; if kardinal | grep -q "Kardinal CLI"; then exit 0; else exit 1; fi'
+
+      - name: Start kontrol service and Postgres 
+        run: docker-compose docker-compose.yml up

@@ -1,0 +1,29 @@
+services:
+  kontrol-service:
+    image: 258623609258.dkr.ecr.us-east-1.amazonaws.com/kurtosistech/kontrol-service:latest
+    restart: always
+    command: /nix/store/9pwjgrpiy2in9x7k391n0sy131z2xwf6-kardinal.kontrol-service-aarch64-unknown-linux-gnu/bin/kardinal.kontrol-service
+    environment:
+      - DB_HOSTNAME=postgres
+      - DB_PORT=5432
+      - DB_NAME=kardinal
+      - DB_USERNAME=postgres
+      - DB_PASSWORD=kurtosis
+    ports:
+      - '8080:8080'
+    depends_on:
+      - postgres
+  postgres:
+    image: postgres:13-alpine
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=kurtosis
+      - POSTGRES_DB=kardinal
+    ports:
+      - '5432:5432'
+    volumes: 
+      - postgres:/var/lib/postgresql/data
+volumes:
+  postgres:
+    driver: local
