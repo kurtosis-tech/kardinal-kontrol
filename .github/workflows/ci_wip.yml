@@ -28,6 +28,9 @@ jobs:
       
       - name: Verify kardinal command
         run: bash -c 'source ~/.bashrc; if kardinal | grep -q "Kardinal CLI"; then exit 0; else exit 1; fi'
+      
+      - name: Build and load kontrol service image
+        run: docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
 
       - name: Start kontrol service and Postgres 
         run: docker compose -f docker-compose.yml up
