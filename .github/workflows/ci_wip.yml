@@ -30,4 +30,4 @@ jobs:
         run: bash -c 'source ~/.bashrc; if kardinal | grep -q "Kardinal CLI"; then exit 0; else exit 1; fi'
 
       - name: Start kontrol service and Postgres 
-        run: docker-compose -f docker-compose.yml up
+        run: docker compose -f docker-compose.yml up
