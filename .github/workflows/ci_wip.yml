@@ -22,6 +22,13 @@ jobs:
     steps:
       - name: Git checkout
         uses: actions/checkout@v3
+      
+      - name: Install Nix
+        uses: cachix/install-nix-action@v27
+        # relax sandbox due impure kontrol-service tests during build
+        with:
+          extra_nix_config: |
+            sandbox = relaxed
 
       - name: Install CLI 
         run: curl get.kardinal.dev -sL | sh
