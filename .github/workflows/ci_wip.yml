@@ -30,6 +30,9 @@ jobs:
           extra_nix_config: |
             sandbox = relaxed
 
+      - name: Magic cache
+        uses: DeterminateSystems/magic-nix-cache-action@v7
+
       - name: Install CLI 
         run: curl get.kardinal.dev -sL | sh
       
@@ -37,7 +40,9 @@ jobs:
         run: bash -c 'source ~/.bashrc; if kardinal | grep -q "Kardinal CLI"; then exit 0; else exit 1; fi'
       
       - name: Build and load kontrol service image
-        run: docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
+        run: | 
+          docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
+          docker images
 
       - name: Start kontrol service and Postgres 
         run: docker compose -f docker-compose.yml up
