@@ -50,7 +50,13 @@ jobs:
         run: kardinal deploy -k obd-demo.yaml
 
       - name: Create flow
-        run: kardinal flow create frontend kurtosistech/frontend:demo-frontend
+        run: |
+          kardinal flow create frontend kurtosistech/frontend:demo-frontend > kardinal.out
+          flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
+          kardinal flow delete ${flow_id}
 
       - name: Create more complex flow
-        run: kardinal flow create frontend kurtosistech/frontend:demo-on-sale -s productcatalogservice=kurtosistech/productcatalogservice:demo-on-sale
+        run: |
+          kardinal flow create frontend kurtosistech/frontend:demo-on-sale -s productcatalogservice=kurtosistech/productcatalogservice:demo-on-sale > kardinal.out
+          flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
+          kardinal flow delete ${flow_id}
