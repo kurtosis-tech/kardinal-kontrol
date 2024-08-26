@@ -47,9 +47,19 @@ jobs:
         run: docker compose -f docker-compose.yml up -d
 
       - name: Deploy boutique demo manifest
-        run: kardinal deploy -k obd-demo.yaml
+        run: |
+          kardinal deploy -k obd-demo.yaml > kardinal.out
+          tenant_id=$(grep "Using tenant UUID" kardinal.out | cut -d ' ' -f5)
+          echo "tenant_id=${tenant_id}" >> "$GITHUB_OUTPUT"
 
-      - name: Create flow
+      - name: Test cluster resources endpoint
+        run: |
+          tenant_id=${{ steps.vars.outputs.tenant_id }}
+          deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name')
+          if: "${deployments}" != "postgres-prod\nproductcatalogservice-prod\ncartservice-prod\nfrontend-prod"
+          run: exit 1
+
+      - name: Create and delete flow
         run: |
           kardinal flow create frontend kurtosistech/frontend:demo-frontend > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
