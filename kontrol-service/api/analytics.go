@@ -28,7 +28,7 @@ func NewAnalyticsWrapper(isDevMode bool, writeKey string) *AnalyticsWrapper {
 		logrus.Info("Segment analytics client initialized")
 		return &AnalyticsWrapper{client: &client}
 	}
-	logrus.Info("Dev mode: Segment analytics client not initialized")
+	logrus.Info("Dev mode or write key not set: Segment analytics client not initialized")
 	return &AnalyticsWrapper{client: nil}
 }
 
