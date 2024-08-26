@@ -49,15 +49,15 @@ jobs:
       - name: Deploy boutique demo manifest
         run: |
           kardinal deploy -k obd-demo.yaml > kardinal.out
-          tenant_id=$(grep "Using tenant UUID" kardinal.out | cut -d ' ' -f5)
+          tenant_id=$(grep "Creating new tenant UUID" kardinal.out | cut -d ' ' -f5)
+          echo ${tenant_id}
           echo "tenant_id=${tenant_id}" >> "$GITHUB_OUTPUT"
 
       - name: Test cluster resources endpoint
         run: |
           tenant_id=${{ steps.vars.outputs.tenant_id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name')
-          if: "${deployments}" != "postgres-prod\nproductcatalogservice-prod\ncartservice-prod\nfrontend-prod"
-          run: exit 1
+          if [ "${deployments}" != "postgres-prod\nproductcatalogservice-prod\ncartservice-prod\nfrontend-prod" ]; then exit 1; fi
 
       - name: Create and delete flow
         run: |
