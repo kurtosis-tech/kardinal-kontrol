@@ -46,7 +46,7 @@ func (db *Db) GetTenant(
 	tenantId string,
 ) (*Tenant, error) {
 	var tenant Tenant
-	result := db.db.Where("tenant_id = ?", tenantId).First(&tenant)
+	result := db.db.Where("tenant_id = ?", tenantId).Preload("Flows").Preload("Templates").First(&tenant)
 	if result.Error != nil {
 		if result.Error == gorm.ErrRecordNotFound {
 			return nil, nil
