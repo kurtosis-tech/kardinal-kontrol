@@ -1,13 +1,14 @@
 package flow
 
 import (
+	"encoding/json"
 	"github.com/samber/lo"
 	v1 "k8s.io/api/networking/v1"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
 )
 
-func MergeClusterTopologies(baseTopology resolved.ClusterTopology, clusterTopologies []resolved.ClusterTopology) *resolved.ClusterTopology {
-	mergedTopology := &resolved.ClusterTopology{
+func MergeClusterTopologies(baseTopology resolved.ClusterTopology, clusterTopologies []resolved.ClusterTopology) (mergedTopology *resolved.ClusterTopology) {
+	mergedTopology = &resolved.ClusterTopology{
 		FlowID:              "all",
 		Services:            deepCopySlice(baseTopology.Services),
 		ServiceDependencies: deepCopySlice(baseTopology.ServiceDependencies),
@@ -19,11 +20,10 @@ func MergeClusterTopologies(baseTopology resolved.ClusterTopology, clusterTopolo
 		mergedTopology.Ingresses = append(mergedTopology.Ingresses, topology.Ingresses...)
 	}
 
-	mergedTopology.Services = lo.Uniq(mergedTopology.Services)
-	mergedTopology.ServiceDependencies = lo.Uniq(mergedTopology.ServiceDependencies)
+	mergedTopology.Services = lo.UniqBy(mergedTopology.Services, MustGetMarshalledKey[*resolved.Service])
+	mergedTopology.ServiceDependencies = lo.UniqBy(mergedTopology.ServiceDependencies, MustGetMarshalledKey[resolved.ServiceDependency])
 	mergedTopology.Ingresses = foldAllIngress(mergedTopology.Ingresses)
 
-	// fmt.Printf("topology: %s\n", SPrintJSONClusterTopology(mergedTopology))
 	return mergedTopology
 }
 
@@ -38,4 +38,12 @@ func foldAllIngress(ingresses []*resolved.Ingress) []*resolved.Ingress {
 		}
 		return &merged
 	})
+}
+
+func MustGetMarshalledKey[T any](resource T) string {
+	bytes, err := json.Marshal(resource)
+	if err != nil {
+		panic("Failed to marshal resource")
+	}
+	return string(bytes)
 }

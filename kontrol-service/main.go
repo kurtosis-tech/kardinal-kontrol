@@ -2,9 +2,11 @@ package main
 
 import (
 	"flag"
+	"net/http"
 	"os"
 	"strconv"
 
+	cli_api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
@@ -86,6 +88,34 @@ func startServer(isDevMode bool) {
 			return nil
 		},
 	}))
+
+	// Panic handler
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			defer func() {
+				if r := recover(); r != nil {
+
+					internalServerErrorResponse := cli_api.ErrorJSONResponse{
+						Error: "internal server error",
+					}
+
+					// Handle the panic and return a 500 error response
+					c.JSON(http.StatusInternalServerError, internalServerErrorResponse)
+					var debugMsg string
+					switch recoverErr := r.(type) {
+					case string:
+						debugMsg = recoverErr
+					case error:
+						debugMsg = recoverErr.Error()
+					default:
+						debugMsg = "recover didn't get error msg"
+					}
+					logrus.Errorf("HTTP server handle this internal panic: %s", debugMsg)
+				}
+			}()
+			return next(c)
+		}
+	})
 
 	server.RegisterExternalAndInternalApi(e)
 
