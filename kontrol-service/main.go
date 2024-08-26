@@ -15,16 +15,23 @@ import (
 )
 
 func main() {
-	devMode := flag.Bool("dev-mode", false, "Allow to run the service in local mode.")
+	var devMode bool
+	devMode = *flag.Bool("dev-mode", false, "Allow to run the service in local mode.")
+	if !devMode {
+		devModeEnvVarStr := os.Getenv("DEV_MODE")
+		if devModeEnvVarStr == "true" {
+			devMode = true
+		}
+	}
 
 	flag.Parse()
 
-	if *devMode {
+	if devMode {
 		logrus.Warn("Running in dev mode. CORS fully open.")
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
-	startServer(*devMode)
+	startServer(devMode)
 }
 
 func startServer(isDevMode bool) {
@@ -64,7 +71,8 @@ func startServer(isDevMode bool) {
 
 	// Create a new Segment analytics client instance.
 	// analyticsClient is not initialized in dev mode so events are not reported to Segment
-	analyticsWrapper := api.NewAnalyticsWrapper(isDevMode)
+	analyticsWriteKeyEnvVarStr := os.Getenv("ANALYTICS_WRITE_KEY")
+	analyticsWrapper := api.NewAnalyticsWrapper(isDevMode, analyticsWriteKeyEnvVarStr)
 	defer analyticsWrapper.Close()
 
 	// create a type that satisfies the `api.ServerInterface`, which contains an implementation of every operation from the generated code
