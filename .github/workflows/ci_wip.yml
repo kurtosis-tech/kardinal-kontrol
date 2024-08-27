@@ -33,12 +33,6 @@ jobs:
       - name: Magic cache
         uses: DeterminateSystems/magic-nix-cache-action@v7
 
-      - name: Install CLI 
-        run: curl get.kardinal.dev -sL | sh
-      
-      - name: Verify kardinal command
-        run: bash -c 'source ~/.bashrc; if kardinal | grep -q "Kardinal CLI"; then exit 0; else exit 1; fi'
-      
       - name: Build and load kontrol service image
         run: | 
           docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
@@ -47,8 +41,15 @@ jobs:
         run: |
           docker compose -f docker-compose.yml up -d
           docker ps
-          curl http://0.0.0.0:8080/tenant/${tenant_id}/cluster-resources
+          docker inspect network default
+          curl http://::8080/tenant/${tenant_id}/cluster-resources
           exit 1
+      
+      - name: Install CLI 
+        run: curl get.kardinal.dev -sL | sh
+      
+      - name: Verify kardinal command
+        run: bash -c 'source ~/.bashrc; if kardinal | grep -q "Kardinal CLI"; then exit 0; else exit 1; fi'
 
       - name: Retrieve the tenant UUID
         run: |
