@@ -41,8 +41,7 @@ jobs:
         run: |
           docker compose -f docker-compose.yml up -d
           docker ps
-          docker inspect network default
-          curl http://::8080/tenant/${tenant_id}/cluster-resources
+          curl http://127.0.0.1:8080/tenant/${tenant_id}/cluster-resources
           exit 1
       
       - name: Install CLI 

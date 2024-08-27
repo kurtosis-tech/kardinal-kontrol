@@ -10,7 +10,7 @@ services:
       - DB_PASSWORD=kurtosis
       - DEV_MODE=true
     ports:
-      - '8080:8080'
+      - '127.0.0.1:8080:8080'
     depends_on:
       - postgres
   postgres:
