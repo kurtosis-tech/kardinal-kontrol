@@ -57,17 +57,14 @@ jobs:
         id: tenant
         run: |
           tenant_id=$(kardinal tenant show)
-          echo ${tenant_id}
           echo "id=${tenant_id}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy boutique demo manifest
         run: |
           KARDINAL_CLI_DEV_MODE=TRUE kardinal deploy -k obd-demo.yaml
-      
-      - name: Test cluster resources endpoint
-        run: |
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name')
+          echo ${deployments}
           if [ "${deployments}" != "postgres-prod\nproductcatalogservice-prod\ncartservice-prod\nfrontend-prod" ]; then exit 1; fi
 
       - name: Create, validate and delete flow
