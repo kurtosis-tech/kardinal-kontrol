@@ -65,7 +65,7 @@ jobs:
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name')
           echo ${deployments}
-          if [ "${deployments}" != "postgres-prod\nproductcatalogservice-prod\ncartservice-prod\nfrontend-prod" ]; then exit 1; fi
+          if [ "${deployments}" != "postgres-prod productcatalogservice-prod cartservice-prod frontend-prod" ]; then exit 1; fi
 
       - name: Create, validate and delete flow
         run: |
