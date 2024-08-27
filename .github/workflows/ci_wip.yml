@@ -46,13 +46,16 @@ jobs:
       - name: Start kontrol service and Postgres 
         run: docker compose -f docker-compose.yml up -d
 
-      - name: Deploy boutique demo manifest
+      - name: Retrieve the tenant UUID
         run: |
-          kardinal deploy -k obd-demo.yaml > kardinal.out
-          tenant_id=$(grep "Creating new tenant UUID" kardinal.out | cut -d ' ' -f5)
+          tenant_id=$(kardinal tenant show)
           echo ${tenant_id}
           echo "tenant_id=${tenant_id}" >> "$GITHUB_OUTPUT"
 
+      - name: Deploy boutique demo manifest
+        run: |
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal deploy -k obd-demo.yaml > kardinal.out
+      
       - name: Test cluster resources endpoint
         run: |
           tenant_id=${{ steps.vars.outputs.tenant_id }}
@@ -61,12 +64,12 @@ jobs:
 
       - name: Create and delete flow
         run: |
-          kardinal flow create frontend kurtosistech/frontend:demo-frontend > kardinal.out
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-frontend > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
           kardinal flow delete ${flow_id}
 
       - name: Create more complex flow
         run: |
-          kardinal flow create frontend kurtosistech/frontend:demo-on-sale -s productcatalogservice=kurtosistech/productcatalogservice:demo-on-sale > kardinal.out
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-on-sale -s productcatalogservice=kurtosistech/productcatalogservice:demo-on-sale > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
           kardinal flow delete ${flow_id}
