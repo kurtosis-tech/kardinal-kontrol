@@ -44,7 +44,9 @@ jobs:
           docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
 
       - name: Start kontrol service and Postgres 
-        run: docker compose -f docker-compose.yml up -d
+        run: |
+          docker compose -f docker-compose.yml up -d
+          docker ps
 
       - name: Retrieve the tenant UUID
         run: |
