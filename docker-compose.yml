@@ -10,7 +10,7 @@ services:
       - DB_PASSWORD=kurtosis
       - DEV_MODE=true
     ports:
-      - '127.0.0.1:8080:8080'
+      - 'localhost:8080:8080'
     depends_on:
       - postgres
   postgres:
@@ -21,7 +21,7 @@ services:
       - POSTGRES_PASSWORD=kurtosis
       - POSTGRES_DB=kardinal
     ports:
-      - '127.0.0.1:5432:5432'
+      - 'localhost:5432:5432'
     volumes: 
       - postgres:/var/lib/postgresql/data
 volumes:
