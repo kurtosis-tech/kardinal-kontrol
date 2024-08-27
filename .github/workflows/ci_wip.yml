@@ -39,6 +39,8 @@ jobs:
 
       - name: Start kontrol service and Postgres 
         run: |
+          cat /etc/docker/daemon.json
+          docker version
           docker compose -f docker-compose.yml up -d
       
       - name: Install CLI 
