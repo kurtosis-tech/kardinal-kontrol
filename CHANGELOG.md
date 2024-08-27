@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.22](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.21...0.1.22) (2024-08-27)
+
+
+### Features
+
+* Add env vars for dev mode and analytics write key ([#5](https://github.com/kurtosis-tech/kardinal-kontrol/issues/5)) ([d1df468](https://github.com/kurtosis-tech/kardinal-kontrol/commit/d1df468ba9436587f84cbd2e87572dcd19f09dc2))
+
+
+### Bug Fixes
+
+* the  merge cluster topologies function and add panic handler in the HTTP server ([#8](https://github.com/kurtosis-tech/kardinal-kontrol/issues/8)) ([fcf909d](https://github.com/kurtosis-tech/kardinal-kontrol/commit/fcf909d9fdf1053e5427fe3f75e18ea5b854ef81))
+
 ## [0.1.21](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.20...0.1.21) (2024-08-26)
 
 
