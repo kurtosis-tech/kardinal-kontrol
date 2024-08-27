@@ -1,5 +1,5 @@
 networks:
-    cont:
+    kardinal:
         driver: bridge
         enable_ipv6: false
 
@@ -16,6 +16,8 @@ services:
       - DEV_MODE=true
     ports:
       - '8080:8080'
+    networks:
+      - kardinal
     depends_on:
       - postgres
   postgres:
@@ -27,6 +29,8 @@ services:
       - POSTGRES_DB=kardinal
     ports:
       - '5432:5432'
+    networks:
+      - kardinal
     volumes: 
       - postgres:/var/lib/postgresql/data
 volumes:

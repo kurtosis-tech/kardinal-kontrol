@@ -41,6 +41,7 @@ jobs:
         run: |
           docker version
           docker compose -f docker-compose.yml up -d
+          docker ps
       
       - name: Install CLI 
         run: curl get.kardinal.dev -sL | sh
