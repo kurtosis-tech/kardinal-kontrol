@@ -42,7 +42,11 @@ jobs:
           docker version
           docker compose -f docker-compose.yml up -d
           docker ps
-      
+
+      - name: Wait for docker network to be ready
+        run: sleep 10s
+        shell: bash
+
       - name: Install CLI 
         run: curl get.kardinal.dev -sL | sh
       
