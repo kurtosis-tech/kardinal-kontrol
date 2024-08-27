@@ -19,16 +19,13 @@ const (
 )
 
 // NewAnalyticsWrapper creates a new AnalyticsWrapper
-func NewAnalyticsWrapper(isDevMode bool) *AnalyticsWrapper {
-	if !isDevMode {
-		// This is the Segment write key for the "kontrol-service" project. It is not
-		// a sensitive value, but it could be extracted to an env var in the future
-		// to separate dev and prod traffic if desired.
-		client := analytics.New("1TeZVRY3ta9VYaNknKTCCKBZtcBllE6U")
+func NewAnalyticsWrapper(isDevMode bool, writeKey string) *AnalyticsWrapper {
+	if !isDevMode && writeKey != "" {
+		client := analytics.New(writeKey)
 		logrus.Info("Segment analytics client initialized")
 		return &AnalyticsWrapper{client: &client}
 	}
-	logrus.Info("Dev mode: Segment analytics client not initialized")
+	logrus.Info("Dev mode or write key not set: Segment analytics client not initialized")
 	return &AnalyticsWrapper{client: nil}
 }
 
