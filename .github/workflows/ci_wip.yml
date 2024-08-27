@@ -63,7 +63,7 @@ jobs:
         run: |
           KARDINAL_CLI_DEV_MODE=TRUE kardinal deploy -k obd-demo.yaml
           tenant_id=${{ steps.tenant.outputs.id }}
-          deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " ")
+          deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           echo ${deployments}
           if [ "${deployments}" != "cartservice-prod frontend-prod postgres-prod productcatalogservice-prod" ]; then exit 1; fi
 
@@ -72,17 +72,17 @@ jobs:
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-frontend > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
           tenant_id=${{ steps.tenant.outputs.id }}
-          deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " ")
+          deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           echo ${deployments}
-          if [ "${deployments}" != "cartservice-prod frontend-dev frontend-prod postgres-prod productcatalogservice-prod" ]; then exit 1; fi
-          kardinal flow delete ${flow_id}
+          if [ "${deployments}" != "cartservice-prod frontend-${flow_id} frontend-prod postgres-prod productcatalogservice-prod" ]; then exit 1; fi
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
 
       - name: Create, validate and delete a more complex flow
         run: |
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-on-sale -s productcatalogservice=kurtosistech/productcatalogservice:demo-on-sale > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
           tenant_id=${{ steps.tenant.outputs.id }}
-          deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " ")
+          deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           echo ${deployments}
-          if [ "${deployments}" != "cartservice-prod frontend-dev frontend-prod postgres-prod productcatalogservice-prod" ]; then exit 1; fi
-          kardinal flow delete ${flow_id}
+          if [ "${deployments}" != "cartservice-prod frontend-${flow_id} frontend-prod postgres-prod productcatalogservice-${flow_id} productcatalogservice-prod" ]; then exit 1; fi
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
