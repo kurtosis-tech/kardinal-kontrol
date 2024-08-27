@@ -1,5 +1,5 @@
 networks:
-    kardinal:
+    cont:
         driver: bridge
         enable_ipv6: false
 
