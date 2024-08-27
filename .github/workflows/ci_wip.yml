@@ -47,6 +47,8 @@ jobs:
         run: |
           docker compose -f docker-compose.yml up -d
           docker ps
+          curl http://0.0.0.0:8080/tenant/${tenant_id}/cluster-resources
+          exit 1
 
       - name: Retrieve the tenant UUID
         run: |
@@ -56,7 +58,7 @@ jobs:
 
       - name: Deploy boutique demo manifest
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal deploy -k obd-demo.yaml > kardinal.out
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal deploy -k obd-demo.yaml
       
       - name: Test cluster resources endpoint
         run: |
