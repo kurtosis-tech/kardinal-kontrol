@@ -8,9 +8,9 @@ permissions:
 on:
   push:
     branches:
-      - "*"
+      - main
     tags:
-      - "*"
+      - "v*.*.*"
   pull_request:
     branches:
       - main
@@ -102,7 +102,7 @@ jobs:
           KARDINAL_CLI_DEV_MODE=TRUE kardinal template create extra-item-shared --template-yaml ci/template.yaml --description "Extra item and postgres is shared"
           KARDINAL_CLI_DEV_MODE=TRUE kardinal template ls | grep "extra-item-shared"
 
-      - name: Create flow with template and delete it
+      - name: Create flow with template and delete flow
         run: |
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-frontend  --template-args ci/template_args.yaml --template extra-item-shared > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
