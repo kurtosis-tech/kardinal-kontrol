@@ -1,5 +1,5 @@
 # Our desired pipeline using only a Nix shell environment
-name: Check and build Kardinal
+name: E2E tests
 
 permissions:
   id-token: write
@@ -75,7 +75,7 @@ jobs:
         run: |
           tenant_id=${{ steps.tenant.outputs.id }}
           nodes=$(curl http://localhost:8080/tenant/${tenant_id}/topology | jq -r '.nodes[].id' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
-          if [ "${nodes} != "cartservice free-currency-api frontend frontend-external postgres productcatalogservice" ]; then exit 1; fi
+          if [ "${nodes}" != "cartservice free-currency-api frontend frontend-external postgres productcatalogservice" ]; then exit 1; fi
 
       - name: Create, validate and delete flow
         run: |
