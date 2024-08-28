@@ -74,7 +74,7 @@ jobs:
       - name: Validate topology endpoint
         run: |
           tenant_id=${{ steps.tenant.outputs.id }}
-          nodes=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
+          nodes=$(curl http://localhost:8080/tenant/${tenant_id}/topology | jq -r '.nodes[].id' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           if [ "${nodes} != "cartservice free-currency-api frontend frontend-external postgres productcatalogservice" ]; then exit 1; fi
 
       - name: Create, validate and delete flow
