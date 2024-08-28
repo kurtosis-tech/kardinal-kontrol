@@ -40,7 +40,7 @@ jobs:
       - name: Start kontrol service and Postgres 
         run: |
           docker version
-          docker compose -f docker-compose.yml up -d
+          docker compose -f ci/docker-compose.yml up -d
           docker ps
 
       - name: Wait for docker network to be ready
@@ -61,7 +61,7 @@ jobs:
 
       - name: Deploy boutique demo manifest
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal deploy -k obd-demo.yaml
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal deploy -k ci/obd-demo.yaml
 
       - name: Validate cluster resources endpoint
         run: |
@@ -84,6 +84,7 @@ jobs:
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           if [ "${deployments}" != "cartservice-prod frontend-${flow_id} frontend-prod postgres-prod productcatalogservice-prod" ]; then exit 1; fi
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
 
       - name: Create, validate and delete a more complex flow
@@ -93,16 +94,19 @@ jobs:
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           if [ "${deployments}" != "cartservice-prod frontend-${flow_id} frontend-prod postgres-prod productcatalogservice-${flow_id} productcatalogservice-prod" ]; then exit 1; fi
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
       
       - name: Create template
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal template create extra-item-shared --template-yaml template.yaml --description "Extra item and postgres is shared"
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal template create extra-item-shared --template-yaml ci/template.yaml --description "Extra item and postgres is shared"
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal template ls | grep "extra-item-shared"
 
       - name: Create flow with template and delete it
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-frontend  --template-args template_args.yaml --template extra-item-shared > kardinal.out
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-frontend  --template-args ci/template_args.yaml --template extra-item-shared > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
       
       - name: Delete template
