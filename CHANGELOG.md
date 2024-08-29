@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.23](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.22...0.1.23) (2024-08-29)
+
+
+### Miscellaneous Chores
+
+* release 0.1.23 ([36db36d](https://github.com/kurtosis-tech/kardinal-kontrol/commit/36db36d2f55e746f958f6c8601d8fdbea5d613e7))
+
 ## [0.1.22](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.21...0.1.22) (2024-08-27)
 
 
