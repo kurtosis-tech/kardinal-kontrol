@@ -30,7 +30,10 @@
 
         service_names = ["kontrol-service" "kontrol-frontend"];
         architectures = ["amd64" "arm64"];
-        imageRegistry = "258623609258.dkr.ecr.us-east-1.amazonaws.com";
+        imageRegistries = {
+          "aws" = "258623609258.dkr.ecr.us-east-1.amazonaws.com";
+          "dockerhub" = "docker.io";
+        };
 
         matchingContainerArch =
           if builtins.match "aarch64-.*" system != null
@@ -49,54 +52,59 @@
             packages."public-${packageName}" = package;
           };
 
-        multiPlatformDockerPusher = acc: service:
-          pkgs.lib.recursiveUpdate acc {
-            packages."publish-${service}-container" = let
-              name = "${imageRegistry}/kurtosistech/${service}";
-              tagBase = "latest";
-              images =
-                map (
-                  arch: rec {
-                    inherit arch;
-                    image = self.containers.${system}.${service}.${arch};
-                    tag = "${tagBase}-${arch}";
-                  }
-                )
-                architectures;
-              loadAndPush = builtins.concatStringsSep "\n" (pkgs.lib.concatMap
-                ({
-                  arch,
-                  image,
-                  tag,
-                }: [
-                  "$docker load -i ${image}"
-                  "$docker tag ${service}:${tag} ${name}:${tag}"
-                  "$docker push ${name}:${tag}"
-                ])
-                images);
-              imageNames =
-                builtins.concatStringsSep " "
-                (map ({
-                  arch,
-                  image,
-                  tag,
-                }: "${name}:${tag}")
-                images);
-            in
-              pkgs.writeTextFile {
-                inherit name;
-                text = ''
-                  #!${pkgs.stdenv.shell}
-                  set -euxo pipefail
-                  docker=${pkgs.docker}/bin/docker
-                  ${loadAndPush}
-                  $docker manifest create --amend ${name}:${tagBase} ${imageNames}
-                  $docker manifest push ${name}:${tagBase}
-                '';
-                executable = true;
-                destination = "/bin/push";
-              };
-          };
+        multiPlatformDockerPusher = acc: service: let
+          scriptBuilder = imageRegistry: let
+            name = "${imageRegistry}/kurtosistech/${service}";
+            tagBase = "latest";
+            images =
+              map (
+                arch: rec {
+                  inherit arch;
+                  image = self.containers.${system}.${service}.${arch};
+                  tag = "${tagBase}-${arch}";
+                }
+              )
+              architectures;
+            loadAndPush = builtins.concatStringsSep "\n" (pkgs.lib.concatMap
+              ({
+                arch,
+                image,
+                tag,
+              }: [
+                "$docker load -i ${image}"
+                "$docker tag ${service}:${tag} ${name}:${tag}"
+                "$docker push ${name}:${tag}"
+              ])
+              images);
+            imageNames =
+              builtins.concatStringsSep " "
+              (map ({
+                arch,
+                image,
+                tag,
+              }: "${name}:${tag}")
+              images);
+          in
+            pkgs.writeTextFile {
+              inherit name;
+              text = ''
+                #!${pkgs.stdenv.shell}
+                set -euxo pipefail
+                docker=${pkgs.docker}/bin/docker
+                ${loadAndPush}
+                $docker manifest create --amend ${name}:${tagBase} ${imageNames}
+                $docker manifest push ${name}:${tagBase}
+              '';
+              executable = true;
+              destination = "/bin/push";
+            };
+          packages =
+            pkgs.lib.concatMapAttrs (name: registry: {
+              "publish-${name}-${service}-container" = scriptBuilder registry;
+            })
+            imageRegistries;
+        in
+          pkgs.lib.recursiveUpdate acc {packages = packages;};
 
         getPkgsCrossSystem = targetSystem:
           builtins.trace "${targetSystem}" (
