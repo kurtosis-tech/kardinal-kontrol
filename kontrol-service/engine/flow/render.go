@@ -232,12 +232,25 @@ func getDestinationRule(serviceID string, services []*resolved.Service, namespac
 	// if we do that then the render work around isn't necessary
 	subsets := lo.UniqBy(
 		lo.Map(services, func(service *resolved.Service, _ int) *v1alpha3.Subset {
-			return &v1alpha3.Subset{
+
+			newSubset := &v1alpha3.Subset{
 				Name: service.Version,
 				Labels: map[string]string{
 					"version": service.Version,
 				},
 			}
+
+			// This config is necessary for Kardinal/Telepresence (https://www.telepresence.io/) integration
+			if service.Version != prodVersion {
+				newTrafficPolicy := &v1alpha3.TrafficPolicy{
+					Tls: &v1alpha3.ClientTLSSettings{
+						Mode: v1alpha3.ClientTLSSettings_DISABLE,
+					},
+				}
+				newSubset.TrafficPolicy = newTrafficPolicy
+			}
+
+			return newSubset
 		}),
 		func(subset *v1alpha3.Subset) string {
 			return subset.Name
