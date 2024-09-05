@@ -240,6 +240,7 @@ func getDestinationRule(serviceID string, services []*resolved.Service, namespac
 				},
 			}
 
+			// TODO Narrow down this configuration to only subsets created for telepresence intercepts or find a way to enable TLS for telepresence intercepts https://github.com/kurtosis-tech/kardinal-kontrol/issues/14
 			// This config is necessary for Kardinal/Telepresence (https://www.telepresence.io/) integration
 			if service.Version != prodVersion {
 				newTrafficPolicy := &v1alpha3.TrafficPolicy{
