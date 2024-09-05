@@ -77,16 +77,16 @@ jobs:
         with:
           # relax sandbox due impure kontrol-service tests during build
           extra_nix_config: |
-            sandbox = relaxed
             extra-platforms = aarch64-linux
+            sandbox = relaxed
 
       - name: Magic cache
         uses: DeterminateSystems/magic-nix-cache-action@v7
 
       - name: Build ${{ matrix.component }}
         run: |
-          nix build .#${{ matrix.component }} --no-link --print-out-paths --print-build-logs
+          nix build .#${{ matrix.component }} --no-link --print-out-paths
 
       - name: Build ${{ matrix.component }} for ${{ matrix.arch }}
         run: |
-          nix build ./#containers.x86_64-linux.${{ matrix.component }}.${{ matrix.arch }} --no-link --print-out-paths --print-build-logs
+          nix build ./#containers.x86_64-linux.${{ matrix.component }}.${{ matrix.arch }} --no-link --print-out-paths

@@ -19,9 +19,14 @@ const INIT_ANIMATIONS_ENABLED = false;
 interface Props {
   elements: cytoscape.ElementDefinition[];
   layout?: cytoscape.LayoutOptions;
+  onNodeClick?: (node: cytoscape.NodeSingular) => void;
 }
 
-const CytoscapeGraph = ({ elements, layout = dagreLayout }: Props) => {
+const CytoscapeGraph = ({
+  elements,
+  layout = dagreLayout,
+  onNodeClick,
+}: Props) => {
   // keep a ref to the cy instance. using state will cause infinite re-renders
   const cy = useRef<cytoscape.Core>();
   const tooltip = useRef<TooltipInstance | null>(null);
@@ -43,11 +48,11 @@ const CytoscapeGraph = ({ elements, layout = dagreLayout }: Props) => {
       // set mutable cy instance
       cy.current = cyInstance;
       // add event listeners to create tooltips on hover
-      cy.current.on("mouseover", function (ele: cytoscape.EventObject) {
+      cy.current.on("mouseover", function (e: cytoscape.EventObject) {
         if (tooltip.current != null) {
           tooltip.current.destroy();
         }
-        tooltip.current = createTooltip(ele.target);
+        tooltip.current = createTooltip(e.target);
       });
       cy.current.on("mouseout", function () {
         if (tooltip.current != null) {
@@ -67,11 +72,12 @@ const CytoscapeGraph = ({ elements, layout = dagreLayout }: Props) => {
         tooltip.current = null;
       });
       // re-start animations when the user is done with interactions
-      cy.current.on("tapend", function () {
+      cy.current.on("tapend", function (e: cytoscape.EventObject) {
         setTimeout(() => setAnimationsEnabled(INIT_ANIMATIONS_ENABLED), 0);
+        onNodeClick?.(e.target);
       });
     },
-    [setAnimationsEnabled],
+    [setAnimationsEnabled, onNodeClick],
   );
 
   // when animation is disabled, remove all animated traffic nodes

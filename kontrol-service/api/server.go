@@ -1,16 +1,18 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	managerapi "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/server"
 	managerapitypes "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/types"
+	"github.com/kurtosis-tech/stacktrace"
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
+	"k8s.io/cli-runtime/pkg/printers"
 	"kardinal.kontrol-service/database"
 	"kardinal.kontrol-service/engine"
 	"kardinal.kontrol-service/engine/flow"
@@ -187,6 +189,80 @@ func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request manag
 	clusterResources := flow.RenderClusterResources(finalTopology, namespace)
 	managerAPIClusterResources := newManagerAPIClusterResources(clusterResources)
 	return managerapi.GetTenantUuidClusterResources200JSONResponse(managerAPIClusterResources), nil
+}
+
+func (sv *Server) GetTenantUuidManifest(_ context.Context, request api.GetTenantUuidManifestRequestObject) (api.GetTenantUuidManifestResponseObject, error) {
+
+	clusterTopology, allFlows, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	if err != nil {
+		return nil, nil
+	}
+
+	if clusterTopology != nil {
+		namespaceName := clusterTopology.Namespace
+		if allFlows != nil {
+			finalTopology := flow.MergeClusterTopologies(*clusterTopology, lo.Values(allFlows))
+			clusterResources := flow.RenderClusterResources(finalTopology, namespaceName)
+
+			var yamlBuffer bytes.Buffer
+			yamlPrinter := printers.YAMLPrinter{}
+
+			// Add namespace
+			newNamespace := types.NewNamespaceWithIstioEnabled(namespaceName)
+
+			if err = yamlPrinter.PrintObj(newNamespace, &yamlBuffer); err != nil {
+				return nil, stacktrace.Propagate(err, "an error occurred printing the cluster topology namespace '%s' in the yaml buffer", namespaceName)
+			}
+
+			for _, resource := range clusterResources.Deployments {
+				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					return nil, stacktrace.Propagate(err, "an error occurred printing deployment '%s' in the yaml buffer", resource.Name)
+				}
+			}
+
+			for _, resource := range clusterResources.Services {
+				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					return nil, stacktrace.Propagate(err, "an error occurred printing service '%s' in the yaml buffer", resource.Name)
+				}
+			}
+
+			for _, resource := range clusterResources.VirtualServices {
+				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					return nil, stacktrace.Propagate(err, "an error occurred printing virtual service '%s' in the yaml buffer", resource.Name)
+				}
+			}
+
+			for _, resource := range clusterResources.DestinationRules {
+				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					return nil, stacktrace.Propagate(err, "an error occurred printing destination rule '%s' in the yaml buffer", resource.Name)
+				}
+			}
+
+			for _, resource := range clusterResources.EnvoyFilters {
+				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					return nil, stacktrace.Propagate(err, "an error occurred printing envoy filter '%s' in the yaml buffer", resource.Name)
+				}
+			}
+
+			for _, resource := range clusterResources.AuthorizationPolicies {
+				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					return nil, stacktrace.Propagate(err, "an error occurred printing authorization policy '%s' in the yaml buffer", resource.Name)
+				}
+			}
+
+			if err := yamlPrinter.PrintObj(&clusterResources.Gateway, &yamlBuffer); err != nil {
+				return nil, stacktrace.Propagate(err, "an error occurred printing gateway '%s' in the yaml buffer", clusterResources.Gateway.Name)
+			}
+
+			response := api.GetTenantUuidManifest200ApplicationxYamlResponse{
+				Body:          &yamlBuffer,
+				ContentLength: int64(yamlBuffer.Len()),
+			}
+
+			return response, nil
+		}
+	}
+	return nil, nil
 }
 
 func (sv *Server) GetTenantUuidTemplates(ctx context.Context, request api.GetTenantUuidTemplatesRequestObject) (api.GetTenantUuidTemplatesResponseObject, error) {
@@ -408,13 +484,18 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 // - Base ingress configs
 // TOOD: Could return a struct if it becomes too heavy to manipulate the return values.
 func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTopology, map[string]resolved.ClusterTopology, map[string]templates.Template, []apitypes.ServiceConfig, []apitypes.IngressConfig, error) {
-	tenant, err := sv.db.GetOrCreateTenant(tenantUuidStr)
+	tenant, err := sv.db.GetTenant(tenantUuidStr)
 	if err != nil {
 		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
 		return nil, nil, nil, nil, nil, err
 	}
 
+	if tenant == nil {
+		return nil, nil, nil, nil, nil, fmt.Errorf("Cannot find tenant %s", tenantUuidStr)
+	}
+
 	var clusterTopology resolved.ClusterTopology
+	//TODO fix it throws an error if tenant.BaseClusterTopology is nil, which is the case when there is no tenant saved in the dB yet
 	err = json.Unmarshal(tenant.BaseClusterTopology, &clusterTopology)
 	if err != nil {
 		logrus.Errorf("An error occurred decoding the cluster topology for tenant '%v'", tenant.TenantId)

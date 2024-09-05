@@ -2,9 +2,11 @@ package main
 
 import (
 	"flag"
+	"net/http"
 	"os"
 	"strconv"
 
+	cli_api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
@@ -13,55 +15,64 @@ import (
 )
 
 func main() {
-	devMode := flag.Bool("dev-mode", false, "Allow to run the service in local mode.")
+	var devMode bool
+	devMode = *flag.Bool("dev-mode", false, "Allow to run the service in local mode.")
+	if !devMode {
+		devModeEnvVarStr := os.Getenv("DEV_MODE")
+		if devModeEnvVarStr == "true" {
+			devMode = true
+		}
+	}
 
 	flag.Parse()
 
-	if *devMode {
+	if devMode {
 		logrus.Warn("Running in dev mode. CORS fully open.")
 		logrus.SetLevel(logrus.DebugLevel)
 	}
 
-	startServer(*devMode)
+	startServer(devMode)
 }
 
 func startServer(isDevMode bool) {
 
-	var db *database.Db
 	dbHostname := os.Getenv("DB_HOSTNAME")
-	if dbHostname != "" {
-		dbUsername := os.Getenv("DB_USERNAME")
-		dbPassword := os.Getenv("DB_PASSWORD")
-		dbName := os.Getenv("DB_NAME")
-		dbPort, err := strconv.Atoi(os.Getenv("DB_PORT"))
-		if err != nil {
-			logrus.Fatal("An error occurred parsing the DB port number", err)
-		}
-		dbConnectionInfo, err := database.NewDatabaseConnectionInfo(
-			dbUsername,
-			dbPassword,
-			dbHostname,
-			uint16(dbPort),
-			dbName,
-		)
-		if err != nil {
-			logrus.Fatal("An error occurred creating a database connection configuration based on the input provided", err)
-		}
+	dbUsername := os.Getenv("DB_USERNAME")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbName := os.Getenv("DB_NAME")
+	if dbHostname == "" || dbUsername == "" || dbPassword == "" || dbName == "" {
+		logrus.Fatal("One of the following environment variables is not set: DB_HOSTNAME, DB_USERNAME, DB_PASSWORD, DB_NAME")
+	}
+	dbPort, err := strconv.Atoi(os.Getenv("DB_PORT"))
+	if err != nil {
+		logrus.Fatal("An error occurred parsing the DB port number", err)
+	}
 
-		db, err = database.NewDb(dbConnectionInfo)
-		if err != nil {
-			logrus.Fatal("An error occurred creating the db connection", err)
-		}
+	dbConnectionInfo, err := database.NewDatabaseConnectionInfo(
+		dbUsername,
+		dbPassword,
+		dbHostname,
+		uint16(dbPort),
+		dbName,
+	)
+	if err != nil {
+		logrus.Fatal("An error occurred creating a database connection configuration based on the input provided", err)
+	}
 
-		err = db.Migrate()
-		if err != nil {
-			logrus.Fatal("An error occurred migrating the DB", err)
-		}
+	db, err := database.NewDb(dbConnectionInfo)
+	if err != nil {
+		logrus.Fatal("An error occurred creating the db connection", err)
+	}
+
+	err = db.Migrate()
+	if err != nil {
+		logrus.Fatal("An error occurred migrating the DB", err)
 	}
 
 	// Create a new Segment analytics client instance.
 	// analyticsClient is not initialized in dev mode so events are not reported to Segment
-	analyticsWrapper := api.NewAnalyticsWrapper(isDevMode)
+	analyticsWriteKeyEnvVarStr := os.Getenv("ANALYTICS_WRITE_KEY")
+	analyticsWrapper := api.NewAnalyticsWrapper(isDevMode, analyticsWriteKeyEnvVarStr)
 	defer analyticsWrapper.Close()
 
 	// create a type that satisfies the `api.ServerInterface`, which contains an implementation of every operation from the generated code
@@ -85,6 +96,34 @@ func startServer(isDevMode bool) {
 			return nil
 		},
 	}))
+
+	// Panic handler
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			defer func() {
+				if r := recover(); r != nil {
+
+					internalServerErrorResponse := cli_api.ErrorJSONResponse{
+						Error: "internal server error",
+					}
+
+					// Handle the panic and return a 500 error response
+					c.JSON(http.StatusInternalServerError, internalServerErrorResponse)
+					var debugMsg string
+					switch recoverErr := r.(type) {
+					case string:
+						debugMsg = recoverErr
+					case error:
+						debugMsg = recoverErr.Error()
+					default:
+						debugMsg = "recover didn't get error msg"
+					}
+					logrus.Errorf("HTTP server handle this internal panic: %s", debugMsg)
+				}
+			}()
+			return next(c)
+		}
+	})
 
 	server.RegisterExternalAndInternalApi(e)
 

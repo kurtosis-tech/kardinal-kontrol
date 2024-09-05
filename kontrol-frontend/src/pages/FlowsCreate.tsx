@@ -1,19 +1,20 @@
 import Layout from "@/components/Layout";
+import Button from "@/components/Button";
 import Section from "@/components/Section";
 import PageTitle from "@/components/PageTitle";
-import Footer from "@/components/Footer";
-import Input from "@/components/Input";
-import { Stack, Flex } from "@chakra-ui/react";
+import Input, { Option } from "@/components/Input";
+import { Stack, Flex, Grid } from "@chakra-ui/react";
 import StatefulService from "@/components/StatefulService";
 import CytoscapeGraph, { utils } from "@/components/CytoscapeGraph";
 import { ChangeEvent, useEffect, useState } from "react";
 import { ClusterTopology, Node } from "@/types";
 import { useApi } from "@/contexts/ApiContext";
+import { useNavigate } from "react-router-dom";
 
 // TODO: This should be imported from the OpenAPI schema once the types there
 // are generated correctly
 interface TemplateConfig {
-  service: string[];
+  service: Option[];
   /** @description The name to give the template */
   name: string;
   /** @description The description of the template */
@@ -21,7 +22,8 @@ interface TemplateConfig {
 }
 
 const Page = () => {
-  const { getTopology } = useApi();
+  const navigate = useNavigate();
+  const { getTopology, postTemplateCreate } = useApi();
 
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -37,7 +39,7 @@ const Page = () => {
   // All input values for the form
   const [formState, setFormState] = useState<Required<TemplateConfig>>({
     name: "",
-    service: ["frontend"],
+    service: [],
     description: "",
   });
 
@@ -45,20 +47,22 @@ const Page = () => {
   const previewTopology = utils.normalizeData({
     ...topology,
     nodes: topology.nodes.map((node) => {
-      console.log(services, "includes", node.id, services.includes(node.id));
       return {
         ...node,
-        versions: formState.service.includes(node.id)
-          ? [...(node.versions || []), "preview"]
-          : node.versions,
+        versions:
+          formState.service.find((o) => o.value === node.id) != null
+            ? ["prod", "new-dev-flow"]
+            : ["prod"],
       };
     }),
   });
 
   // TODO: Not hardcoding this
   const templateContainsExternalApi =
-    formState.service.includes("jsdelivr-api");
-  const templateContainsPostgres = formState.service.includes("postgres");
+    formState.service.find((o) => o.value === "jsdelivr-api") != null;
+  // TODO: Not hardcoding this
+  const templateContainsPostgres =
+    formState.service.find((o) => o.value === "postgres") != null;
 
   useEffect(() => {
     async function fetchData() {
@@ -93,13 +97,45 @@ const Page = () => {
       }));
     };
 
+  const handleMultiSelectChange =
+    (field: keyof TemplateConfig) => (option: Option | Option[]) => {
+      console.log("option", option);
+      setFormState((prevState) => ({
+        ...prevState,
+        [field]: option,
+      }));
+    };
+
+  const handleCreateFlowTemplate = async () => {
+    await postTemplateCreate(formState);
+    navigate("../");
+  };
+
+  const handleNodeClick = (node: cytoscape.NodeSingular) => {
+    const nodeId = node.data("id");
+    handleMultiSelectChange("service")([
+      ...formState.service,
+      {
+        label: nodeId,
+        value: nodeId,
+      },
+    ]);
+  };
+
+  const formIsValid = formState.name.length > 0 && formState.service.length > 0;
+
   return (
-    <Layout>
+    <Layout showBanner>
       <PageTitle title="Create new flow configuration">
         Update traffic control and data isolation details below
       </PageTitle>
       <Section title="Preview">
-        {!loading && <CytoscapeGraph elements={previewTopology} />}
+        {!loading && (
+          <CytoscapeGraph
+            elements={previewTopology}
+            onNodeClick={handleNodeClick}
+          />
+        )}
       </Section>
       <Section title="Flow configuration">
         <Stack w={"100%"} gap={8} as={"fieldset"}>
@@ -119,15 +155,18 @@ const Page = () => {
               onChange={handleInputChange("description")}
             />
           </Flex>
-          <Flex gap={4}>
-            <Input.Select
+          <Grid templateColumns={"1fr"}>
+            <Input.MultiSelect
               label="Services"
-              options={services.map((s) => ({ label: s, value: s })) || []}
-              value={formState.service[0] ?? ""}
+              options={services.map(
+                (service) => ({ label: service, value: service }) as Option,
+              )}
+              value={formState.service}
               id="service"
-              onChange={handleInputChange("service")}
+              onChange={handleMultiSelectChange("service")}
+              width={"100%"}
             />
-          </Flex>
+          </Grid>
         </Stack>
       </Section>
       {templateContainsExternalApi && (
@@ -140,7 +179,11 @@ const Page = () => {
           <StatefulService type="postgres" />
         </Section>
       )}
-      <Footer />
+      <Flex justifyContent={"flex-end"}>
+        <Button isDisabled={!formIsValid} onClick={handleCreateFlowTemplate}>
+          Create flow template
+        </Button>
+      </Flex>
     </Layout>
   );
 };

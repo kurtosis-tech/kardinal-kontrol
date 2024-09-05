@@ -2,10 +2,12 @@
 
 ## Development
 
+A locally running Postgres DB is required.
+
 Use the following command to start KK in dev mode (hot-reload):
 
 ```bash
-./dev-start-kk.sh --apply-directly
+DB_HOSTNAME=localhost DB_USERNAME=postgres DB_NAME=kardinal DB_PORT=5432 DB_PASSWORD=<database password> ./dev-start-kk.sh --apply-directly
 ```
 
 ## Updating the API from the public repo

@@ -8,17 +8,18 @@ import {
   IconButton,
   Stack,
 } from "@chakra-ui/react";
-import { FaGithub, FaStripeS, FaAmazon } from "react-icons/fa";
+import { FaGithub } from "react-icons/fa";
 import {
   FiGitBranch,
-  FiPlay,
   FiEdit,
   FiTrash,
   FiChevronRight,
   FiChevronDown,
+  FiPlay,
 } from "react-icons/fi";
-import Chip from "../Chip";
-import { useFlowsContext } from "@/contexts/FlowsContext";
+import { Template } from "@/types";
+import DeleteTemplateModal from "@/components/DeleteTemplateModal";
+import CreateFlowModal from "../CreateFlowModal";
 
 const TableCell = ({
   children,
@@ -44,13 +45,15 @@ const TableCell = ({
 };
 
 interface Props {
+  template: Template;
   id: string;
   isExpanded: boolean;
   onExpandRow: (rowIndex: string | null) => void;
+  onDelete: (templateId: string) => void;
 }
 
-const Row = ({ id, isExpanded, onExpandRow }: Props) => {
-  const { deleteExampleFlow } = useFlowsContext();
+const Row = ({ template, id, isExpanded, onExpandRow, onDelete }: Props) => {
+  const templateId = template["template-id"];
   return (
     <Tr>
       <Td width={12} p={0} verticalAlign={"baseline"}>
@@ -71,16 +74,16 @@ const Row = ({ id, isExpanded, onExpandRow }: Props) => {
         expandedContent={
           <>
             <Text fontWeight={500} fontSize={"sm"} color={"gray.500"}>
-              Base image tag
+              Services
             </Text>
             <Text fontSize={"sm"} color={"gray.500"}>
-              RC-1.0.0
+              TODO
             </Text>
           </>
         }
       >
         <Box as={FiGitBranch} />
-        <Link textDecor={"underline"}>Early development flow</Link>
+        <Link textDecor={"underline"}>{template.name}</Link>
       </TableCell>
       <TableCell
         isExpanded={isExpanded}
@@ -90,35 +93,34 @@ const Row = ({ id, isExpanded, onExpandRow }: Props) => {
               Status
             </Text>
             <Text fontSize={"sm"} color={"gray.500"}>
-              Running
+              Not running
             </Text>
           </>
         }
       >
         <Box as={FaGithub} />
-        <Text textDecor={"underline"}>awesome-kardinal-example</Text>
+        <Text textDecor={"underline"}>{templateId}</Text>
       </TableCell>
-      <Td verticalAlign={"baseline"}>
-        <Flex alignItems="flex-start" gap={1} height={"100%"}>
-          <Chip icon={FaStripeS} colorScheme="purple">
-            Stripe
-          </Chip>
-          <Chip icon={FaAmazon} colorScheme="blue">
-            Amazon RDS
-          </Chip>
-        </Flex>
-      </Td>
       <Td pr={4} py={0} verticalAlign={"baseline"}>
         <Flex gap={1} justifyContent={"flex-end"}>
-          <IconButton icon={<FiPlay />} aria-label="Play" variant="ghost" />
+          <CreateFlowModal
+            onConfirm={() => onDelete(templateId)}
+            templateId={templateId}
+          >
+            <IconButton icon={<FiPlay />} aria-label="Play" variant="ghost" />
+          </CreateFlowModal>
           <IconButton icon={<FiEdit />} aria-label="Edit" variant="ghost" />
-          <IconButton
-            icon={<FiTrash />}
-            color={"red"}
-            aria-label="Delete"
-            variant="ghost"
-            onClick={() => deleteExampleFlow()}
-          />
+          <DeleteTemplateModal
+            onConfirm={() => onDelete(templateId)}
+            templateId={templateId}
+          >
+            <IconButton
+              icon={<FiTrash />}
+              color={"red"}
+              aria-label="Delete"
+              variant="ghost"
+            />
+          </DeleteTemplateModal>
         </Flex>
       </Td>
     </Tr>
