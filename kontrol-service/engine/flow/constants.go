@@ -91,6 +91,10 @@ end
 `
 
 	luaFilterType = "type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua"
+
+	// this is related to the prod flowID and prod default namespace
+	// TODO find a way to centralize this value for all of these concepts (Service.version, flowID and default namespace)
+	prodVersion = "prod"
 )
 
 func generateLuaTraceHeaderPriorities() string {
