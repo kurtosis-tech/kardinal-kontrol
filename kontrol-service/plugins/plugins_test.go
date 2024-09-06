@@ -12,10 +12,10 @@ import (
 )
 
 const (
-	simplePlugin   = "https://github.com/h4ck3rk3y/a-test-plugin"
-	complexPlugin  = "https://github.com/h4ck3rk3y/slightly-more-complex-plugin"
-	identityPlugin = "https://github.com/h4ck3rk3y/identity-plugin"
-	redisPlugin    = "https://github.com/h4ck3rk3y/redis-sidecar-plugin"
+	simplePlugin   = "https://github.com/h4ck3rk3y/a-test-plugin.git"
+	complexPlugin  = "https://github.com/h4ck3rk3y/slightly-more-complex-plugin.git"
+	identityPlugin = "https://github.com/h4ck3rk3y/identity-plugin.git"
+	redisPlugin    = "https://github.com/h4ck3rk3y/redis-sidecar-plugin.git"
 	flowUuid       = "test-flow-uuid"
 )
 
@@ -56,8 +56,8 @@ var deploymentSpec = appv1.DeploymentSpec{
 	},
 }
 
-func getPluginRunner(t *testing.T) *PluginRunner {
-	db, err := database.NewSQLiteDB()
+func getPluginRunner(t *testing.T) (*PluginRunner, func() error) {
+	db, cleanUpDbFunc, err := database.NewSQLiteDB()
 	require.NoError(t, err)
 	err = db.Clear()
 	require.NoError(t, err)
@@ -66,16 +66,16 @@ func getPluginRunner(t *testing.T) *PluginRunner {
 	_, err = db.GetOrCreateTenant("tenant-test")
 	require.NoError(t, err)
 	pluginRunner := NewPluginRunner(
+		NewMockGitPluginProvider(MockGitHub),
 		"tenant-test",
 		db,
 	)
-	return pluginRunner
+	return pluginRunner, cleanUpDbFunc
 }
 
 func TestSimplePlugin(t *testing.T) {
-	t.Skip("skipping this as this pulls from the internet")
-
-	runner := getPluginRunner(t)
+	runner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
 
 	arguments := map[string]string{
 		"text_to_replace": "helloworld",
@@ -105,9 +105,8 @@ func TestSimplePlugin(t *testing.T) {
 }
 
 func TestIdentityPlugin(t *testing.T) {
-	t.Skip("skipping this as this pulls from the internet")
-
-	runner := getPluginRunner(t)
+	runner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
@@ -131,9 +130,8 @@ func TestIdentityPlugin(t *testing.T) {
 }
 
 func TestComplexPlugin(t *testing.T) {
-	t.Skip("skipping this as this pulls from the internet")
-
-	runner := getPluginRunner(t)
+	runner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(complexPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
@@ -158,9 +156,8 @@ func TestComplexPlugin(t *testing.T) {
 }
 
 func TestRedisPluginTest(t *testing.T) {
-	t.Skip("skipping this as this pulls from the internet")
-
-	runner := getPluginRunner(t)
+	runner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
 
 	updatedServiceSpec, configMap, err := runner.CreateFlow(redisPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
