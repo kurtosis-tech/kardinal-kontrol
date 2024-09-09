@@ -348,7 +348,15 @@ func getGateway(ingresses []*resolved.Ingress, namespace string) *istioclient.Ga
 	}
 	extHosts = lo.Uniq(extHosts)
 
-	ingressId := ingresses[0].IngressID
+	// We need to return a gateway as part of the cluster resources so we return a dummy one
+	// if there are no ingresses defined.  This can happen when the tenant does not have a base
+	// cluster topology: no initial deploy or the topologies have been deleted.
+	ingressId := "dummy"
+	if len(ingresses) > 0 {
+		ingressId = ingresses[0].IngressID
+	} else {
+		extHosts = []string{"dummy.kardinal.dev"}
+	}
 
 	return &istioclient.Gateway{
 		TypeMeta: metav1.TypeMeta{
