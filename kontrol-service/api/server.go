@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	managerapi "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/server"
@@ -120,7 +121,7 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 			}
 			return api.DeleteTenantUuidFlowFlowId500JSONResponse{errResp}, nil
 		}
-		
+
 		logrus.Infof("Successfully deleted topologies.")
 		return api.DeleteTenantUuidFlowFlowId2xxResponse{StatusCode: 200}, nil
 	}
@@ -540,8 +541,8 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 			return nil, nil, nil, nil, nil, err
 		}
 	} else {
-		baseClusterTopology.FlowID = prodFlowId	
-		baseClusterTopology.Namespace = prodFlowId	
+		baseClusterTopology.FlowID = prodFlowId
+		baseClusterTopology.Namespace = prodFlowId
 	}
 
 	var serviceConfigs []apitypes.ServiceConfig
@@ -587,7 +588,7 @@ func deleteTenantTopologies(sv *Server, tenantUuidStr string) error {
 		logrus.Errorf("an error occured while deleting tenant flows %s. erro was \n: '%v'", tenant.TenantId, err.Error())
 		return err
 	}
-	
+
 	err = sv.db.DeleteTenantPluginConfigs(tenant.TenantId)
 	if err != nil {
 		logrus.Errorf("an error occured while deleting tenant plugin configs %s. erro was \n: '%v'", tenant.TenantId, err.Error())
