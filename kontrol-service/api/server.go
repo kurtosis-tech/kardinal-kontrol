@@ -111,9 +111,9 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 
 	if request.FlowId == clusterTopology.Namespace {
 		// We received a request to delete the base topology so we do that + the flows
-		err = clearTenantTopologies(sv, request.Uuid)
+		err = deleteTenantTopologies(sv, request.Uuid)
 		if err != nil {
-			errMsg := fmt.Sprintf("An error occurred clearing the topologies")
+			errMsg := fmt.Sprintf("An error occurred deleting the topologies")
 			errResp := api.ErrorJSONResponse{
 				Error: err.Error(),
 				Msg:   &errMsg,
@@ -565,7 +565,7 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 	return &baseClusterTopology, flows, tenantTemplates, serviceConfigs, ingressConfigs, nil
 }
 
-func clearTenantTopologies(sv *Server, tenantUuidStr string) error {
+func deleteTenantTopologies(sv *Server, tenantUuidStr string) error {
 	tenant, err := sv.db.GetTenant(tenantUuidStr)
 	if err != nil {
 		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
