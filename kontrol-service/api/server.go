@@ -103,14 +103,14 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 	logrus.Infof("deleting dev flow for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_FLOW_DELETE, request.Uuid)
 
-	clusterTopology, allFlows, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	_, allFlows, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
 		resourceType := "tenant"
 		missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
 		return api.DeleteTenantUuidFlowFlowId404JSONResponse{NotFoundJSONResponse: missing}, nil
 	}
 
-	if request.FlowId == clusterTopology.Namespace {
+	if request.FlowId == prodFlowId {
 		// We received a request to delete the base topology so we do that + the flows
 		err = deleteTenantTopologies(sv, request.Uuid)
 		if err != nil {
