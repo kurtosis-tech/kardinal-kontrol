@@ -114,7 +114,7 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 		// We received a request to delete the base topology so we do that + the flows
 		err = deleteTenantTopologies(sv, request.Uuid)
 		if err != nil {
-			errMsg := fmt.Sprintf("An error occurred deleting the topologies")
+			errMsg := "An error occurred deleting the topologies"
 			errResp := api.ErrorJSONResponse{
 				Error: err.Error(),
 				Msg:   &errMsg,
