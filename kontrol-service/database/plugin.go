@@ -43,6 +43,17 @@ func (db *Db) DeletePluginConfig(
 	return nil
 }
 
+func (db *Db) DeleteTenantPluginConfigs(
+	tenantId string,
+) error {
+	result := db.db.Where("tenant_id = ?", tenantId).Delete(&PluginConfig{})
+	if result.Error != nil {
+		return stacktrace.Propagate(result.Error, "An internal error has occurred deleting the tenant %s plugin configs", tenantId)
+	}
+
+	return nil
+}
+
 func (db *Db) GetPluginConfigByFlowID(
 	tenantId string,
 	flowId string,

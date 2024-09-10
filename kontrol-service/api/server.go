@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	managerapi "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/server"
@@ -80,10 +81,10 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 	namespace := *request.Body.Namespace
 
 	if namespace == "" {
-		namespace = "prod"
+		namespace = prodFlowId
 	}
 
-	flowId := "prod"
+	flowId := prodFlowId
 	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, namespace, flowId)
 	if err != nil {
 		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", prodFlowId)
@@ -102,11 +103,27 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 	logrus.Infof("deleting dev flow for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_FLOW_DELETE, request.Uuid)
 
-	_, allFlows, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	clusterTopology, allFlows, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
 		resourceType := "tenant"
 		missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
 		return api.DeleteTenantUuidFlowFlowId404JSONResponse{NotFoundJSONResponse: missing}, nil
+	}
+
+	if request.FlowId == clusterTopology.Namespace {
+		// We received a request to delete the base topology so we do that + the flows
+		err = deleteTenantTopologies(sv, request.Uuid)
+		if err != nil {
+			errMsg := "An error occurred deleting the topologies"
+			errResp := api.ErrorJSONResponse{
+				Error: err.Error(),
+				Msg:   &errMsg,
+			}
+			return api.DeleteTenantUuidFlowFlowId500JSONResponse{errResp}, nil
+		}
+
+		logrus.Infof("Successfully deleted topologies.")
+		return api.DeleteTenantUuidFlowFlowId2xxResponse{StatusCode: 200}, nil
 	}
 
 	if flowTopology, found := allFlows[request.FlowId]; found {
@@ -494,14 +511,6 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 		return nil, nil, nil, nil, nil, fmt.Errorf("Cannot find tenant %s", tenantUuidStr)
 	}
 
-	var clusterTopology resolved.ClusterTopology
-	//TODO fix it throws an error if tenant.BaseClusterTopology is nil, which is the case when there is no tenant saved in the dB yet
-	err = json.Unmarshal(tenant.BaseClusterTopology, &clusterTopology)
-	if err != nil {
-		logrus.Errorf("An error occurred decoding the cluster topology for tenant '%v'", tenant.TenantId)
-		return nil, nil, nil, nil, nil, err
-	}
-
 	flows := map[string]resolved.ClusterTopology{}
 	for _, flow := range tenant.Flows {
 		var clusterTopology resolved.ClusterTopology
@@ -525,26 +534,68 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 	}
 
 	var baseClusterTopology resolved.ClusterTopology
-	err = json.Unmarshal(tenant.BaseClusterTopology, &baseClusterTopology)
-	if err != nil {
-		logrus.Errorf("An error occurred decoding the cluster topology for tenant '%v'", tenantUuidStr)
-		return nil, nil, nil, nil, nil, err
+	if tenant.BaseClusterTopology != nil {
+		err = json.Unmarshal(tenant.BaseClusterTopology, &baseClusterTopology)
+		if err != nil {
+			logrus.Errorf("An error occurred decoding the cluster topology for tenant '%v'", tenantUuidStr)
+			return nil, nil, nil, nil, nil, err
+		}
+	} else {
+		baseClusterTopology.FlowID = prodFlowId
+		baseClusterTopology.Namespace = prodFlowId
 	}
 
 	var serviceConfigs []apitypes.ServiceConfig
-	err = json.Unmarshal(tenant.ServiceConfigs, &serviceConfigs)
-	if err != nil {
-		logrus.Errorf("An error occurred decoding the service configs for tenant '%v'", tenantUuidStr)
-		return nil, nil, nil, nil, nil, err
+	if tenant.ServiceConfigs != nil {
+		err = json.Unmarshal(tenant.ServiceConfigs, &serviceConfigs)
+		if err != nil {
+			logrus.Errorf("An error occurred decoding the service configs for tenant '%v'", tenantUuidStr)
+			return nil, nil, nil, nil, nil, err
+		}
 	}
 
 	var ingressConfigs []apitypes.IngressConfig
-	err = json.Unmarshal(tenant.IngressConfigs, &ingressConfigs)
-	if err != nil {
-		logrus.Errorf("An error occurred decoding the ingress configs for tenant '%v'", tenantUuidStr)
-		return nil, nil, nil, nil, nil, err
+	if tenant.IngressConfigs != nil {
+		err = json.Unmarshal(tenant.IngressConfigs, &ingressConfigs)
+		if err != nil {
+			logrus.Errorf("An error occurred decoding the ingress configs for tenant '%v'", tenantUuidStr)
+			return nil, nil, nil, nil, nil, err
+		}
 	}
+
 	return &baseClusterTopology, flows, tenantTemplates, serviceConfigs, ingressConfigs, nil
+}
+
+func deleteTenantTopologies(sv *Server, tenantUuidStr string) error {
+	tenant, err := sv.db.GetTenant(tenantUuidStr)
+	if err != nil {
+		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
+		return err
+	}
+
+	tenant.BaseClusterTopology = nil
+	tenant.ServiceConfigs = nil
+	tenant.IngressConfigs = nil
+
+	err = sv.db.SaveTenant(tenant)
+	if err != nil {
+		logrus.Errorf("an error occured while saving tenant %s. erro was \n: '%v'", tenant.TenantId, err.Error())
+		return err
+	}
+
+	err = sv.db.DeleteTenantFlows(tenant.TenantId)
+	if err != nil {
+		logrus.Errorf("an error occured while deleting tenant flows %s. erro was \n: '%v'", tenant.TenantId, err.Error())
+		return err
+	}
+
+	err = sv.db.DeleteTenantPluginConfigs(tenant.TenantId)
+	if err != nil {
+		logrus.Errorf("an error occured while deleting tenant plugin configs %s. erro was \n: '%v'", tenant.TenantId, err.Error())
+		return err
+	}
+
+	return nil
 }
 
 func newClIAPITemplates(templates []templates.Template) []apitypes.Template {
