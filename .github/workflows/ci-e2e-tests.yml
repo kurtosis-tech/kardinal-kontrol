@@ -112,3 +112,11 @@ jobs:
       - name: Delete template
         run: |
           KARDINAL_CLI_DEV_MODE=TRUE kardinal template delete extra-item-shared
+
+      - name: Delete base topology and dev flows
+        run: |
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete prod
+          if KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep prod; then echo "Topologies not deleted"; exit 1; fi
+          tenant_id=${{ steps.tenant.outputs.id }}
+          deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
+          if [ "${deployments}" != "" ]; then echo "Deployments list not empty"; exit 1; fi
