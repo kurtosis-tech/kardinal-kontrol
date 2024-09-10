@@ -350,7 +350,7 @@ func getGateway(ingresses []*resolved.Ingress, namespace string) *istioclient.Ga
 
 	// We need to return a gateway as part of the cluster resources so we return a dummy one
 	// if there are no ingresses defined.  This can happen when the tenant does not have a base
-	// cluster topology: no initial deploy or the topologies have been deleted.  This gateway allows
+	// cluster topology: no initial deploy or the topologies have been deleted.  This gateway also allows
 	// us to communicate the namespace to the kardinal manager helping the resources to be cleaned up.
 	ingressId := "dummy"
 	if len(ingresses) > 0 {
