@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.25](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.24...0.1.25) (2024-09-10)
+
+
+### Features
+
+* Option to delete the base cluster topology ([#16](https://github.com/kurtosis-tech/kardinal-kontrol/issues/16)) ([a49ab71](https://github.com/kurtosis-tech/kardinal-kontrol/commit/a49ab71d0f09cce3e1b7ba0e373d5a5049ec3711))
+
 ## [0.1.24](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.23...0.1.24) (2024-09-06)
 
 
