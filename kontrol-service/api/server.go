@@ -106,24 +106,15 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 	logrus.Infof("deleting dev flow for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_FLOW_DELETE, request.Uuid)
 
-	_, allFlows, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	baseClusterTopology, allFlows, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
 		resourceType := "tenant"
 		missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
 		return api.DeleteTenantUuidFlowFlowId404JSONResponse{NotFoundJSONResponse: missing}, nil
 	}
 
-	flowObj, err := sv.db.GetFlow(request.FlowId)
-	if err != nil {
-		errMsg := fmt.Sprintf("An error occurred getting flow '%v'", request.FlowId)
-		errResp := api.ErrorJSONResponse{
-			Error: err.Error(),
-			Msg:   &errMsg,
-		}
-		return api.DeleteTenantUuidFlowFlowId500JSONResponse{errResp}, nil
-	}
-
-	if flowObj.IsBaselineFlow() {
+	// the baseline flow ID uses the base cluster topology namespace name
+	if request.FlowId == baseClusterTopology.Namespace {
 		// We received a request to delete the base topology, so we do that + the flows
 		err = deleteTenantTopologies(sv, request.Uuid)
 		if err != nil {
@@ -470,12 +461,10 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 		}
 		serviceConfigs = template.ApplyTemplateOverrides(serviceConfigs, templateSpec)
 
-		baselineFlow, err := sv.db.GetBaselineFlow()
-		if err != nil {
-			return nil, []string{}, stacktrace.Propagate(err, "an error occurred getting the baseline flow")
-		}
+		// the baseline flow ID uses the base cluster topology namespace name
+		baselineFlowID := baseClusterTopologyMaybeWithTemplateOverrides.Namespace
 
-		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(baselineFlow.FlowId, serviceConfigs, ingressConfigs, baseTopology.Namespace)
+		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(baselineFlowID, serviceConfigs, ingressConfigs, baseTopology.Namespace)
 		if err != nil {
 			return nil, []string{}, fmt.Errorf("an error occurred while creating base cluster topology from templates:\n %s", err)
 		}
@@ -518,7 +507,7 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 // - Templates
 // - Base service configs
 // - Base ingress configs
-// TOOD: Could return a struct if it becomes too heavy to manipulate the return values.
+// TODO: Could return a struct if it becomes too heavy to manipulate the return values.
 func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTopology, map[string]resolved.ClusterTopology, map[string]templates.Template, []apitypes.ServiceConfig, []apitypes.IngressConfig, error) {
 	tenant, err := sv.db.GetTenant(tenantUuidStr)
 	if err != nil {
@@ -560,13 +549,8 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 			return nil, nil, nil, nil, nil, err
 		}
 	} else {
-		baselineFlow, err := sv.db.GetBaselineFlow()
-		if err != nil {
-			return nil, nil, nil, nil, nil, stacktrace.Propagate(err, "an error occurred getting the baseline flow")
-		}
-
-		baseClusterTopology.FlowID = baselineFlow.FlowId
-		baseClusterTopology.Namespace = baselineFlow.FlowId
+		baseClusterTopology.FlowID = defaultBaselineFlowId
+		baseClusterTopology.Namespace = defaultBaselineFlowId
 	}
 
 	var serviceConfigs []apitypes.ServiceConfig
