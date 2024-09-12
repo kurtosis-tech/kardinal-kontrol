@@ -16,7 +16,7 @@ import (
 	"kardinal.kontrol-service/types/flow_spec"
 )
 
-const dummyPluginName = "https://github.com/kurtosis-tech/dummy-plugin"
+const dummyPluginName = "https://github.com/h4ck3rk3y/identity-plugin.git"
 
 func clusterTopologyExample() resolved.ClusterTopology {
 	dummySpec := &appsv1.DeploymentSpec{}
@@ -409,8 +409,8 @@ func assertStatefulServices(t *testing.T, originalCluster *resolved.ClusterTopol
 	}
 }
 
-func getPluginRunner(t *testing.T) *plugins.PluginRunner {
-	db, err := database.NewSQLiteDB()
+func getPluginRunner(t *testing.T) (*plugins.PluginRunner, func() error) {
+	db, cleanUpDbFunc, err := database.NewSQLiteDB()
 	require.NoError(t, err)
 	err = db.Clear()
 	require.NoError(t, err)
@@ -419,10 +419,11 @@ func getPluginRunner(t *testing.T) *plugins.PluginRunner {
 	_, err = db.GetOrCreateTenant("tenant-test")
 	require.NoError(t, err)
 	pluginRunner := plugins.NewPluginRunner(
+		plugins.NewMockGitPluginProvider(plugins.MockGitHub),
 		"tenant-test",
 		db,
 	)
-	return pluginRunner
+	return pluginRunner, cleanUpDbFunc
 }
 
 func TestTopologyToGraph(t *testing.T) {
@@ -481,7 +482,9 @@ func TestDeepCopyService(t *testing.T) {
 func TestDevFlowImmutability(t *testing.T) {
 	cluster := clusterTopologyExample()
 	checkoutservice := getServiceRef(&cluster, "checkoutservice")
-	pluginRunner := getPluginRunner(t)
+	pluginRunner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
+
 	flowSpec := flow_spec.FlowPatch{
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{
@@ -530,8 +533,9 @@ func TestDevFlowImmutability(t *testing.T) {
 func TestFlowMerging(t *testing.T) {
 	cluster := clusterTopologyExample()
 	checkoutservice := getServiceRef(&cluster, "checkoutservice")
+	pluginRunner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
 
-	pluginRunner := getPluginRunner(t)
 	flowSpec := flow_spec.FlowPatch{
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{
@@ -568,9 +572,9 @@ func TestExternalServicesFlowOnDependentService(t *testing.T) {
 
 	cartservice, err := cluster.GetService("cartservice")
 	require.NoError(t, err)
+	pluginRunner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
 
-	// TODO: mock the plugin runner so it doesn't pull from github
-	pluginRunner := getPluginRunner(t)
 	flowSpec := flow_spec.FlowPatch{
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{
@@ -601,8 +605,9 @@ func TestExternalServicesCreateDevFlowOnNotDependentService(t *testing.T) {
 
 	frontend, err := cluster.GetService("frontend")
 	require.NoError(t, err)
+	pluginRunner, cleanUpDbFunc := getPluginRunner(t)
+	defer cleanUpDbFunc()
 
-	pluginRunner := getPluginRunner(t)
 	flowSpec := flow_spec.FlowPatch{
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{

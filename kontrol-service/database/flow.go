@@ -43,3 +43,14 @@ func (db *Db) DeleteFlow(
 	logrus.Infof("Success! Deleted flow %s in database", flowId)
 	return nil
 }
+
+func (db *Db) DeleteTenantFlows(
+	tenantId string,
+) error {
+	result := db.db.Where("tenant_id = ?", tenantId).Delete(&Flow{})
+	if result.Error != nil {
+		return stacktrace.Propagate(result.Error, "An internal error has occurred deleting the tenants %s flows", tenantId)
+	}
+	logrus.Infof("Success! Deleted tenant %s flows in database", tenantId)
+	return nil
+}

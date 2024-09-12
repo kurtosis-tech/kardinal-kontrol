@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.1.25](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.24...0.1.25) (2024-09-10)
+
+
+### Features
+
+* Option to delete the base cluster topology ([#16](https://github.com/kurtosis-tech/kardinal-kontrol/issues/16)) ([a49ab71](https://github.com/kurtosis-tech/kardinal-kontrol/commit/a49ab71d0f09cce3e1b7ba0e373d5a5049ec3711))
+
+## [0.1.24](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.23...0.1.24) (2024-09-06)
+
+
+### Features
+
+* disabling TLS for dev Destination Rules ([#13](https://github.com/kurtosis-tech/kardinal-kontrol/issues/13)) ([f4a8441](https://github.com/kurtosis-tech/kardinal-kontrol/commit/f4a8441eb008769ff7f08ae221f17e33a132d3a4))
+* E2E tests iteration [#1](https://github.com/kurtosis-tech/kardinal-kontrol/issues/1) ([#4](https://github.com/kurtosis-tech/kardinal-kontrol/issues/4)) ([b6fae2f](https://github.com/kurtosis-tech/kardinal-kontrol/commit/b6fae2f88c0af893467f9752a329492d4b400af1))
+* mock git plugin provider ([#3](https://github.com/kurtosis-tech/kardinal-kontrol/issues/3)) ([b245af9](https://github.com/kurtosis-tech/kardinal-kontrol/commit/b245af9c2e358863fe8e353d0433b0abb0fba3a2))
+
+## [0.1.23](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.22...0.1.23) (2024-08-29)
+
+
+### Miscellaneous Chores
+
+* release 0.1.23 ([36db36d](https://github.com/kurtosis-tech/kardinal-kontrol/commit/36db36d2f55e746f958f6c8601d8fdbea5d613e7))
+
 ## [0.1.22](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.21...0.1.22) (2024-08-27)
 
 
