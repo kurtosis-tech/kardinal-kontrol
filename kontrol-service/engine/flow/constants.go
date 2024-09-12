@@ -83,7 +83,7 @@ function determine_destination(request_handle, trace_id, hostname)
   
   if not headers or headers[":status"] ~= "200" then
     request_handle:logWarn("Failed to determine destination, falling back to prod")
-    return hostname .. "-prod"  -- Fallback to prod
+    return hostname .. "-%s"  -- Fallback to prod
   end
   
   return body
@@ -91,10 +91,6 @@ end
 `
 
 	luaFilterType = "type.googleapis.com/envoy.extensions.filters.http.lua.v3.Lua"
-
-	// this is related to the prod flowID and prod default namespace
-	// TODO find a way to centralize this value for all of these concepts (Service.version, flowID and default namespace)
-	prodVersion = "prod"
 )
 
 func generateLuaTraceHeaderPriorities() string {
@@ -109,6 +105,6 @@ func generateLuaTraceHeaderPriorities() string {
 	sb.WriteString("}")
 	return sb.String()
 }
-func getOutgoingRequestTraceIDFilter() string {
-	return fmt.Sprintf(outgoingRequestTraceIDFilterTemplate, generateLuaTraceHeaderPriorities())
+func getOutgoingRequestTraceIDFilter(baselineHostName string) string {
+	return fmt.Sprintf(outgoingRequestTraceIDFilterTemplate, generateLuaTraceHeaderPriorities(), baselineHostName)
 }

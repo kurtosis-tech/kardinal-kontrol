@@ -77,7 +77,7 @@ func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUui
 }
 
 func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenantUuidDeployRequestObject) (api.PostTenantUuidDeployResponseObject, error) {
-	logrus.Infof("deploying prod cluster for tenant '%s'", request.Uuid)
+	logrus.Infof("deploying prod/baseline cluster for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_DEPLOY, request.Uuid)
 	serviceConfigs := *request.Body.ServiceConfigs
 	ingressConfigs := *request.Body.IngressConfigs
@@ -88,7 +88,7 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 	}
 
 	flowId := namespace
-	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, namespace, flowId)
+	urls, err := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, namespace, flowId)
 	if err != nil {
 		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", flowId)
 		errResp := api.ErrorJSONResponse{
@@ -395,48 +395,49 @@ func (sv *Server) PostTenantUuidTemplatesCreate(_ context.Context, request api.P
 }
 
 // ============================================================================================================
-func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string, flowID string) (error, []string) {
+// apply the baseline flow which can be also called prod flow which was the first name used
+func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string, flowID string) ([]string, error) {
 	clusterTopology, err := engine.GenerateProdOnlyCluster(flowID, serviceConfigs, ingressConfigs, namespace)
 	if err != nil {
-		return err, []string{}
+		return []string{}, err
 	}
 
 	tenant, err := sv.db.GetOrCreateTenant(tenantUuidStr)
 	if err != nil {
 		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 
 	clusterTopologyJson, err := json.Marshal(clusterTopology)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the cluster topology for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 	tenant.BaseClusterTopology = clusterTopologyJson
 
 	serviceConfigsJson, err := json.Marshal(serviceConfigs)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the service configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 	tenant.ServiceConfigs = serviceConfigsJson
 
 	ingressConfigsJson, err := json.Marshal(ingressConfigs)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the ingress configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 	tenant.IngressConfigs = ingressConfigsJson
 
 	err = sv.db.SaveTenant(tenant)
 	if err != nil {
 		logrus.Errorf("an error occured while saving tenant %s. erro was \n: '%v'", tenant.TenantId, err.Error())
-		return err, nil
+		return nil, err
 	}
 
 	flowHostMapping := clusterTopology.GetFlowHostMapping()
 
-	return nil, flowHostMapping[flowID]
+	return flowHostMapping[flowID], nil
 }
 
 // ============================================================================================================

@@ -56,9 +56,12 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseClusterTopologyMaybeW
 		}
 	}
 
+	// the baseline topology (or prod topology) flow ID and flow version are equal to the namespace these three should use same value
+	baselineFlowVersion := baseTopology.Namespace
 	// Replace "prod" version services with baseTopology versions
 	for i, service := range topologyRef.Services {
-		if service.Version == prodVersion {
+
+		if service.Version == baselineFlowVersion {
 			prodService, err := baseTopology.GetService(service.ServiceID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get prod service %s: %v", service.ServiceID, err)
@@ -73,7 +76,7 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseClusterTopologyMaybeW
 	// postgres is marked as shared, we mark its parent "cartservice" as shared
 	// cartservice then happens in the loop and we try again (currently we don't as we check if version isn't shared)
 	for _, service := range topology.Services {
-		if service.IsShared && service.Version != prodVersion && service.Version != constants.SharedVersionVersionString {
+		if service.IsShared && service.Version != baselineFlowVersion && service.Version != constants.SharedVersionVersionString {
 			logrus.Infof("Marking service '%v' as shared, current version '%v'", service.ServiceID, service.Version)
 			originalVersion := service.Version
 			service.Version = constants.SharedVersionVersionString
@@ -91,14 +94,14 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseClusterTopologyMaybeW
 
 	// Update service dependencies
 	for i, dependency := range topologyRef.ServiceDependencies {
-		if dependency.Service.Version == prodVersion {
+		if dependency.Service.Version == baselineFlowVersion {
 			prodService, err := baseTopology.GetService(dependency.Service.ServiceID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get prod service %s for dependency: %v", dependency.Service.ServiceID, err)
 			}
 			topologyRef.ServiceDependencies[i].Service = prodService
 		}
-		if dependency.DependsOnService.Version == prodVersion {
+		if dependency.DependsOnService.Version == baselineFlowVersion {
 			prodDependsOnService, err := baseTopology.GetService(dependency.DependsOnService.ServiceID)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get prod service %s for dependsOn: %v", dependency.DependsOnService.ServiceID, err)
