@@ -12,6 +12,8 @@ type Tenant struct {
 	BaseClusterTopology datatypes.JSON
 	ServiceConfigs      datatypes.JSON
 	IngressConfigs      datatypes.JSON
+	GatewayConfigs      datatypes.JSON
+	RouteConfigs        datatypes.JSON
 	Active              bool
 	Flows               []Flow         `gorm:"foreignKey:TenantId;references:TenantId;constraint:OnDelete:CASCADE"`
 	PluginConfigs       []PluginConfig `gorm:"foreignKey:TenantId;references:TenantId;constraint:OnDelete:CASCADE"`

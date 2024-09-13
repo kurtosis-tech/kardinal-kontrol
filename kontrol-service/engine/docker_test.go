@@ -1,8 +1,9 @@
 package engine
 
 import (
-	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	"testing"
+
+	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 
 	"github.com/stretchr/testify/require"
 	"kardinal.kontrol-service/test"
@@ -14,7 +15,9 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 	testNamespace := "prod"
 
 	testIngressConfigs := []apitypes.IngressConfig{}
-	cluster, err := generateClusterTopology(testServiceConfigs, testIngressConfigs, testVersion, testNamespace)
+	testGatewayConfigs := []apitypes.GatewayConfig{}
+	testRouteConfigs := []apitypes.RouteConfig{}
+	cluster, err := generateClusterTopology(testServiceConfigs, testIngressConfigs, testGatewayConfigs, testRouteConfigs, testVersion, testNamespace)
 	if err != nil {
 		t.Errorf("Error generating cluster: %s", err)
 	}
@@ -50,10 +53,12 @@ func TestIngressConfigsTakePrecedenceOverK8sServicesActingAsIngresses(t *testing
 	// use an Ingress Config
 	// this should take precedence over any Ingress defined elsewhere in the k8s manifest
 	testIngressConfigs := test.GetIngressConfigs()
+	testGatewayConfigs := []apitypes.GatewayConfig{}
+	testRouteConfigs := []apitypes.RouteConfig{}
 	testVersion := "prod"
 	testNamespace := "prod"
 
-	cluster, err := generateClusterTopology(testServiceConfigs, testIngressConfigs, testVersion, testNamespace)
+	cluster, err := generateClusterTopology(testServiceConfigs, testIngressConfigs, testGatewayConfigs, testRouteConfigs, testVersion, testNamespace)
 	if err != nil {
 		t.Errorf("Error generating cluster: %s", err)
 	}

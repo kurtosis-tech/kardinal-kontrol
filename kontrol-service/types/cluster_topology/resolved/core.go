@@ -2,19 +2,22 @@ package resolved
 
 import (
 	"fmt"
+	"regexp"
+	"slices"
+
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/mohae/deepcopy"
 	"github.com/samber/lo"
-	appsv1 "k8s.io/api/apps/v1"
-	"slices"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	net "k8s.io/api/networking/v1"
-	"regexp"
+	gateway "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 type ClusterTopology struct {
 	FlowID              string              `json:"flowID"`
+	GatewayAndRoutes    *GatewayAndRoutes   `json:"gatewayAndRoutes"`
 	Ingresses           []*Ingress          `json:"ingress"`
 	Services            []*Service          `json:"services"`
 	ServiceDependencies []ServiceDependency `json:"serviceDependencies"`
@@ -39,15 +42,20 @@ type ServiceDependency struct {
 	DependencyPort   *corev1.ServicePort `json:"dependencyPort"`
 }
 
+// TODO: Update to follow the pattern of the GatewayAndRoutes
 type Ingress struct {
-	ActiveFlowIDs []string           `json:"activeFlowIDs"`
-	IngressID     string             `json:"ingressID"`
-	IngressRules  []*net.IngressRule `json:"ingressRules"`
-	// IngressSpec and ServiceSpec are mutually exclusive
-	// IngressSpec is set if a k8s Ingress type is being used for this Ingress
-	// ServiceSpec is set if a k8s Service type is acting as an Ingress (eg. LoadBalancer, custom gateway)
-	IngressSpec *net.IngressSpec    `json:"ingressSpec"`
-	ServiceSpec *corev1.ServiceSpec `json:"serviceSpec"`
+	ActiveFlowIDs []string            `json:"activeFlowIDs"`
+	IngressID     string              `json:"ingressID"`
+	ServiceSpec   *corev1.ServiceSpec `json:"serviceSpec"`
+	// IngressSpec and GatewaySpec are mutually exclusive
+	IngressSpec  *net.IngressSpec   `json:"ingressSpec"`
+	IngressRules []*net.IngressRule `json:"ingressRules"`
+}
+
+type GatewayAndRoutes struct {
+	ActiveFlowIDs []string                 `json:"activeFlowIDs"`
+	GatewaySpecs  []*gateway.GatewaySpec   `json:"gatewaySpecs"`
+	GatewayRoutes []*gateway.HTTPRouteSpec `json:"gatewayRoutes"`
 }
 
 func (clusterTopology *ClusterTopology) GetServiceAndPort(serviceName string, servicePortName string) (*Service, *corev1.ServicePort, error) {

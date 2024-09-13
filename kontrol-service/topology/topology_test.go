@@ -236,7 +236,10 @@ func TestServiceConfigsToTopology(t *testing.T) {
 		},
 	})
 
-	clusterTopology, err := engine.GenerateProdOnlyCluster("prod", testServiceConfigs, []apitypes.IngressConfig{}, "prod")
+	testIngressConfigs := []apitypes.IngressConfig{}
+	testGatewayConfigs := []apitypes.GatewayConfig{}
+	testRouteConfigs := []apitypes.RouteConfig{}
+	clusterTopology, err := engine.GenerateProdOnlyCluster("prod", testServiceConfigs, testIngressConfigs, testGatewayConfigs, testRouteConfigs, "prod")
 	if err != nil {
 		t.Errorf("Error generating cluster: %s", err)
 		return

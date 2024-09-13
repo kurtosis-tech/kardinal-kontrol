@@ -12,6 +12,7 @@ import (
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	v1 "k8s.io/api/core/v1"
 	net "k8s.io/api/networking/v1"
+	gateway "sigs.k8s.io/gateway-api/apis/v1"
 
 	"kardinal.kontrol-service/engine/flow"
 	"kardinal.kontrol-service/plugins"
@@ -19,8 +20,15 @@ import (
 	"kardinal.kontrol-service/types/flow_spec"
 )
 
-func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string) (*resolved.ClusterTopology, error) {
-	clusterTopology, err := generateClusterTopology(serviceConfigs, ingressConfigs, namespace, flowID)
+func GenerateProdOnlyCluster(
+	flowID string,
+	serviceConfigs []apitypes.ServiceConfig,
+	ingressConfigs []apitypes.IngressConfig,
+	gatewayConfigs []apitypes.GatewayConfig,
+	routeConfigs []apitypes.RouteConfig,
+	namespace string,
+) (*resolved.ClusterTopology, error) {
+	clusterTopology, err := generateClusterTopology(serviceConfigs, ingressConfigs, gatewayConfigs, routeConfigs, namespace, flowID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occured generating the cluster topology from the service configs")
 	}
@@ -64,7 +72,13 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 	return clusterTopology, nil
 }
 
-func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace, version string) (*resolved.ClusterTopology, error) {
+func generateClusterTopology(
+	serviceConfigs []apitypes.ServiceConfig,
+	ingressConfigs []apitypes.IngressConfig,
+	gatewayConfigs []apitypes.GatewayConfig,
+	routeConfigs []apitypes.RouteConfig,
+	namespace, version string,
+) (*resolved.ClusterTopology, error) {
 	clusterTopology := resolved.ClusterTopology{}
 
 	clusterTopologyServices := []*resolved.Service{}
@@ -99,6 +113,38 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, ingressCon
 			alreadyFoundIngress = true
 		}
 	}
+
+	gatewayAndRoutes := resolved.GatewayAndRoutes{
+		ActiveFlowIDs: []string{version},
+		GatewaySpecs:  []*gateway.GatewaySpec{},
+		GatewayRoutes: []*gateway.HTTPRouteSpec{},
+	}
+	for _, gatewayConfig := range gatewayConfigs {
+		gateway := gatewayConfig.Gateway
+		gatewayAnnotations := gateway.GetObjectMeta().GetAnnotations()
+		isGateway, ok := gatewayAnnotations["kardinal.dev.service/gateway"]
+		if ok && isGateway == "true" {
+			if gateway.Spec.Listeners == nil {
+				logrus.Warnf("Gateway %v is missing listeners", gateway.Name)
+			} else {
+				for _, listener := range gateway.Spec.Listeners {
+					if listener.Hostname != nil && !strings.HasPrefix(string(*listener.Hostname), "*.") {
+						logrus.Warnf("Gateway %v listener %v is missing a wildcard, creating flow entry points will not work properly.", gateway.Name, listener.Hostname)
+					}
+				}
+			}
+			gatewayAndRoutes.GatewaySpecs = append(gatewayAndRoutes.GatewaySpecs, &gateway.Spec)
+		}
+	}
+	for _, routeConfig := range routeConfigs {
+		route := routeConfig.HttpRoute
+		routeAnnotations := route.GetObjectMeta().GetAnnotations()
+		isRoute, ok := routeAnnotations["kardinal.dev.service/route"]
+		if ok && isRoute == "true" {
+			gatewayAndRoutes.GatewayRoutes = append(gatewayAndRoutes.GatewayRoutes, &route.Spec)
+		}
+	}
+	clusterTopology.GatewayAndRoutes = &gatewayAndRoutes
 
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
@@ -199,8 +245,8 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, ingressCon
 		clusterTopologyServices = append(clusterTopologyServices, &clusterTopologyService)
 	}
 
-	if len(clusterTopologyIngress) == 0 {
-		return nil, stacktrace.NewError("At least one service needs to be annotated as an ingress service")
+	if len(clusterTopologyIngress) == 0 && len(gatewayAndRoutes.GatewaySpecs) == 0 && len(gatewayAndRoutes.GatewayRoutes) == 0 {
+		logrus.Warnf("No ingress or gateway found in the service configs")
 	}
 	clusterTopology.Ingresses = clusterTopologyIngress
 
