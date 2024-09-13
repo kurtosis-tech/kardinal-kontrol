@@ -67,8 +67,10 @@ func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUui
 
 	finalTopology := flow.MergeClusterTopologies(*clusterTopology, lo.Values(allFlows))
 	flowHostMapping := finalTopology.GetFlowHostMapping()
+
 	resp := lo.MapToSlice(flowHostMapping, func(flowId string, flowUrls []string) apitypes.Flow {
-		return apitypes.Flow{FlowId: flowId, FlowUrls: flowUrls}
+		isBaselineFlow := flowId == prodFlowId
+		return apitypes.Flow{FlowId: flowId, FlowUrls: flowUrls, IsBaseline: &isBaselineFlow}
 	})
 	return api.GetTenantUuidFlows200JSONResponse(resp), nil
 }
@@ -87,15 +89,15 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 	flowId := prodFlowId
 	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, namespace, flowId)
 	if err != nil {
-		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", prodFlowId)
+		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", flowId)
 		errResp := api.ErrorJSONResponse{
 			Error: err.Error(),
 			Msg:   &errMsg,
 		}
-		return api.PostTenantUuidDeploy500JSONResponse{errResp}, nil
+		return api.PostTenantUuidDeploy500JSONResponse{ErrorJSONResponse: errResp}, nil
 	}
 
-	resp := apitypes.Flow{FlowId: prodFlowId, FlowUrls: urls}
+	resp := apitypes.Flow{FlowId: flowId, FlowUrls: urls}
 	return api.PostTenantUuidDeploy200JSONResponse(resp), nil
 }
 
@@ -111,7 +113,7 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 	}
 
 	if request.FlowId == prodFlowId {
-		// We received a request to delete the base topology so we do that + the flows
+		// We received a request to delete the base topology, so we do that + the flows
 		err = deleteTenantTopologies(sv, request.Uuid)
 		if err != nil {
 			errMsg := "An error occurred deleting the topologies"
@@ -456,7 +458,10 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 			return nil, []string{}, fmt.Errorf("template with name '%v' doesn't exist for tenant uuid '%v'", templateSpec.TemplateName, tenantUuidStr)
 		}
 		serviceConfigs = template.ApplyTemplateOverrides(serviceConfigs, templateSpec)
-		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(prodFlowId, serviceConfigs, ingressConfigs, baseTopology.Namespace)
+
+		baselineFlowID := prodFlowId
+
+		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(baselineFlowID, serviceConfigs, ingressConfigs, baseTopology.Namespace)
 		if err != nil {
 			return nil, []string{}, fmt.Errorf("an error occurred while creating base cluster topology from templates:\n %s", err)
 		}
@@ -499,7 +504,7 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 // - Templates
 // - Base service configs
 // - Base ingress configs
-// TOOD: Could return a struct if it becomes too heavy to manipulate the return values.
+// TODO: Could return a struct if it becomes too heavy to manipulate the return values.
 func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTopology, map[string]resolved.ClusterTopology, map[string]templates.Template, []apitypes.ServiceConfig, []apitypes.IngressConfig, error) {
 	tenant, err := sv.db.GetTenant(tenantUuidStr)
 	if err != nil {
