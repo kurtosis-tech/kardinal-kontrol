@@ -37,6 +37,7 @@ func foldAllIngress(ingresses []*resolved.Ingress) []*resolved.Ingress {
 			IngressID:     key,
 			ActiveFlowIDs: lo.Uniq(lo.FlatMap(value, func(ingress *resolved.Ingress, _ int) []string { return ingress.ActiveFlowIDs })),
 			IngressRules:  lo.Uniq(lo.FlatMap(value, func(ingress *resolved.Ingress, _ int) []*v1.IngressRule { return ingress.IngressRules })),
+			IngressSpec:   value[0].IngressSpec,
 			ServiceSpec:   value[0].ServiceSpec,
 		}
 		return &merged

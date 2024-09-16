@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"hash/fnv"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -56,14 +58,19 @@ func NewMockDb() (*Db, error) {
 	}, nil
 }
 
-func NewSQLiteDB() (*Db, error) {
-	db, err := gorm.Open(sqlite.Open("gorm.db"), &gorm.Config{})
+func NewSQLiteDB() (*Db, func() error, error) {
+	cwDirPath, err := os.Getwd()
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "An error occurred opening the connection to the SQLite database")
+		return nil, nil, stacktrace.Propagate(err, "An error occurred getting current working directory to created sqlite database at.")
+	}
+	sqliteDbPath := filepath.Join(cwDirPath, "gorm.db")
+	db, err := gorm.Open(sqlite.Open(sqliteDbPath), &gorm.Config{})
+	if err != nil {
+		return nil, nil, stacktrace.Propagate(err, "An error occurred opening the connection to the SQLite database")
 	}
 	return &Db{
 		db: db,
-	}, nil
+	}, func() error { return os.Remove(sqliteDbPath) }, nil
 }
 
 func (db *Db) AutoMigrate(dst ...interface{}) error {

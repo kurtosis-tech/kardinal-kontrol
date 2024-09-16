@@ -89,7 +89,9 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 		}
 	}
 	// TODO: make it to use a list of Ingresses
-	gatewayFilter := getEnvoyFilterForGateway(servicesAgainstVersions, versionsAgainstExtHost, sharedServiceBackupVersions)
+	// the baseline topology (or prod topology) flow ID and flow version and host are equal to the namespace these four should use same value
+	baselineHostName := namespace
+	gatewayFilter := getEnvoyFilterForGateway(servicesAgainstVersions, versionsAgainstExtHost, sharedServiceBackupVersions, baselineHostName)
 	envoyFilters = append(envoyFilters, *gatewayFilter)
 
 	return types.ClusterResources{
@@ -228,16 +230,32 @@ func getVirtualService(serviceID string, services []*resolved.Service, namespace
 }
 
 func getDestinationRule(serviceID string, services []*resolved.Service, namespace string) *istioclient.DestinationRule {
+	// the baseline topology (or prod topology) flow ID and flow version are equal to the namespace these three should use same value
+	baselineFlowVersion := namespace
 	// TODO(shared-annotation) - we could store "shared" versions somewhere so that the pointers are the same
 	// if we do that then the render work around isn't necessary
 	subsets := lo.UniqBy(
 		lo.Map(services, func(service *resolved.Service, _ int) *v1alpha3.Subset {
-			return &v1alpha3.Subset{
+
+			newSubset := &v1alpha3.Subset{
 				Name: service.Version,
 				Labels: map[string]string{
 					"version": service.Version,
 				},
 			}
+
+			// TODO Narrow down this configuration to only subsets created for telepresence intercepts or find a way to enable TLS for telepresence intercepts https://github.com/kurtosis-tech/kardinal-kontrol/issues/14
+			// This config is necessary for Kardinal/Telepresence (https://www.telepresence.io/) integration
+			if service.Version != baselineFlowVersion {
+				newTrafficPolicy := &v1alpha3.TrafficPolicy{
+					Tls: &v1alpha3.ClientTLSSettings{
+						Mode: v1alpha3.ClientTLSSettings_DISABLE,
+					},
+				}
+				newSubset.TrafficPolicy = newTrafficPolicy
+			}
+
+			return newSubset
 		}),
 		func(subset *v1alpha3.Subset) string {
 			return subset.Name
@@ -334,7 +352,16 @@ func getGateway(ingresses []*resolved.Ingress, namespace string) *istioclient.Ga
 	}
 	extHosts = lo.Uniq(extHosts)
 
-	ingressId := ingresses[0].IngressID
+	// We need to return a gateway as part of the cluster resources so we return a dummy one
+	// if there are no ingresses defined.  This can happen when the tenant does not have a base
+	// cluster topology: no initial deploy or the topologies have been deleted.  This gateway also allows
+	// us to communicate the namespace to the kardinal manager helping the resources to be cleaned up.
+	ingressId := "dummy"
+	if len(ingresses) > 0 {
+		ingressId = ingresses[0].IngressID
+	} else {
+		extHosts = []string{"dummy.kardinal.dev"}
+	}
 
 	return &istioclient.Gateway{
 		TypeMeta: metav1.TypeMeta{
@@ -424,6 +451,8 @@ func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.
 		},
 	}
 
+	// the baseline topology (or prod topology) flow ID and flow version and host are equal to the namespace these four should use same value
+	baselineHostName := namespace
 	outboundFilter := &istioclient.EnvoyFilter{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking.istio.io/v1alpha3",
@@ -464,7 +493,7 @@ func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.
 										StructValue: &structpb.Struct{
 											Fields: map[string]*structpb.Value{
 												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
-												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: getOutgoingRequestTraceIDFilter()}},
+												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: getOutgoingRequestTraceIDFilter(baselineHostName)}},
 											},
 										},
 									},
@@ -512,8 +541,8 @@ func getAuthorizationPolicy(service *resolved.Service, namespace string) *securi
 	}
 }
 
-func getEnvoyFilterForGateway(servicesAgainstVersions map[string][]string, serviceAndVersionAgainstExtHost map[string]string, serviceAgainstBackupVersions map[string][]string) *istioclient.EnvoyFilter {
-	luaScript := generateDynamicLuaScript(servicesAgainstVersions, serviceAndVersionAgainstExtHost, serviceAgainstBackupVersions)
+func getEnvoyFilterForGateway(servicesAgainstVersions map[string][]string, serviceAndVersionAgainstExtHost map[string]string, serviceAgainstBackupVersions map[string][]string, baselineHostName string) *istioclient.EnvoyFilter {
+	luaScript := generateDynamicLuaScript(servicesAgainstVersions, serviceAndVersionAgainstExtHost, serviceAgainstBackupVersions, baselineHostName)
 
 	return &istioclient.EnvoyFilter{
 		TypeMeta: metav1.TypeMeta{
@@ -569,7 +598,7 @@ func getEnvoyFilterForGateway(servicesAgainstVersions map[string][]string, servi
 	}
 }
 
-func generateDynamicLuaScript(servicesAgainstVersions map[string][]string, versionAgainstExtHost map[string]string, serviceAgainstBackupVersions map[string][]string) string {
+func generateDynamicLuaScript(servicesAgainstVersions map[string][]string, versionAgainstExtHost map[string]string, serviceAgainstBackupVersions map[string][]string, baselineHostName string) string {
 	var setRouteCalls strings.Builder
 
 	// Helper function to add a setRoute call
@@ -642,7 +671,7 @@ function envoy_on_request(request_handle)
   local trace_id = headers:get("x-kardinal-trace-id")
   local hostname = headers:get(":authority")
 
-  request_handle:logInfo("Processing request - Initial trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none"))
+  request_handle:logInfo("Processing request - Initial trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none")  .. ", Baseline: %s")
 
   if not trace_id then
     local found_trace_id, source_header = get_trace_id(headers)
@@ -679,7 +708,7 @@ function envoy_on_request(request_handle)
     "outbound|8080||trace-router.default.svc.cluster.local",
     {
       [":method"] = "GET",
-      [":path"] = "/route?trace_id=" .. trace_id .. "&hostname=" .. hostname,
+      [":path"] = "/route?trace_id=" .. trace_id .. "&hostname=" .. hostname .. "&baseline_prefix=%s",
       [":authority"] = "trace-router.default.svc.cluster.local"
     },
     "",
@@ -691,12 +720,12 @@ function envoy_on_request(request_handle)
     destination = determine_body
     request_handle:logInfo("Determined destination: " .. destination)
   else
-    destination = hostname .. "-prod"
+    destination = hostname .. "-%s"
     request_handle:logWarn("Failed to determine destination, using fallback: " .. destination)
   end
 
   request_handle:headers():add("x-kardinal-destination", destination)
   request_handle:logInfo("Final headers - Trace ID: " .. trace_id .. ", Destination: " .. destination)
 end
-`, generateLuaTraceHeaderPriorities(), setRouteCalls.String())
+`, generateLuaTraceHeaderPriorities(), baselineHostName, setRouteCalls.String(), baselineHostName, baselineHostName)
 }

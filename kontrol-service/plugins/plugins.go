@@ -22,19 +22,23 @@ const (
 )
 
 type PluginRunner struct {
+	gitPluginProvider GitPluginProvider
+
 	tenantId string
-	db       *database.Db
+
+	db *database.Db
 }
 
-func NewPluginRunner(tenantId string, db *database.Db) *PluginRunner {
+func NewPluginRunner(gitPluginProvider GitPluginProvider, tenantId string, db *database.Db) *PluginRunner {
 	return &PluginRunner{
-		tenantId: tenantId,
-		db:       db,
+		gitPluginProvider: gitPluginProvider,
+		tenantId:          tenantId,
+		db:                db,
 	}
 }
 
 func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceSpec, deploymentSpec appv1.DeploymentSpec, flowUuid string, arguments map[string]string) (appv1.DeploymentSpec, string, error) {
-	repoPath, err := getOrCloneRepo(pluginUrl)
+	repoPath, err := pr.getOrCloneRepo(pluginUrl)
 	if err != nil {
 		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to get or clone repository: %v", err)
 	}
@@ -88,7 +92,7 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceS
 }
 
 func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string, arguments map[string]string) error {
-	repoPath, err := getOrCloneRepo(pluginUrl)
+	repoPath, err := pr.getOrCloneRepo(pluginUrl)
 	if err != nil {
 		return fmt.Errorf("failed to get or clone repository: %v", err)
 	}
@@ -310,7 +314,7 @@ func executePythonScript(venvPath, repoPath, scriptContent string) error {
 	return nil
 }
 
-func getOrCloneRepo(repoURL string) (string, error) {
+func (pr *PluginRunner) getOrCloneRepo(repoURL string) (string, error) {
 	if !strings.HasPrefix(repoURL, "https://") {
 		repoURL = "https://" + repoURL
 	}
@@ -327,18 +331,9 @@ func getOrCloneRepo(repoURL string) (string, error) {
 	}
 
 	repoPath := filepath.Join(tempDir, repoName)
-
-	if _, err := os.Stat(repoPath); os.IsNotExist(err) {
-		cmd := exec.Command("git", "clone", repoURL, repoPath)
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("git clone failed: %v\nOutput: %s", err, output)
-		}
-	} else {
-		// If the repository already exists, pull the latest changes
-		cmd := exec.Command("git", "-C", repoPath, "pull")
-		if output, err := cmd.CombinedOutput(); err != nil {
-			return "", fmt.Errorf("git pull failed: %v\nOutput: %s", err, output)
-		}
+	err := pr.gitPluginProvider.PullGitHubPlugin(repoPath, repoURL)
+	if err != nil {
+		return "", fmt.Errorf("An error occurred pulling plugin from GitHub:\n%v", err.Error())
 	}
 
 	return repoPath, nil

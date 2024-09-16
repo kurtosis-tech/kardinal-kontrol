@@ -74,7 +74,7 @@ function determine_destination(request_handle, trace_id, hostname)
     "outbound|8080||trace-router.default.svc.cluster.local",
     {
       [":method"] = "GET",
-      [":path"] = "/route?trace_id=" .. trace_id .. "&hostname=" .. hostname,
+      [":path"] = "/route?trace_id=" .. trace_id .. "&hostname=" .. hostname .. "&baseline_prefix=%s",
       [":authority"] = "trace-router.default.svc.cluster.local"
     },
     "",
@@ -82,8 +82,8 @@ function determine_destination(request_handle, trace_id, hostname)
   )
   
   if not headers or headers[":status"] ~= "200" then
-    request_handle:logWarn("Failed to determine destination, falling back to prod")
-    return hostname .. "-prod"  -- Fallback to prod
+    request_handle:logWarn("Failed to determine destination, falling back to baseline")
+    return hostname .. "-%s"  -- Fallback to baseline
   end
   
   return body
@@ -105,6 +105,6 @@ func generateLuaTraceHeaderPriorities() string {
 	sb.WriteString("}")
 	return sb.String()
 }
-func getOutgoingRequestTraceIDFilter() string {
-	return fmt.Sprintf(outgoingRequestTraceIDFilterTemplate, generateLuaTraceHeaderPriorities())
+func getOutgoingRequestTraceIDFilter(baselineHostName string) string {
+	return fmt.Sprintf(outgoingRequestTraceIDFilterTemplate, generateLuaTraceHeaderPriorities(), baselineHostName, baselineHostName)
 }

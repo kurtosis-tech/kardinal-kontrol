@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+
 	api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	managerapi "github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api/api/golang/server"
@@ -25,7 +26,7 @@ import (
 )
 
 const (
-	prodFlowId = "prod"
+	defaultBaselineFlowId = "baseline"
 )
 
 // optional code omitted
@@ -67,34 +68,36 @@ func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUui
 	finalTopology := flow.MergeClusterTopologies(*clusterTopology, lo.Values(allFlows))
 	flowHostMapping := finalTopology.GetFlowHostMapping()
 	resp := lo.MapToSlice(flowHostMapping, func(flowId string, flowUrls []string) apitypes.Flow {
-		return apitypes.Flow{FlowId: flowId, FlowUrls: flowUrls}
+		// the baseline flow ID uses the base cluster topology namespace name
+		isBaselineFlow := flowId == clusterTopology.Namespace
+		return apitypes.Flow{FlowId: flowId, FlowUrls: flowUrls, IsBaseline: &isBaselineFlow}
 	})
 	return api.GetTenantUuidFlows200JSONResponse(resp), nil
 }
 
 func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenantUuidDeployRequestObject) (api.PostTenantUuidDeployResponseObject, error) {
-	logrus.Infof("deploying prod cluster for tenant '%s'", request.Uuid)
+	logrus.Infof("deploying baseline cluster for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_DEPLOY, request.Uuid)
 	serviceConfigs := *request.Body.ServiceConfigs
 	ingressConfigs := *request.Body.IngressConfigs
 	namespace := *request.Body.Namespace
 
 	if namespace == "" {
-		namespace = "prod"
+		namespace = defaultBaselineFlowId
 	}
 
-	flowId := "prod"
-	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, namespace, flowId)
+	flowId := namespace
+	urls, err := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, namespace, flowId)
 	if err != nil {
-		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", prodFlowId)
+		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", flowId)
 		errResp := api.ErrorJSONResponse{
 			Error: err.Error(),
 			Msg:   &errMsg,
 		}
-		return api.PostTenantUuidDeploy500JSONResponse{errResp}, nil
+		return api.PostTenantUuidDeploy500JSONResponse{ErrorJSONResponse: errResp}, nil
 	}
 
-	resp := apitypes.Flow{FlowId: prodFlowId, FlowUrls: urls}
+	resp := apitypes.Flow{FlowId: flowId, FlowUrls: urls}
 	return api.PostTenantUuidDeploy200JSONResponse(resp), nil
 }
 
@@ -102,16 +105,33 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 	logrus.Infof("deleting dev flow for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_FLOW_DELETE, request.Uuid)
 
-	_, allFlows, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	baseClusterTopology, allFlows, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
 		resourceType := "tenant"
 		missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
 		return api.DeleteTenantUuidFlowFlowId404JSONResponse{NotFoundJSONResponse: missing}, nil
 	}
 
+	// the baseline flow ID uses the base cluster topology namespace name
+	if request.FlowId == baseClusterTopology.Namespace {
+		// We received a request to delete the base topology, so we do that + the flows
+		err = deleteTenantTopologies(sv, request.Uuid)
+		if err != nil {
+			errMsg := "An error occurred deleting the topologies"
+			errResp := api.ErrorJSONResponse{
+				Error: err.Error(),
+				Msg:   &errMsg,
+			}
+			return api.DeleteTenantUuidFlowFlowId500JSONResponse{errResp}, nil
+		}
+
+		logrus.Infof("Successfully deleted topologies.")
+		return api.DeleteTenantUuidFlowFlowId2xxResponse{StatusCode: 200}, nil
+	}
+
 	if flowTopology, found := allFlows[request.FlowId]; found {
 		logrus.Infof("deleting flow %s", request.FlowId)
-		pluginRunner := plugins.NewPluginRunner(request.Uuid, sv.db)
+		pluginRunner := plugins.NewPluginRunner(plugins.NewGitPluginProviderImpl(), request.Uuid, sv.db)
 		err := flow.DeleteFlow(pluginRunner, flowTopology, request.FlowId)
 		if err != nil {
 			errMsg := fmt.Sprintf("An error occurred deleting flow '%v'", request.FlowId)
@@ -374,48 +394,49 @@ func (sv *Server) PostTenantUuidTemplatesCreate(_ context.Context, request api.P
 }
 
 // ============================================================================================================
-func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string, flowID string) (error, []string) {
+// apply the baseline flow which can be also called prod flow which was the first name used
+func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string, flowID string) ([]string, error) {
 	clusterTopology, err := engine.GenerateProdOnlyCluster(flowID, serviceConfigs, ingressConfigs, namespace)
 	if err != nil {
-		return err, []string{}
+		return []string{}, err
 	}
 
 	tenant, err := sv.db.GetOrCreateTenant(tenantUuidStr)
 	if err != nil {
 		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 
 	clusterTopologyJson, err := json.Marshal(clusterTopology)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the cluster topology for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 	tenant.BaseClusterTopology = clusterTopologyJson
 
 	serviceConfigsJson, err := json.Marshal(serviceConfigs)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the service configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 	tenant.ServiceConfigs = serviceConfigsJson
 
 	ingressConfigsJson, err := json.Marshal(ingressConfigs)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the ingress configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 	tenant.IngressConfigs = ingressConfigsJson
 
 	err = sv.db.SaveTenant(tenant)
 	if err != nil {
 		logrus.Errorf("an error occured while saving tenant %s. erro was \n: '%v'", tenant.TenantId, err.Error())
-		return err, nil
+		return nil, err
 	}
 
 	flowHostMapping := clusterTopology.GetFlowHostMapping()
 
-	return nil, flowHostMapping[flowID]
+	return flowHostMapping[flowID], nil
 }
 
 // ============================================================================================================
@@ -439,7 +460,11 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 			return nil, []string{}, fmt.Errorf("template with name '%v' doesn't exist for tenant uuid '%v'", templateSpec.TemplateName, tenantUuidStr)
 		}
 		serviceConfigs = template.ApplyTemplateOverrides(serviceConfigs, templateSpec)
-		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(prodFlowId, serviceConfigs, ingressConfigs, baseTopology.Namespace)
+
+		// the baseline flow ID uses the base cluster topology namespace name
+		baselineFlowID := baseClusterTopologyMaybeWithTemplateOverrides.Namespace
+
+		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(baselineFlowID, serviceConfigs, ingressConfigs, baseTopology.Namespace)
 		if err != nil {
 			return nil, []string{}, fmt.Errorf("an error occurred while creating base cluster topology from templates:\n %s", err)
 		}
@@ -453,7 +478,7 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 		ServicePatches: patches,
 	}
 
-	pluginRunner := plugins.NewPluginRunner(tenantUuidStr, sv.db)
+	pluginRunner := plugins.NewPluginRunner(plugins.NewGitPluginProviderImpl(), tenantUuidStr, sv.db)
 	devClusterTopology, err := engine.GenerateProdDevCluster(&baseClusterTopologyMaybeWithTemplateOverrides, baseTopology, pluginRunner, flowSpec)
 	if err != nil {
 		return nil, []string{}, err
@@ -482,7 +507,7 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 // - Templates
 // - Base service configs
 // - Base ingress configs
-// TOOD: Could return a struct if it becomes too heavy to manipulate the return values.
+// TODO: Could return a struct if it becomes too heavy to manipulate the return values.
 func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTopology, map[string]resolved.ClusterTopology, map[string]templates.Template, []apitypes.ServiceConfig, []apitypes.IngressConfig, error) {
 	tenant, err := sv.db.GetTenant(tenantUuidStr)
 	if err != nil {
@@ -492,14 +517,6 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 
 	if tenant == nil {
 		return nil, nil, nil, nil, nil, fmt.Errorf("Cannot find tenant %s", tenantUuidStr)
-	}
-
-	var clusterTopology resolved.ClusterTopology
-	//TODO fix it throws an error if tenant.BaseClusterTopology is nil, which is the case when there is no tenant saved in the dB yet
-	err = json.Unmarshal(tenant.BaseClusterTopology, &clusterTopology)
-	if err != nil {
-		logrus.Errorf("An error occurred decoding the cluster topology for tenant '%v'", tenant.TenantId)
-		return nil, nil, nil, nil, nil, err
 	}
 
 	flows := map[string]resolved.ClusterTopology{}
@@ -525,26 +542,68 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 	}
 
 	var baseClusterTopology resolved.ClusterTopology
-	err = json.Unmarshal(tenant.BaseClusterTopology, &baseClusterTopology)
-	if err != nil {
-		logrus.Errorf("An error occurred decoding the cluster topology for tenant '%v'", tenantUuidStr)
-		return nil, nil, nil, nil, nil, err
+	if tenant.BaseClusterTopology != nil {
+		err = json.Unmarshal(tenant.BaseClusterTopology, &baseClusterTopology)
+		if err != nil {
+			logrus.Errorf("An error occurred decoding the cluster topology for tenant '%v'", tenantUuidStr)
+			return nil, nil, nil, nil, nil, err
+		}
+	} else {
+		baseClusterTopology.FlowID = defaultBaselineFlowId
+		baseClusterTopology.Namespace = defaultBaselineFlowId
 	}
 
 	var serviceConfigs []apitypes.ServiceConfig
-	err = json.Unmarshal(tenant.ServiceConfigs, &serviceConfigs)
-	if err != nil {
-		logrus.Errorf("An error occurred decoding the service configs for tenant '%v'", tenantUuidStr)
-		return nil, nil, nil, nil, nil, err
+	if tenant.ServiceConfigs != nil {
+		err = json.Unmarshal(tenant.ServiceConfigs, &serviceConfigs)
+		if err != nil {
+			logrus.Errorf("An error occurred decoding the service configs for tenant '%v'", tenantUuidStr)
+			return nil, nil, nil, nil, nil, err
+		}
 	}
 
 	var ingressConfigs []apitypes.IngressConfig
-	err = json.Unmarshal(tenant.IngressConfigs, &ingressConfigs)
-	if err != nil {
-		logrus.Errorf("An error occurred decoding the ingress configs for tenant '%v'", tenantUuidStr)
-		return nil, nil, nil, nil, nil, err
+	if tenant.IngressConfigs != nil {
+		err = json.Unmarshal(tenant.IngressConfigs, &ingressConfigs)
+		if err != nil {
+			logrus.Errorf("An error occurred decoding the ingress configs for tenant '%v'", tenantUuidStr)
+			return nil, nil, nil, nil, nil, err
+		}
 	}
+
 	return &baseClusterTopology, flows, tenantTemplates, serviceConfigs, ingressConfigs, nil
+}
+
+func deleteTenantTopologies(sv *Server, tenantUuidStr string) error {
+	tenant, err := sv.db.GetTenant(tenantUuidStr)
+	if err != nil {
+		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
+		return err
+	}
+
+	tenant.BaseClusterTopology = nil
+	tenant.ServiceConfigs = nil
+	tenant.IngressConfigs = nil
+
+	err = sv.db.SaveTenant(tenant)
+	if err != nil {
+		logrus.Errorf("an error occured while saving tenant %s. erro was \n: '%v'", tenant.TenantId, err.Error())
+		return err
+	}
+
+	err = sv.db.DeleteTenantFlows(tenant.TenantId)
+	if err != nil {
+		logrus.Errorf("an error occured while deleting tenant flows %s. erro was \n: '%v'", tenant.TenantId, err.Error())
+		return err
+	}
+
+	err = sv.db.DeleteTenantPluginConfigs(tenant.TenantId)
+	if err != nil {
+		logrus.Errorf("an error occured while deleting tenant plugin configs %s. erro was \n: '%v'", tenant.TenantId, err.Error())
+		return err
+	}
+
+	return nil
 }
 
 func newClIAPITemplates(templates []templates.Template) []apitypes.Template {
