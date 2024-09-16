@@ -67,7 +67,6 @@ func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUui
 
 	finalTopology := flow.MergeClusterTopologies(*clusterTopology, lo.Values(allFlows))
 	flowHostMapping := finalTopology.GetFlowHostMapping()
-
 	resp := lo.MapToSlice(flowHostMapping, func(flowId string, flowUrls []string) apitypes.Flow {
 		// the baseline flow ID uses the base cluster topology namespace name
 		isBaselineFlow := flowId == clusterTopology.Namespace
