@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.26](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.25...0.1.26) (2024-09-13)
+
+
+### Features
+
+* dynamic baseline flow ID ([#20](https://github.com/kurtosis-tech/kardinal-kontrol/issues/20)) ([2a9647c](https://github.com/kurtosis-tech/kardinal-kontrol/commit/2a9647c9aad3feb0d6a30f889f6c478e3cf43f5e))
+
 ## [0.1.25](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.24...0.1.25) (2024-09-10)
 
 
