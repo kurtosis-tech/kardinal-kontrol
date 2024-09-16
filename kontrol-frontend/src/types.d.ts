@@ -1,8 +1,25 @@
 import type { components } from "cli-kontrol-api/api/typescript/client/types";
 
-export type ClusterTopology = components["schemas"]["ClusterTopology"];
-export type Node = components["schemas"]["Node"];
+interface ServiceVersion {
+  flow_id: string;
+  image_tag: string;
+  is_baseline?: boolean;
+}
+type OldNode = components["schemas"]["Node"];
+interface NewNode extends OldNode {
+  id: string;
+  label: string;
+  versions: ServiceVersion[];
+}
+
+export type Node = NewNode;
 export type Edge = components["schemas"]["Edge"];
+
+interface NewClusterTopology extends components["schemas"]["ClusterTopology"] {
+  nodes: NewNode[];
+}
+
+export type ClusterTopology = NewClusterTopology;
 
 export interface ExtendedNode {
   data: Node;
