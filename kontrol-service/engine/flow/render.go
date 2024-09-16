@@ -670,9 +670,8 @@ function envoy_on_request(request_handle)
   local headers = request_handle:headers()
   local trace_id = headers:get("x-kardinal-trace-id")
   local hostname = headers:get(":authority")
-  local baseline = %s
 
-  request_handle:logInfo("Processing request - Initial trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none")  .. ", Baseline: " .. (baseline or "none"))
+  request_handle:logInfo("Processing request - Initial trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none")  .. ", Baseline: %s")
 
   if not trace_id then
     local found_trace_id, source_header = get_trace_id(headers)
@@ -709,7 +708,7 @@ function envoy_on_request(request_handle)
     "outbound|8080||trace-router.default.svc.cluster.local",
     {
       [":method"] = "GET",
-      [":path"] = "/route?trace_id=" .. trace_id .. "&hostname=" .. hostname .. "&baseline_prefix=" .. baseline,
+      [":path"] = "/route?trace_id=" .. trace_id .. "&hostname=" .. hostname .. "&baseline_prefix=%s",
       [":authority"] = "trace-router.default.svc.cluster.local"
     },
     "",
@@ -721,12 +720,12 @@ function envoy_on_request(request_handle)
     destination = determine_body
     request_handle:logInfo("Determined destination: " .. destination)
   else
-    destination = hostname .. "-" .. baseline
+    destination = hostname .. "-%s"
     request_handle:logWarn("Failed to determine destination, using fallback: " .. destination)
   end
 
   request_handle:headers():add("x-kardinal-destination", destination)
   request_handle:logInfo("Final headers - Trace ID: " .. trace_id .. ", Destination: " .. destination)
 end
-`, generateLuaTraceHeaderPriorities(), baselineHostName, setRouteCalls.String())
+`, generateLuaTraceHeaderPriorities(), baselineHostName, setRouteCalls.String(), baselineHostName, baselineHostName)
 }

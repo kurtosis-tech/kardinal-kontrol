@@ -49,7 +49,6 @@ function envoy_on_request(request_handle)
   local headers = request_handle:headers()
   local trace_id, source_header = get_trace_id(headers)
   local hostname = headers:get(":authority")
-  local baseline = %s
   
   if not trace_id then
     request_handle:logWarn("No valid trace ID found in request headers")
@@ -75,7 +74,7 @@ function determine_destination(request_handle, trace_id, hostname)
     "outbound|8080||trace-router.default.svc.cluster.local",
     {
       [":method"] = "GET",
-      [":path"] = "/route?trace_id=" .. trace_id .. "&hostname=" .. hostname .. "&baseline_prefix=" .. baseline,
+      [":path"] = "/route?trace_id=" .. trace_id .. "&hostname=" .. hostname .. "&baseline_prefix=%s",
       [":authority"] = "trace-router.default.svc.cluster.local"
     },
     "",
@@ -84,7 +83,7 @@ function determine_destination(request_handle, trace_id, hostname)
   
   if not headers or headers[":status"] ~= "200" then
     request_handle:logWarn("Failed to determine destination, falling back to baseline")
-    return hostname .. "-" .. baseline  -- Fallback to baseline
+    return hostname .. "-%s"  -- Fallback to baseline
   end
   
   return body
@@ -107,5 +106,5 @@ func generateLuaTraceHeaderPriorities() string {
 	return sb.String()
 }
 func getOutgoingRequestTraceIDFilter(baselineHostName string) string {
-	return fmt.Sprintf(outgoingRequestTraceIDFilterTemplate, generateLuaTraceHeaderPriorities(), baselineHostName)
+	return fmt.Sprintf(outgoingRequestTraceIDFilterTemplate, generateLuaTraceHeaderPriorities(), baselineHostName, baselineHostName)
 }
