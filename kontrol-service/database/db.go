@@ -169,6 +169,24 @@ func (db *Db) Clear() error {
 	return nil
 }
 
+func (db *Db) Check() error {
+	rows, err := db.db.Raw("SELECT 1").Rows()
+	if err != nil {
+		return stacktrace.Propagate(err, "An error occurred while checking the DB connection")
+	}
+
+	defer rows.Close()
+	rowsCount := 0
+	for rows.Next() {
+		rowsCount += 1
+	}
+
+	if rowsCount != 1 {
+		return stacktrace.Propagate(err, "The SQL query SELECT 1 should have returned a single row and we got instead %d rows", rowsCount)
+	}
+	return nil
+}
+
 type DatabaseConnectionInfo struct {
 	username     string
 	password     string

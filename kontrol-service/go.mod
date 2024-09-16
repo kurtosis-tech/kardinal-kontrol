@@ -7,7 +7,7 @@ toolchain go1.22.3
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/dominikbraun/graph v0.23.0
-	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240913122732-d5a75f64bec6
+	github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240916193505-65de8a373686
 	github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240913122732-d5a75f64bec6
 	github.com/kurtosis-tech/stacktrace v0.0.0-20211028211901-1c67a77b5409
 	github.com/labstack/echo/v4 v4.12.0
