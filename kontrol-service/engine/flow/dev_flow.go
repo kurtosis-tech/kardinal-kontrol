@@ -56,9 +56,9 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseClusterTopologyMaybeW
 		}
 	}
 
-	// the baseline topology (or prod topology) flow ID and flow version are equal to the namespace these three should use same value
+	// the baseline topology flow ID and flow version are equal to the namespace these three should use same value
 	baselineFlowVersion := baseTopology.Namespace
-	// Replace "prod" version services with baseTopology versions
+	// Replace "baseline" version services with baseTopology versions
 	for i, service := range topologyRef.Services {
 
 		if service.Version == baselineFlowVersion {

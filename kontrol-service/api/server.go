@@ -76,7 +76,7 @@ func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUui
 }
 
 func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenantUuidDeployRequestObject) (api.PostTenantUuidDeployResponseObject, error) {
-	logrus.Infof("deploying prod/baseline cluster for tenant '%s'", request.Uuid)
+	logrus.Infof("deploying baseline cluster for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_DEPLOY, request.Uuid)
 	serviceConfigs := *request.Body.ServiceConfigs
 	ingressConfigs := *request.Body.IngressConfigs
