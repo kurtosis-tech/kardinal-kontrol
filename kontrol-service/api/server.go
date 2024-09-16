@@ -53,6 +53,15 @@ func (sv *Server) RegisterExternalAndInternalApi(router api.EchoRouter) {
 }
 
 func (sv *Server) GetHealth(_ context.Context, _ api.GetHealthRequestObject) (api.GetHealthResponseObject, error) {
+	err := sv.db.Check()
+	if err != nil {
+		errMsg := "An error occurred checking the database connection"
+		errResp := api.ErrorJSONResponse{
+			Error: err.Error(),
+			Msg:   &errMsg,
+		}
+		return api.GetHealth500JSONResponse{ErrorJSONResponse: errResp}, nil
+	}
 	resp := "ok"
 	return api.GetHealth200JSONResponse(resp), nil
 }
