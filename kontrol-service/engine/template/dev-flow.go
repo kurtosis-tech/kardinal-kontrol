@@ -178,6 +178,9 @@ func Gateway(namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclie
 
 // Define the VirtualService
 func FrontendVirtualService(serviceSpec *types.ServiceSpec, namespaceSpec types.NamespaceSpec, traffic types.Traffic) istioclient.VirtualService {
+	// the baseline topology (or prod topology) flow ID and flow version are equal to the namespace these three should use same value
+	baselineFlowVersion := namespaceSpec.Name
+
 	mainRoute := v1alpha3.HTTPRoute{
 		Route: []*v1alpha3.HTTPRouteDestination{
 			{
@@ -190,14 +193,12 @@ func FrontendVirtualService(serviceSpec *types.ServiceSpec, namespaceSpec types.
 		},
 	}
 
-	// TODO: Remove hardcoded prod, too fragile :(
 	extHost := traffic.ExternalHostname
-	if serviceSpec.Version != "prod" {
+	if serviceSpec.Version != baselineFlowVersion {
 		extHost = traffic.MirrorExternalHostname
 	}
 
-	// TODO: Remove hardcoded prod, too fragile :(
-	if traffic.HasMirroring && serviceSpec.Version == "prod" {
+	if traffic.HasMirroring && serviceSpec.Version == baselineFlowVersion {
 		mainRoute.Mirror = &v1alpha3.Destination{
 			Host:   serviceSpec.Name,
 			Subset: traffic.MirrorToVersion,

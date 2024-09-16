@@ -71,8 +71,7 @@ jobs:
           if [ "${services}" != "cartservice frontend postgres productcatalogservice" ]; then exit 1; fi
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           echo "Deployments: $deployments"
-          if [ "${deployments}" != "cartservice-prod frontend-prod postgres-prod productcatalogservice-prod" ]; then exit 1; fi
-
+          if [ "${deployments}" != "cartservice-baseline frontend-baseline postgres-baseline productcatalogservice-baseline" ]; then exit 1; fi
       - name: Validate topology endpoint
         run: |
           tenant_id=${{ steps.tenant.outputs.id }}
@@ -87,7 +86,7 @@ jobs:
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           echo "Deployments: $deployments"
-          if [ "${deployments}" != "cartservice-prod frontend-${flow_id} frontend-prod postgres-prod productcatalogservice-prod" ]; then exit 1; fi
+          if [ "${deployments}" != "cartservice-baseline frontend-baseline frontend-${flow_id} postgres-baseline productcatalogservice-baseline" ]; then exit 1; fi
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
 
@@ -99,7 +98,7 @@ jobs:
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           echo "Deployments: $deployments"
-          if [ "${deployments}" != "cartservice-prod frontend-${flow_id} frontend-prod postgres-prod productcatalogservice-${flow_id} productcatalogservice-prod" ]; then exit 1; fi
+          if [ "${deployments}" != "cartservice-baseline frontend-baseline frontend-${flow_id} postgres-baseline productcatalogservice-baseline productcatalogservice-${flow_id}" ]; then exit 1; fi
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
 
@@ -121,8 +120,8 @@ jobs:
 
       - name: Delete base topology and dev flows
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete prod
-          if KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep prod; then echo "Topologies not deleted"; exit 1; fi
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete baseline
+          if KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep baseline; then echo "Topologies not deleted"; exit 1; fi
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           if [ "${deployments}" != "" ]; then echo "Deployments list not empty"; exit 1; fi
