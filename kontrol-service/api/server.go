@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	prodFlowId = "prod"
+	defaultBaselineFlowId = "baseline"
 )
 
 // optional code omitted
@@ -67,27 +67,27 @@ func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUui
 
 	finalTopology := flow.MergeClusterTopologies(*clusterTopology, lo.Values(allFlows))
 	flowHostMapping := finalTopology.GetFlowHostMapping()
-
 	resp := lo.MapToSlice(flowHostMapping, func(flowId string, flowUrls []string) apitypes.Flow {
-		isBaselineFlow := flowId == prodFlowId
+		// the baseline flow ID uses the base cluster topology namespace name
+		isBaselineFlow := flowId == clusterTopology.Namespace
 		return apitypes.Flow{FlowId: flowId, FlowUrls: flowUrls, IsBaseline: &isBaselineFlow}
 	})
 	return api.GetTenantUuidFlows200JSONResponse(resp), nil
 }
 
 func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenantUuidDeployRequestObject) (api.PostTenantUuidDeployResponseObject, error) {
-	logrus.Infof("deploying prod cluster for tenant '%s'", request.Uuid)
+	logrus.Infof("deploying baseline cluster for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_DEPLOY, request.Uuid)
 	serviceConfigs := *request.Body.ServiceConfigs
 	ingressConfigs := *request.Body.IngressConfigs
 	namespace := *request.Body.Namespace
 
 	if namespace == "" {
-		namespace = prodFlowId
+		namespace = defaultBaselineFlowId
 	}
 
-	flowId := prodFlowId
-	err, urls := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, namespace, flowId)
+	flowId := namespace
+	urls, err := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, namespace, flowId)
 	if err != nil {
 		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", flowId)
 		errResp := api.ErrorJSONResponse{
@@ -105,14 +105,15 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 	logrus.Infof("deleting dev flow for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_FLOW_DELETE, request.Uuid)
 
-	_, allFlows, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	baseClusterTopology, allFlows, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
 		resourceType := "tenant"
 		missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
 		return api.DeleteTenantUuidFlowFlowId404JSONResponse{NotFoundJSONResponse: missing}, nil
 	}
 
-	if request.FlowId == prodFlowId {
+	// the baseline flow ID uses the base cluster topology namespace name
+	if request.FlowId == baseClusterTopology.Namespace {
 		// We received a request to delete the base topology, so we do that + the flows
 		err = deleteTenantTopologies(sv, request.Uuid)
 		if err != nil {
@@ -393,48 +394,49 @@ func (sv *Server) PostTenantUuidTemplatesCreate(_ context.Context, request api.P
 }
 
 // ============================================================================================================
-func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string, flowID string) (error, []string) {
+// apply the baseline flow which can be also called prod flow which was the first name used
+func applyProdOnlyFlow(sv *Server, tenantUuidStr string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string, flowID string) ([]string, error) {
 	clusterTopology, err := engine.GenerateProdOnlyCluster(flowID, serviceConfigs, ingressConfigs, namespace)
 	if err != nil {
-		return err, []string{}
+		return []string{}, err
 	}
 
 	tenant, err := sv.db.GetOrCreateTenant(tenantUuidStr)
 	if err != nil {
 		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 
 	clusterTopologyJson, err := json.Marshal(clusterTopology)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the cluster topology for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 	tenant.BaseClusterTopology = clusterTopologyJson
 
 	serviceConfigsJson, err := json.Marshal(serviceConfigs)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the service configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 	tenant.ServiceConfigs = serviceConfigsJson
 
 	ingressConfigsJson, err := json.Marshal(ingressConfigs)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the ingress configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
-		return err, nil
+		return nil, err
 	}
 	tenant.IngressConfigs = ingressConfigsJson
 
 	err = sv.db.SaveTenant(tenant)
 	if err != nil {
 		logrus.Errorf("an error occured while saving tenant %s. erro was \n: '%v'", tenant.TenantId, err.Error())
-		return err, nil
+		return nil, err
 	}
 
 	flowHostMapping := clusterTopology.GetFlowHostMapping()
 
-	return nil, flowHostMapping[flowID]
+	return flowHostMapping[flowID], nil
 }
 
 // ============================================================================================================
@@ -459,7 +461,8 @@ func applyProdDevFlow(sv *Server, tenantUuidStr string, patches []flow_spec.Serv
 		}
 		serviceConfigs = template.ApplyTemplateOverrides(serviceConfigs, templateSpec)
 
-		baselineFlowID := prodFlowId
+		// the baseline flow ID uses the base cluster topology namespace name
+		baselineFlowID := baseClusterTopologyMaybeWithTemplateOverrides.Namespace
 
 		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(baselineFlowID, serviceConfigs, ingressConfigs, baseTopology.Namespace)
 		if err != nil {
@@ -546,8 +549,8 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 			return nil, nil, nil, nil, nil, err
 		}
 	} else {
-		baseClusterTopology.FlowID = prodFlowId
-		baseClusterTopology.Namespace = prodFlowId
+		baseClusterTopology.FlowID = defaultBaselineFlowId
+		baseClusterTopology.Namespace = defaultBaselineFlowId
 	}
 
 	var serviceConfigs []apitypes.ServiceConfig

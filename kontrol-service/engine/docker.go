@@ -19,10 +19,11 @@ import (
 	"kardinal.kontrol-service/types/flow_spec"
 )
 
+// GenerateProdOnlyCluster create the baseline cluster which can be also called prod cluster which was the first name used
 func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string) (*resolved.ClusterTopology, error) {
 	clusterTopology, err := generateClusterTopology(serviceConfigs, ingressConfigs, namespace, flowID)
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "An error occured generating the cluster topology from the service configs")
+		return nil, stacktrace.Propagate(err, "An error occurred generating the cluster topology from the service configs")
 	}
 
 	return clusterTopology, nil
@@ -58,7 +59,7 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 
 	clusterTopology, err := flow.CreateDevFlow(pluginRunner, *baseClusterTopologyMaybeWithTemplateOverrides, *baseTopology, flowPatch)
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "An error occured generating the cluster topology from the service configs")
+		return nil, stacktrace.Propagate(err, "An error occurred generating the cluster topology from the service configs")
 	}
 
 	return clusterTopology, nil
