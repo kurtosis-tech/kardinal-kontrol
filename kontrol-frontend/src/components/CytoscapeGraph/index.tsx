@@ -5,6 +5,8 @@ import stylesheet, { trafficNodeSelector } from "./stylesheet";
 import { useInterval } from "@react-hooks-library/core";
 import dagrePlugin, { dagreLayout } from "./plugins/dagre";
 import tippyPlugin, { createTooltip, TooltipInstance } from "./plugins/tippy";
+import { Flex } from "@chakra-ui/react";
+import Legend from "./Legend";
 
 // register plugins with cytoscape
 cytoscape.use(dagrePlugin);
@@ -166,20 +168,21 @@ const CytoscapeGraph = ({
   );
 
   return (
-    <CytoscapeComponent
-      id="cytoscape-graph"
-      elements={elements}
-      style={{
-        width: "100%",
-        height: "100%",
-        minHeight: "267px",
-        display: "flex",
-      }}
-      layout={layout}
-      // @ts-expect-error cytoscape types are not great
-      stylesheet={stylesheet}
-      cy={handleCy}
-    />
+    <Flex w="100%" h="100%" minHeight="267px" position={"relative"}>
+      <Legend elements={elements} />
+      <CytoscapeComponent
+        id="cytoscape-graph"
+        elements={elements}
+        style={{
+          width: "100%",
+          height: "100%",
+        }}
+        layout={layout}
+        // @ts-expect-error cytoscape types are not great
+        stylesheet={stylesheet}
+        cy={handleCy}
+      />
+    </Flex>
   );
 };
 
