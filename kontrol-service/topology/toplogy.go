@@ -1,7 +1,6 @@
 package topology
 
 import (
-	"fmt"
 	"sort"
 
 	apiTypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"

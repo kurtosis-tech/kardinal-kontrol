@@ -263,63 +263,63 @@ func TestServiceConfigsToTopology(t *testing.T) {
 	topo := ClusterTopology(clusterTopology, &allFlows)
 	require.NotNil(t, topo)
 
-    expectedAzureVoteBackImageProd := "bitnami/redis:6.0.8"
-    expectedAzureVoteBackImageA := "bitnami/redis:6.0.8.a"
-    expectedAzureVoteBackImageB := "bitnami/redis:6.0.8.b"
-    expectedAzurVoteFrontImageProd := "voting-app-ui"
-    expectedAzurVoteFrontImageA := "voting-app-ui.a"
-    expectedAzurVoteFrontImageB := "voting-app-ui.b"
+	expectedAzureVoteBackImageProd := "bitnami/redis:6.0.8"
+	expectedAzureVoteBackImageA := "bitnami/redis:6.0.8.a"
+	expectedAzureVoteBackImageB := "bitnami/redis:6.0.8.b"
+	expectedAzurVoteFrontImageProd := "voting-app-ui"
+	expectedAzurVoteFrontImageA := "voting-app-ui.a"
+	expectedAzurVoteFrontImageB := "voting-app-ui.b"
 
 	require.Equal(t,
 		[]apiTypes.Node{
 			apiTypes.Node{
-				Id: "azure-vote-back",
+				Id:    "azure-vote-back",
 				Label: "azure-vote-back",
-				Type: apiTypes.Service,
+				Type:  apiTypes.Service,
 				Versions: &[]apiTypes.NodeVersion{
 					apiTypes.NodeVersion{
-						FlowId: "prod",
-						ImageTag: &expectedAzureVoteBackImageProd,
+						FlowId:     "prod",
+						ImageTag:   &expectedAzureVoteBackImageProd,
 						IsBaseline: true,
 					},
 					apiTypes.NodeVersion{
-						FlowId: "A",
-						ImageTag: &expectedAzureVoteBackImageA,
+						FlowId:     "A",
+						ImageTag:   &expectedAzureVoteBackImageA,
 						IsBaseline: false,
 					},
 					apiTypes.NodeVersion{
-						FlowId: "B",
-						ImageTag: &expectedAzureVoteBackImageB,
+						FlowId:     "B",
+						ImageTag:   &expectedAzureVoteBackImageB,
 						IsBaseline: false,
 					},
 				},
 			},
 			apiTypes.Node{
-				Id: "azure-vote-front",
+				Id:    "azure-vote-front",
 				Label: "azure-vote-front",
-				Type: apiTypes.Service,
+				Type:  apiTypes.Service,
 				Versions: &[]apiTypes.NodeVersion{
 					apiTypes.NodeVersion{
-						FlowId: "prod",
-						ImageTag: &expectedAzurVoteFrontImageProd,
+						FlowId:     "prod",
+						ImageTag:   &expectedAzurVoteFrontImageProd,
 						IsBaseline: true,
 					},
 					apiTypes.NodeVersion{
-						FlowId: "A",
-						ImageTag: &expectedAzurVoteFrontImageA,
+						FlowId:     "A",
+						ImageTag:   &expectedAzurVoteFrontImageA,
 						IsBaseline: false,
 					},
 					apiTypes.NodeVersion{
-						FlowId: "B",
-						ImageTag: &expectedAzurVoteFrontImageB,
+						FlowId:     "B",
+						ImageTag:   &expectedAzurVoteFrontImageB,
 						IsBaseline: false,
 					},
 				},
 			},
 			apiTypes.Node{
-				Id: "voting-app-lb",
-				Label: "voting-app-lb",
-				Type: apiTypes.Gateway,
+				Id:       "voting-app-lb",
+				Label:    "voting-app-lb",
+				Type:     apiTypes.Gateway,
 				Versions: &[]apiTypes.NodeVersion{},
 			},
 		},
