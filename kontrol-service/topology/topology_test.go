@@ -246,6 +246,8 @@ func TestServiceConfigsToTopology(t *testing.T) {
 	clusterTopologyFlowA.FlowID = flowID
 	for _, service := range clusterTopologyFlowA.Services {
 		service.Version = flowID
+		image := service.DeploymentSpec.Template.Spec.Containers[0].Image
+		service.DeploymentSpec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s.a", image)
 	}
 
 	clusterTopologyFlowB := deepcopy.Copy(*clusterTopology).(resolved.ClusterTopology)
@@ -253,40 +255,80 @@ func TestServiceConfigsToTopology(t *testing.T) {
 	clusterTopologyFlowB.FlowID = flowID
 	for _, service := range clusterTopologyFlowB.Services {
 		service.Version = flowID
+		image := service.DeploymentSpec.Template.Spec.Containers[0].Image
+		service.DeploymentSpec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s.b", image)
 	}
 	allFlows := []resolved.ClusterTopology{}
 	allFlows = append(allFlows, clusterTopologyFlowA, clusterTopologyFlowB)
 	topo := ClusterTopology(clusterTopology, &allFlows)
 	require.NotNil(t, topo)
 
-	nodes := topo.Nodes
-	require.Equal(t, 3, len(nodes))
+	require.Equal(t,
+		[]apiTypes.Node{
+			apiTypes.Node{
+				Id: "azure-vote-back",
+				Label: "azure-vote-back",
+				Type: apiTypes.Service,
+				Versions: &[]apiTypes.NodeVersion{
+					apiTypes.NodeVersion{
+						FlowId: "prod",
+						ImageTag: "bitnami/redis:6.0.8",
+						IsBaseline: true,
+					},
+					apiTypes.NodeVersion{
+						FlowId: "A",
+						ImageTag: "bitnami/redis:6.0.8.a",
+						IsBaseline: false,
+					},
+					apiTypes.NodeVersion{
+						FlowId: "B",
+						ImageTag: "bitnami/redis:6.0.8.b",
+						IsBaseline: false,
+					},
+				},
+			},
+			apiTypes.Node{
+				Id: "azure-vote-front",
+				Label: "azure-vote-front",
+				Type: apiTypes.Service,
+				Versions: &[]apiTypes.NodeVersion{
+					apiTypes.NodeVersion{
+						FlowId: "prod",
+						ImageTag: "voting-app-ui",
+						IsBaseline: true,
+					},
+					apiTypes.NodeVersion{
+						FlowId: "A",
+						ImageTag: "voting-app-ui.a",
+						IsBaseline: false,
+					},
+					apiTypes.NodeVersion{
+						FlowId: "B",
+						ImageTag: "voting-app-ui.b",
+						IsBaseline: false,
+					},
+				},
+			},
+			apiTypes.Node{
+				Id: "voting-app-lb",
+				Label: "voting-app-lb",
+				Type: apiTypes.Gateway,
+				Versions: &[]apiTypes.NodeVersion{},
+			},
+		},
+		topo.Nodes)
 
-	for _, node := range nodes {
-		if node.Id == "azure-vote-back" || node.Id == "azure-vote-front" {
-			require.Equal(t, apiTypes.Service, node.Type)
-			require.NotEmpty(t, *node.Versions)
-			require.Equal(t, []string{"A", "B", "prod"}, *node.Versions)
-		} else if node.Id == "voting-app-lb" {
-			require.Equal(t, apiTypes.Gateway, node.Type)
-			require.Empty(t, *node.Versions)
-		} else {
-			t.Errorf("Invalid node ID %s", node.Id)
-			return
-		}
-	}
-
-	edges := topo.Edges
-	require.Equal(t, 2, len(edges))
-
-	for _, edge := range edges {
-		if edge.Source == "voting-app-lb" {
-			require.Equal(t, "azure-vote-front", edge.Target)
-		} else if edge.Source == "azure-vote-front" {
-			require.Equal(t, "azure-vote-back", edge.Target)
-		} else {
-			t.Errorf("Invalid source %s", edge.Source)
-			return
-		}
-	}
+	require.Equal(t,
+		[]apiTypes.Edge{
+			apiTypes.Edge{
+				Source: "azure-vote-front",
+				Target: "azure-vote-back",
+			},
+			apiTypes.Edge{
+				Source: "voting-app-lb",
+				Target: "azure-vote-front",
+			},
+		},
+		topo.Edges,
+	)
 }
