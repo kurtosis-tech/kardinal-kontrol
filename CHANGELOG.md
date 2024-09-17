@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.27](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.26...0.1.27) (2024-09-16)
+
+
+### Features
+
+* dynamic baseline flow ([#24](https://github.com/kurtosis-tech/kardinal-kontrol/issues/24)) ([45f1826](https://github.com/kurtosis-tech/kardinal-kontrol/commit/45f182638103dabda8aa89301f7ffed295849647))
+* Validate DB connection as part of the api healthcheck ([#26](https://github.com/kurtosis-tech/kardinal-kontrol/issues/26)) ([4ed81f1](https://github.com/kurtosis-tech/kardinal-kontrol/commit/4ed81f1977eb9fd21e031e289f696b6ca940c170))
+
 ## [0.1.26](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.25...0.1.26) (2024-09-13)
 
 
