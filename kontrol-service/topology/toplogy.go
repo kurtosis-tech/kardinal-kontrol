@@ -1,6 +1,7 @@
 package topology
 
 import (
+	"fmt"
 	"sort"
 
 	apiTypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
@@ -31,10 +32,14 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology, flowsClusterTopo
 		}
 		label := key
 		versions := lo.Map(services, func(service *resolved.Service, _ int) apiTypes.NodeVersion {
+			var imageTag *string
+			if service.DeploymentSpec != nil {
+				imageTag = &service.DeploymentSpec.Template.Spec.Containers[0].Image
+			}
 			isBaseline := service.Version == clusterTopology.Namespace
 			return apiTypes.NodeVersion{
 				FlowId:     service.Version,
-				ImageTag:   service.DeploymentSpec.Template.Spec.Containers[0].Image,
+				ImageTag:   imageTag,
 				IsBaseline: isBaseline,
 			}
 		})

@@ -263,6 +263,13 @@ func TestServiceConfigsToTopology(t *testing.T) {
 	topo := ClusterTopology(clusterTopology, &allFlows)
 	require.NotNil(t, topo)
 
+    expectedAzureVoteBackImageProd := "bitnami/redis:6.0.8"
+    expectedAzureVoteBackImageA := "bitnami/redis:6.0.8.a"
+    expectedAzureVoteBackImageB := "bitnami/redis:6.0.8.b"
+    expectedAzurVoteFrontImageProd := "voting-app-ui"
+    expectedAzurVoteFrontImageA := "voting-app-ui.a"
+    expectedAzurVoteFrontImageB := "voting-app-ui.b"
+
 	require.Equal(t,
 		[]apiTypes.Node{
 			apiTypes.Node{
@@ -272,17 +279,17 @@ func TestServiceConfigsToTopology(t *testing.T) {
 				Versions: &[]apiTypes.NodeVersion{
 					apiTypes.NodeVersion{
 						FlowId: "prod",
-						ImageTag: "bitnami/redis:6.0.8",
+						ImageTag: &expectedAzureVoteBackImageProd,
 						IsBaseline: true,
 					},
 					apiTypes.NodeVersion{
 						FlowId: "A",
-						ImageTag: "bitnami/redis:6.0.8.a",
+						ImageTag: &expectedAzureVoteBackImageA,
 						IsBaseline: false,
 					},
 					apiTypes.NodeVersion{
 						FlowId: "B",
-						ImageTag: "bitnami/redis:6.0.8.b",
+						ImageTag: &expectedAzureVoteBackImageB,
 						IsBaseline: false,
 					},
 				},
@@ -294,17 +301,17 @@ func TestServiceConfigsToTopology(t *testing.T) {
 				Versions: &[]apiTypes.NodeVersion{
 					apiTypes.NodeVersion{
 						FlowId: "prod",
-						ImageTag: "voting-app-ui",
+						ImageTag: &expectedAzurVoteFrontImageProd,
 						IsBaseline: true,
 					},
 					apiTypes.NodeVersion{
 						FlowId: "A",
-						ImageTag: "voting-app-ui.a",
+						ImageTag: &expectedAzurVoteFrontImageA,
 						IsBaseline: false,
 					},
 					apiTypes.NodeVersion{
 						FlowId: "B",
-						ImageTag: "voting-app-ui.b",
+						ImageTag: &expectedAzurVoteFrontImageB,
 						IsBaseline: false,
 					},
 				},
