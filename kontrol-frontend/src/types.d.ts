@@ -1,6 +1,6 @@
 import type { components } from "cli-kontrol-api/api/typescript/client/types";
 
-interface ServiceVersion {
+export interface ServiceVersion {
   flow_id: string;
   image_tag: string;
   is_baseline?: boolean;
