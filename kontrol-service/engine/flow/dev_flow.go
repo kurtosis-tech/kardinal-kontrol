@@ -336,7 +336,7 @@ func DeleteDevFlow(pluginRunner *plugins.PluginRunner, flowId string, service *r
 	for pluginIdx, plugin := range service.StatefulPlugins {
 		logrus.Infof("Attempting to delete flow for plugin '%v' on flow '%v'", plugin.Name, flowId)
 		pluginId := plugins.GetPluginId(flowId, service.ServiceID, pluginIdx)
-		err := pluginRunner.DeleteFlow(plugin.Name, pluginId, map[string]string{})
+		err := pluginRunner.DeleteFlow(plugin.Name, pluginId)
 		if err != nil {
 			logrus.Errorf("Error deleting flow: %v.", err)
 			return stacktrace.Propagate(err, "An error occurred while trying to call delete flow of plugin '%v' on service '%v' for flow '%v'", plugin.Name, service.ServiceID, flowId)
