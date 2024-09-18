@@ -1,6 +1,6 @@
 import cytoscapePopper from "cytoscape-popper";
 import tippy, { Instance } from "tippy.js";
-import { ServiceVersion } from "@/types";
+import { NodeVersion } from "@/types";
 import "./tippy.css";
 
 // @ts-expect-error WIP
@@ -30,7 +30,7 @@ const tippyFactory: cytoscapePopper.PopperFactory = (ref, content) => {
 export const createTooltip = (
   node: cytoscape.NodeSingular,
 ): Instance | null => {
-  const versions: ServiceVersion[] = node.data("versions");
+  const versions: NodeVersion[] = node.data("versions");
   console.log("versions", versions);
   if (!versions || versions.length === 0) {
     return null;
@@ -48,7 +48,7 @@ export const createTooltip = (
           </tr>
         </thead>
         <tbody>
-          ${versions.map((v: ServiceVersion) => `<tr><td>${v.flow_id}</td><td>${v.image_tag}</td><tr>`).join("")}
+          ${versions.map((v: NodeVersion) => `<tr><td>${v.flowId}</td><td>${v.imageTag}</td><tr>`).join("")}
         </tbody>
       </table>
       `;

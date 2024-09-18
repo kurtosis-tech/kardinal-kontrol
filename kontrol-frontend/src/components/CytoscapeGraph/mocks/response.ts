@@ -46,13 +46,14 @@ const data: ClusterTopology = {
       type: "service",
       versions: [
         {
-          flow_id: "k8s-namespace-1",
-          image_tag: "kurtosistech/cartservice:main",
-          is_baseline: true,
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/cartservice:main",
+          isBaseline: true,
         },
         {
-          flow_id: "dev-hr7dwojzkk",
-          image_tag: "kurtosistech/cartservice:demo-on-sale",
+          flowId: "dev-hr7dwojzkk",
+          imageTag: "kurtosistech/cartservice:demo-on-sale",
+          isBaseline: false,
         },
       ],
     },
@@ -62,13 +63,14 @@ const data: ClusterTopology = {
       type: "service",
       versions: [
         {
-          flow_id: "k8s-namespace-1",
-          image_tag: "kurtosistech/checkoutservice:main",
-          is_baseline: true,
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/checkoutservice:main",
+          isBaseline: true,
         },
         {
-          flow_id: "dev-hr7dwojzkk",
-          image_tag: "kurtosistech/checkoutservice:demo-on-sale",
+          flowId: "dev-hr7dwojzkk",
+          imageTag: "kurtosistech/checkoutservice:demo-on-sale",
+          isBaseline: false,
         },
       ],
     },
@@ -78,13 +80,14 @@ const data: ClusterTopology = {
       type: "service",
       versions: [
         {
-          flow_id: "k8s-namespace-1",
-          image_tag: "kurtosistech/frontend:main",
-          is_baseline: true,
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/frontend:main",
+          isBaseline: true,
         },
         {
-          flow_id: "dev-hr7dwojzkk",
-          image_tag: "kurtosistech/frontend:demo-on-sale",
+          flowId: "dev-hr7dwojzkk",
+          imageTag: "kurtosistech/frontend:demo-on-sale",
+          isBaseline: false,
         },
       ],
     },
@@ -94,9 +97,9 @@ const data: ClusterTopology = {
       type: "service",
       versions: [
         {
-          flow_id: "k8s-namespace-1",
-          image_tag: "kurtosistech/emailservice:main",
-          is_baseline: true,
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/emailservice:main",
+          isBaseline: true,
         },
       ],
     },
@@ -106,9 +109,9 @@ const data: ClusterTopology = {
       type: "service",
       versions: [
         {
-          flow_id: "k8s-namespace-1",
-          image_tag: "kurtosistech/paymentservice:main",
-          is_baseline: true,
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/paymentservice:main",
+          isBaseline: true,
         },
       ],
     },
@@ -118,9 +121,9 @@ const data: ClusterTopology = {
       type: "service",
       versions: [
         {
-          flow_id: "k8s-namespace-1",
-          image_tag: "kurtosistech/postgres:main",
-          is_baseline: true,
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/postgres:main",
+          isBaseline: true,
         },
       ],
     },
@@ -130,9 +133,9 @@ const data: ClusterTopology = {
       type: "service",
       versions: [
         {
-          flow_id: "k8s-namespace-1",
-          image_tag: "kurtosistech/shippingservice:main",
-          is_baseline: true,
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/shippingservice:main",
+          isBaseline: true,
         },
       ],
     },
@@ -142,9 +145,9 @@ const data: ClusterTopology = {
       type: "gateway",
       versions: [
         {
-          flow_id: "k8s-namespace-1",
-          image_tag: "kurtosistech/gateway:main",
-          is_baseline: true,
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/gateway:main",
+          isBaseline: true,
         },
       ],
     },

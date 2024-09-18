@@ -1,4 +1,4 @@
-import { ServiceVersion } from "@/types";
+import { NodeVersion } from "@/types";
 import { Flex } from "@chakra-ui/react";
 import {
   Table,
@@ -16,12 +16,12 @@ interface Props {
 }
 
 const Legend = ({ elements }: Props) => {
-  const serviceVersions = elements
+  const serviceVersions: NodeVersion[] = elements
     .map((element) => element.data.versions)
     .flat()
     .filter(Boolean);
 
-  const flowIds = serviceVersions.map((version) => version.flow_id);
+  const flowIds = serviceVersions.map((version) => version.flowId);
   const uniqueFlowIds = [...new Set(flowIds)];
 
   const servicesForFlowId = (flowId: string): string => {
@@ -31,7 +31,7 @@ const Legend = ({ elements }: Props) => {
         if (
           versions != null &&
           versions.length > 0 &&
-          versions.some((version: ServiceVersion) => version.flow_id === flowId)
+          versions.some((version: NodeVersion) => version.flowId === flowId)
         ) {
           return element;
         }
@@ -43,7 +43,7 @@ const Legend = ({ elements }: Props) => {
       services.some(
         (service) =>
           service?.data.versions.length === 1 &&
-          service?.data.versions[0].is_baseline,
+          service?.data.versions[0].isBaseline,
       )
     ) {
       return "—";
