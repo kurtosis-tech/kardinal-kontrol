@@ -7,7 +7,6 @@ import {
   Tr,
   Th,
   Td,
-  TableCaption,
   TableContainer,
 } from "@chakra-ui/react";
 
@@ -64,10 +63,10 @@ const Legend = ({ elements }: Props) => {
       borderStyle={"solid"}
       borderColor={"gray.300"}
       padding={4}
+      zIndex={5}
     >
       <TableContainer>
         <Table variant="simple">
-          <TableCaption>Legend</TableCaption>
           <Thead>
             <Tr>
               <Th>Flow ID</Th>
