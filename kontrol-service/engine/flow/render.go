@@ -2,6 +2,7 @@ package flow
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"kardinal.kontrol-service/constants"
@@ -40,6 +41,20 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 	allActiveFlows := lo.FlatMap(clusterTopology.Ingresses, func(item *resolved.Ingress, _ int) []string { return item.ActiveFlowIDs })
 	var versionsAgainstExtHost map[string]string
 
+	targetHttpRouteServices := lo.Uniq(
+		lo.FlatMap(clusterTopology.GatewayAndRoutes.GatewayRoutes, func(item *gateway.HTTPRouteSpec, _ int) []string {
+			return lo.FlatMap(item.Rules, func(rule gateway.HTTPRouteRule, _ int) []string {
+				return lo.Map(rule.BackendRefs, func(ref gateway.HTTPBackendRef, _ int) string {
+					// TODO: we are ignoring the namespace from the ref, should we?
+					targetNS := namespace
+					if ref.Namespace != nil {
+						targetNS = string(*ref.Namespace)
+					}
+					return fmt.Sprintf("%s/%s", targetNS, string(ref.Name))
+				})
+			})
+		}))
+
 	groupedServices := lo.GroupBy(clusterTopology.Services, func(item *resolved.Service) string { return item.ServiceID })
 	for serviceID, services := range groupedServices {
 		logrus.Infof("Rendering service with id: '%v'.", serviceID)
@@ -71,9 +86,6 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 			}
 			logrus.Infof("adding filters and authorization policies for service '%s'", serviceID)
 
-			envoyFiltersForService := getEnvoyFilters(services[0], namespace)
-			envoyFilters = append(envoyFilters, envoyFiltersForService...)
-
 			authorizationPolicy := getAuthorizationPolicy(services[0], namespace)
 			if authorizationPolicy != nil {
 				authorizationPolicies = append(authorizationPolicies, *authorizationPolicy)
@@ -82,8 +94,6 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 
 	}
 
-	logrus.Infof("have total of %d envoy filters", len(envoyFilters))
-
 	sharedServiceBackupVersions := map[string][]string{}
 	for _, service := range clusterTopology.Services {
 		if service.IsShared && service.Version == constants.SharedVersionVersionString {
@@ -91,9 +101,15 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 			sharedServiceBackupVersions[service.ServiceID] = append(sharedServiceBackupVersions[service.ServiceID], service.OriginalVersionIfShared)
 		}
 	}
-	// TODO: make it to use a list of Ingresses
-	gatewayFilter := getEnvoyFilterForGateway(servicesAgainstVersions, versionsAgainstExtHost, sharedServiceBackupVersions)
-	envoyFilters = append(envoyFilters, *gatewayFilter)
+
+	for serviceID, services := range groupedServices {
+		if len(services) > 0 && services[0] != nil && services[0].ServiceSpec != nil {
+			logrus.Infof("Rendering service with id: '%v'.", serviceID)
+			envoyFiltersForService := getEnvoyFilters(services[0], servicesAgainstVersions, versionsAgainstExtHost, sharedServiceBackupVersions, namespace, targetHttpRouteServices)
+			envoyFilters = append(envoyFilters, envoyFiltersForService...)
+		}
+	}
+	logrus.Infof("have total of %d envoy filters", len(envoyFilters))
 
 	return types.ClusterResources{
 		Services: serviceList,
@@ -237,7 +253,6 @@ func getDestinationRule(serviceID string, services []*resolved.Service, namespac
 	// if we do that then the render work around isn't necessary
 	subsets := lo.UniqBy(
 		lo.Map(services, func(service *resolved.Service, _ int) *v1alpha3.Subset {
-
 			newSubset := &v1alpha3.Subset{
 				Name: service.Version,
 				Labels: map[string]string{
@@ -371,11 +386,26 @@ func getHTTPRoutes(gatewayAndRoutes *resolved.GatewayAndRoutes, namespace string
 	})
 }
 
-func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.EnvoyFilter {
+func getEnvoyFilters(
+	service *resolved.Service,
+	servicesAgainstVersions map[string][]string,
+	serviceAndVersionAgainstExtHost map[string]string,
+	serviceAgainstBackupVersions map[string][]string,
+	namespace string,
+	targetHttpRouteServices []string,
+) []istioclient.EnvoyFilter {
 	if !service.IsHTTP() {
 		return []istioclient.EnvoyFilter{}
 	}
-	inboundFilter := &istioclient.EnvoyFilter{
+
+	isTargertService := slices.Contains(targetHttpRouteServices, fmt.Sprintf("%s/%s", namespace, service.ServiceID))
+
+	luaFilter := inboundRequestTraceIDFilter
+	if isTargertService {
+		luaFilter = generateDynamicLuaScript(servicesAgainstVersions, serviceAndVersionAgainstExtHost, serviceAgainstBackupVersions)
+	}
+
+	inboundFilter := istioclient.EnvoyFilter{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking.istio.io/v1alpha3",
 			Kind:       "EnvoyFilter",
@@ -415,7 +445,7 @@ func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.
 										StructValue: &structpb.Struct{
 											Fields: map[string]*structpb.Value{
 												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
-												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: inboundRequestTraceIDFilter}},
+												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: luaFilter}},
 											},
 										},
 									},
@@ -428,7 +458,7 @@ func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.
 		},
 	}
 
-	outboundFilter := &istioclient.EnvoyFilter{
+	outboundFilter := istioclient.EnvoyFilter{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking.istio.io/v1alpha3",
 			Kind:       "EnvoyFilter",
@@ -481,7 +511,7 @@ func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.
 		},
 	}
 
-	return []istioclient.EnvoyFilter{*inboundFilter, *outboundFilter}
+	return []istioclient.EnvoyFilter{inboundFilter, outboundFilter}
 }
 
 // getAuthorizationPolicy returns an authorization policy that denies requests with the missing header
@@ -508,63 +538,6 @@ func getAuthorizationPolicy(service *resolved.Service, namespace string) *securi
 						{
 							Key:       "request.headers[x-kardinal-trace-id]",
 							NotValues: []string{"*"},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func getEnvoyFilterForGateway(servicesAgainstVersions map[string][]string, serviceAndVersionAgainstExtHost map[string]string, serviceAgainstBackupVersions map[string][]string) *istioclient.EnvoyFilter {
-	luaScript := generateDynamicLuaScript(servicesAgainstVersions, serviceAndVersionAgainstExtHost, serviceAgainstBackupVersions)
-
-	return &istioclient.EnvoyFilter{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "networking.istio.io/v1alpha3",
-			Kind:       "EnvoyFilter",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kardinal-gateway-tracing",
-			Namespace: "istio-system",
-		},
-		Spec: v1alpha3.EnvoyFilter{
-			WorkloadSelector: &v1alpha3.WorkloadSelector{
-				Labels: map[string]string{
-					"istio": "ingressgateway",
-				},
-			},
-			ConfigPatches: []*v1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
-				{
-					ApplyTo: v1alpha3.EnvoyFilter_HTTP_FILTER,
-					Match: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: v1alpha3.EnvoyFilter_GATEWAY,
-						ObjectTypes: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-							Listener: &v1alpha3.EnvoyFilter_ListenerMatch{
-								FilterChain: &v1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
-									Filter: &v1alpha3.EnvoyFilter_ListenerMatch_FilterMatch{
-										Name: "envoy.filters.network.http_connection_manager",
-									},
-								},
-							},
-						},
-					},
-					Patch: &v1alpha3.EnvoyFilter_Patch{
-						Operation: v1alpha3.EnvoyFilter_Patch_INSERT_BEFORE,
-						Value: &structpb.Struct{
-							Fields: map[string]*structpb.Value{
-								"name": {Kind: &structpb.Value_StringValue{StringValue: "envoy.lua"}},
-								"typed_config": {
-									Kind: &structpb.Value_StructValue{
-										StructValue: &structpb.Struct{
-											Fields: map[string]*structpb.Value{
-												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
-												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: luaScript}},
-											},
-										},
-									},
-								},
-							},
 						},
 					},
 				},
