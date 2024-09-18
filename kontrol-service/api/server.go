@@ -281,8 +281,16 @@ func (sv *Server) GetTenantUuidManifest(_ context.Context, request api.GetTenant
 				}
 			}
 
-			if err := yamlPrinter.PrintObj(&clusterResources.Gateway, &yamlBuffer); err != nil {
-				return nil, stacktrace.Propagate(err, "an error occurred printing gateway '%s' in the yaml buffer", clusterResources.Gateway.Name)
+			for _, resource := range clusterResources.Gateways {
+				if err := yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					return nil, stacktrace.Propagate(err, "an error occurred printing gateway '%s' in the yaml buffer", resource.Name)
+				}
+			}
+
+			for _, resource := range clusterResources.HTTPRoutes {
+				if err := yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					return nil, stacktrace.Propagate(err, "an error occurred printing http route '%s' in the yaml buffer", resource.Name)
+				}
 			}
 
 			response := api.GetTenantUuidManifest200ApplicationxYamlResponse{
@@ -445,6 +453,20 @@ func applyProdOnlyFlow(
 		return err, nil
 	}
 	tenant.IngressConfigs = ingressConfigsJson
+
+	gatewayConfigsJson, err := json.Marshal(gatewayConfigs)
+	if err != nil {
+		logrus.Errorf("an error occured while encoding the gateway configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
+		return err, nil
+	}
+	tenant.IngressConfigs = gatewayConfigsJson
+
+	routeConfigsJson, err := json.Marshal(routeConfigs)
+	if err != nil {
+		logrus.Errorf("an error occured while encoding the ingress configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
+		return err, nil
+	}
+	tenant.IngressConfigs = routeConfigsJson
 
 	err = sv.db.SaveTenant(tenant)
 	if err != nil {
@@ -657,7 +679,8 @@ func newManagerAPIClusterResources(clusterResources types.ClusterResources) mana
 		Services:              &clusterResources.Services,
 		VirtualServices:       &clusterResources.VirtualServices,
 		DestinationRules:      &clusterResources.DestinationRules,
-		Gateway:               &clusterResources.Gateway,
+		Gateways:              &clusterResources.Gateways,
+		HttpRoutes:            &clusterResources.HTTPRoutes,
 		EnvoyFilters:          &clusterResources.EnvoyFilters,
 		AuthorizationPolicies: &clusterResources.AuthorizationPolicies,
 	}

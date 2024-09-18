@@ -2,13 +2,18 @@ package flow
 
 import (
 	"fmt"
-	"kardinal.kontrol-service/constants"
 	"strings"
+
+	"kardinal.kontrol-service/constants"
+	"kardinal.kontrol-service/types"
+	"kardinal.kontrol-service/types/cluster_topology/resolved"
 
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/structpb"
 	"istio.io/api/networking/v1alpha3"
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	securityapi "istio.io/api/security/v1beta1"
 	typev1beta1 "istio.io/api/type/v1beta1"
 	istioclient "istio.io/client-go/pkg/apis/networking/v1alpha3"
@@ -16,9 +21,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"kardinal.kontrol-service/types"
-	"kardinal.kontrol-service/types/cluster_topology/resolved"
+	gateway "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 // RenderClusterResources returns a cluster resource for a given topology
@@ -103,7 +106,9 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 			return *getDeployment(service, namespace), true
 		}),
 
-		Gateway: *getGateway(clusterTopology.Ingresses, namespace),
+		Gateways: getGateways(clusterTopology.GatewayAndRoutes, namespace),
+
+		HTTPRoutes: getHTTPRoutes(clusterTopology.GatewayAndRoutes, namespace),
 
 		VirtualServices: virtualServices,
 
@@ -337,57 +342,33 @@ func getDeployment(service *resolved.Service, namespace string) *appsv1.Deployme
 	return &deployment
 }
 
-func getGateway(ingresses []*resolved.Ingress, namespace string) *istioclient.Gateway {
-	extHosts := []string{}
-	for _, ingress := range ingresses {
-		ingressHost := ingress.GetHost()
-		if ingressHost != nil {
-			allFlowHosts := lo.Map(ingress.ActiveFlowIDs, func(flowId string, _ int) string { return resolved.ReplaceOrAddSubdomain(*ingressHost, flowId) })
-			extHosts = append(extHosts, allFlowHosts...)
+func getGateways(gatewayAndRoutes *resolved.GatewayAndRoutes, namespace string) []gateway.Gateway {
+	return lo.Map(gatewayAndRoutes.GatewaySpecs, func(gatewaySpec *gateway.GatewaySpec, gwId int) gateway.Gateway {
+		return gateway.Gateway{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("gateway-%d", gwId),
+				Namespace: namespace,
+			},
+			Spec: *gatewaySpec,
 		}
-	}
-	extHosts = lo.Uniq(extHosts)
+	})
+}
 
-	// We need to return a gateway as part of the cluster resources so we return a dummy one
-	// if there are no ingresses defined.  This can happen when the tenant does not have a base
-	// cluster topology: no initial deploy or the topologies have been deleted.  This gateway also allows
-	// us to communicate the namespace to the kardinal manager helping the resources to be cleaned up.
-	ingressId := "dummy"
-	if len(ingresses) > 0 {
-		ingressId = ingresses[0].IngressID
-	} else {
-		extHosts = []string{"dummy.kardinal.dev"}
-	}
-
-	return &istioclient.Gateway{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "networking.istio.io/v1alpha3",
-			Kind:       "Gateway",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      ingressId,
-			Namespace: namespace,
-			Labels: map[string]string{
-				"app":     ingressId,
-				"version": "v1",
+func getHTTPRoutes(gatewayAndRoutes *resolved.GatewayAndRoutes, namespace string) []gateway.HTTPRoute {
+	return lo.Map(gatewayAndRoutes.GatewayRoutes, func(routeSpec *gateway.HTTPRouteSpec, gwId int) gateway.HTTPRoute {
+		routeSpecCopy := routeSpec.DeepCopy()
+		routeSpecCopy.ParentRefs = lo.Map(routeSpec.ParentRefs, func(ref gateway.ParentReference, _ int) gateway.ParentReference {
+			ref.Name = gateway.ObjectName(fmt.Sprintf("gateway-%d", gwId))
+			return ref
+		})
+		return gateway.HTTPRoute{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      fmt.Sprintf("http-route-%d", gwId),
+				Namespace: namespace,
 			},
-		},
-		Spec: v1alpha3.Gateway{
-			Selector: map[string]string{
-				"istio": "ingressgateway",
-			},
-			Servers: []*v1alpha3.Server{
-				{
-					Port: &v1alpha3.Port{
-						Number:   80,
-						Name:     "http",
-						Protocol: "HTTP",
-					},
-					Hosts: extHosts,
-				},
-			},
-		},
-	}
+			Spec: *routeSpecCopy,
+		}
+	})
 }
 
 func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.EnvoyFilter {

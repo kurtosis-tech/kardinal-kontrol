@@ -2,6 +2,7 @@ package flow
 
 import (
 	"fmt"
+
 	"kardinal.kontrol-service/constants"
 
 	"github.com/kurtosis-tech/stacktrace"
@@ -299,7 +300,8 @@ func applyExternalServicePlugin(
 	externalService *resolved.Service,
 	externalServicePlugin *resolved.StatefulPlugin,
 	pluginIdx int,
-	flowId string) error {
+	flowId string,
+) error {
 	if externalServicePlugin.Type != "external" {
 		return nil
 	}
