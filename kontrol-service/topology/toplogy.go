@@ -23,23 +23,39 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology, flowsClusterTopo
 
 	edges := getClusterTopologyEdges(clusterTopology)
 
-	servicesToVersions := map[string][]string{}
 	groupedServices := lo.GroupBy(topology.Services, func(item *resolved.Service) string { return item.ServiceID })
-	for serviceID, services := range groupedServices {
-		servicesToVersions[serviceID] = lo.Map(services, func(item *resolved.Service, _ int) string { return item.Version })
-	}
-
-	nodes := lo.MapToSlice(servicesToVersions, func(key string, value []string) apiTypes.Node {
+	nodes := lo.MapToSlice(groupedServices, func(key string, services []*resolved.Service) apiTypes.Node {
 		nodeType := apiTypes.Service
+		if services[0].IsExternal {
+			nodeType = apiTypes.External
+		}
 		label := key
-		sort.Slice(value, func(i, j int) bool {
-			return value[i] < value[j]
+		versions := lo.Map(services, func(service *resolved.Service, _ int) apiTypes.NodeVersion {
+			var imageTag *string
+			if service.DeploymentSpec != nil {
+				imageTag = &service.DeploymentSpec.Template.Spec.Containers[0].Image
+			}
+			isBaseline := service.Version == clusterTopology.Namespace
+			return apiTypes.NodeVersion{
+				FlowId:     service.Version,
+				ImageTag:   imageTag,
+				IsBaseline: isBaseline,
+			}
+		})
+		sort.Slice(versions, func(i, j int) bool {
+			if versions[i].IsBaseline && !versions[j].IsBaseline {
+				return true
+			} else if !versions[i].IsBaseline && versions[j].IsBaseline {
+				return false
+			} else {
+				return versions[i].FlowId < versions[j].FlowId
+			}
 		})
 		return apiTypes.Node{
 			Type:     nodeType,
 			Id:       label,
-			Label:    &label,
-			Versions: &value,
+			Label:    label,
+			Versions: &versions,
 		}
 	})
 
@@ -47,9 +63,9 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology, flowsClusterTopo
 		gwLabel := ingress.IngressID
 		return apiTypes.Node{
 			Id:       gwLabel,
-			Label:    &gwLabel,
+			Label:    gwLabel,
 			Type:     apiTypes.Gateway,
-			Versions: &[]string{},
+			Versions: &[]apiTypes.NodeVersion{},
 		}
 	})
 
