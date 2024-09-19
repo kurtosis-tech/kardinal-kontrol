@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.28](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.27...0.1.28) (2024-09-19)
+
+
+### Features
+
+* Topology graph legend ([#27](https://github.com/kurtosis-tech/kardinal-kontrol/issues/27)) ([1106218](https://github.com/kurtosis-tech/kardinal-kontrol/commit/1106218779233d3c7647f068e382c5e0338627e3))
+* Topology node list of versions containing flow id, image tag and baseline flag ([#28](https://github.com/kurtosis-tech/kardinal-kontrol/issues/28)) ([923b2b6](https://github.com/kurtosis-tech/kardinal-kontrol/commit/923b2b641868e00a376ff76ccf80d21e0594a02c))
+
 ## [0.1.27](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.26...0.1.27) (2024-09-16)
 
 
