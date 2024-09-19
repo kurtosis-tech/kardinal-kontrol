@@ -224,9 +224,11 @@ func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request manag
 }
 
 func (sv *Server) GetTenantUuidManifest(_ context.Context, request api.GetTenantUuidManifestRequestObject) (api.GetTenantUuidManifestResponseObject, error) {
+	logrus.Infof("generating manifest for tenant '%s'", request.Uuid)
 	clusterTopology, allFlows, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
-		return nil, nil
+		logrus.WithError(err).Errorf("An error occurred while getting topologys for tenant '%s'", request.Uuid)
+		return nil, err
 	}
 
 	if clusterTopology != nil {
@@ -242,53 +244,62 @@ func (sv *Server) GetTenantUuidManifest(_ context.Context, request api.GetTenant
 			newNamespace := types.NewNamespaceWithIstioEnabled(namespaceName)
 
 			if err = yamlPrinter.PrintObj(newNamespace, &yamlBuffer); err != nil {
+				logrus.WithError(err).Errorf("An error occurred printing '%s' in the yaml buffer", newNamespace.Name)
 				return nil, stacktrace.Propagate(err, "an error occurred printing the cluster topology namespace '%s' in the yaml buffer", namespaceName)
 			}
 
 			for _, resource := range clusterResources.Deployments {
 				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					logrus.WithError(err).Errorf("An error occurred printing '%s' in the yaml buffer", resource.Name)
 					return nil, stacktrace.Propagate(err, "an error occurred printing deployment '%s' in the yaml buffer", resource.Name)
 				}
 			}
 
 			for _, resource := range clusterResources.Services {
 				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					logrus.WithError(err).Errorf("An error occurred printing '%s' in the yaml buffer", resource.Name)
 					return nil, stacktrace.Propagate(err, "an error occurred printing service '%s' in the yaml buffer", resource.Name)
 				}
 			}
 
 			for _, resource := range clusterResources.VirtualServices {
 				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					logrus.WithError(err).Errorf("An error occurred printing '%s' in the yaml buffer", resource.Name)
 					return nil, stacktrace.Propagate(err, "an error occurred printing virtual service '%s' in the yaml buffer", resource.Name)
 				}
 			}
 
 			for _, resource := range clusterResources.DestinationRules {
 				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					logrus.WithError(err).Errorf("An error occurred printing '%s' in the yaml buffer", resource.Name)
 					return nil, stacktrace.Propagate(err, "an error occurred printing destination rule '%s' in the yaml buffer", resource.Name)
 				}
 			}
 
 			for _, resource := range clusterResources.EnvoyFilters {
 				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					logrus.WithError(err).Errorf("An error occurred printing '%s' in the yaml buffer", resource.Name)
 					return nil, stacktrace.Propagate(err, "an error occurred printing envoy filter '%s' in the yaml buffer", resource.Name)
 				}
 			}
 
 			for _, resource := range clusterResources.AuthorizationPolicies {
 				if err = yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					logrus.WithError(err).Errorf("An error occurred printing '%s' in the yaml buffer", resource.Name)
 					return nil, stacktrace.Propagate(err, "an error occurred printing authorization policy '%s' in the yaml buffer", resource.Name)
 				}
 			}
 
 			for _, resource := range clusterResources.Gateways {
 				if err := yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					logrus.WithError(err).Errorf("An error occurred printing '%s' in the yaml buffer", resource.Name)
 					return nil, stacktrace.Propagate(err, "an error occurred printing gateway '%s' in the yaml buffer", resource.Name)
 				}
 			}
 
 			for _, resource := range clusterResources.HTTPRoutes {
 				if err := yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					logrus.WithError(err).Errorf("An error occurred printing '%s' in the yaml buffer", resource.Name)
 					return nil, stacktrace.Propagate(err, "an error occurred printing http route '%s' in the yaml buffer", resource.Name)
 				}
 			}
