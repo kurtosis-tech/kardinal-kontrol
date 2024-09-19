@@ -367,9 +367,9 @@ func getGateways(gatewayAndRoutes *resolved.GatewayAndRoutes) []gateway.Gateway 
 	})
 }
 
-func findBackendRefService(backendRef gateway.HTTPBackendRef, services []*resolved.Service) (*resolved.Service, bool) {
+func findBackendRefService(backendRef gateway.HTTPBackendRef, serviceVersion string, services []*resolved.Service) (*resolved.Service, bool) {
 	return lo.Find(services, func(service *resolved.Service) bool {
-		return service.ServiceID == string(backendRef.Name)
+		return service.ServiceID == string(backendRef.Name) && service.Version == serviceVersion
 	})
 }
 
@@ -403,45 +403,57 @@ func getHTTPRoutes(
 	namespace string,
 ) ([]gateway.HTTPRoute, []v1.Service) {
 	routes := []gateway.HTTPRoute{}
-	versionedServices := []v1.Service{}
-	frontServices := []*resolved.Service{}
+	frontServices := map[string]v1.Service{}
 
-	for routeId, routeSpecOriginal := range gatewayAndRoutes.GatewayRoutes {
-		routeSpec := routeSpecOriginal.DeepCopy()
+	for _, activeFlowID := range gatewayAndRoutes.ActiveFlowIDs {
+		logrus.Infof("Setting gateway route for active flow ID: %v", activeFlowID)
+		for routeId, routeSpecOriginal := range gatewayAndRoutes.GatewayRoutes {
+			routeSpec := routeSpecOriginal.DeepCopy()
 
-		for _, rule := range routeSpec.Rules {
-			for refIx, ref := range rule.BackendRefs {
-				target, found := findBackendRefService(ref, services)
-				if found && !slices.Contains(frontServices, target) {
-					frontServices = append(frontServices, target)
-					versionedServices = append(versionedServices, getVersionedService(target, namespace))
-					ref.Name = gateway.ObjectName(fmt.Sprintf("%s-%s", target.ServiceID, target.Version))
-					rule.BackendRefs[refIx] = ref
-				} else {
-					logrus.Errorf(">> service not found %v", ref.Name)
+			for _, rule := range routeSpec.Rules {
+				for refIx, ref := range rule.BackendRefs {
+					target, found := findBackendRefService(ref, activeFlowID, services)
+					if found {
+						idVersion := fmt.Sprintf("%s-%s", target.ServiceID, activeFlowID)
+						_, serviceAlreadyAdded := frontServices[idVersion]
+						if !serviceAlreadyAdded {
+							frontServices[idVersion] = getVersionedService(target, namespace)
+							ref.Name = gateway.ObjectName(idVersion)
+							rule.BackendRefs[refIx] = ref
+						}
+					} else {
+						logrus.Errorf(">> service not found %v", ref.Name)
+					}
 				}
 			}
-		}
 
-		for parentRefIx, parentRef := range routeSpec.ParentRefs {
-			if parentRef.Namespace == nil || string(*parentRef.Namespace) == "" {
-				defaultNS := gateway.Namespace("default")
-				parentRef.Namespace = &defaultNS
+			for parentRefIx, parentRef := range routeSpec.ParentRefs {
+				if parentRef.Namespace == nil || string(*parentRef.Namespace) == "" {
+					defaultNS := gateway.Namespace("default")
+					parentRef.Namespace = &defaultNS
+				}
+				routeSpec.ParentRefs[parentRefIx] = parentRef
 			}
-			routeSpec.ParentRefs[parentRefIx] = parentRef
-		}
+			routeSpec.Hostnames = lo.Map(routeSpec.Hostnames, func(hostname gateway.Hostname, _ int) gateway.Hostname {
+				return gateway.Hostname(resolved.ReplaceOrAddSubdomain(string(hostname), activeFlowID))
+			})
 
-		route := gateway.HTTPRoute{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("http-route-%d", routeId),
-				Namespace: namespace,
-			},
-			Spec: *routeSpec,
+			route := gateway.HTTPRoute{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "gateway.networking.k8s.io/v1",
+					Kind:       "HTTPRoute",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("http-route-%d", routeId),
+					Namespace: namespace,
+				},
+				Spec: *routeSpec,
+			}
+			routes = append(routes, route)
 		}
-		routes = append(routes, route)
 	}
 
-	return routes, versionedServices
+	return routes, lo.Values(frontServices)
 }
 
 func getEnvoyFilters(

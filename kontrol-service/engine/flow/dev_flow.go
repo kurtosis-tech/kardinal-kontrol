@@ -21,7 +21,12 @@ import (
 // CreateDevFlow creates a dev flow from the given topologies
 // baseClusterTopologyMaybeWithTemplateOverrides - if a template is used then this is a modified version of the baseTopology
 // we pass in the base topology anyway as we use services which remain in `prod` version from it
-func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseClusterTopologyMaybeWithTemplateOverrides resolved.ClusterTopology, baseTopology resolved.ClusterTopology, flowPatch flow_spec.FlowPatch) (*resolved.ClusterTopology, error) {
+func CreateDevFlow(
+	pluginRunner *plugins.PluginRunner,
+	baseClusterTopologyMaybeWithTemplateOverrides resolved.ClusterTopology,
+	baseTopology resolved.ClusterTopology,
+	flowPatch flow_spec.FlowPatch,
+) (*resolved.ClusterTopology, error) {
 	flowID := flowPatch.FlowId
 
 	// shallow copy the base topology
@@ -40,6 +45,11 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseClusterTopologyMaybeW
 		}
 		return &copiedIngress
 	})
+	topology.GatewayAndRoutes = &resolved.GatewayAndRoutes{
+		ActiveFlowIDs: []string{flowID},
+		Gateways:      deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.GatewayAndRoutes.Gateways),
+		GatewayRoutes: deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.GatewayAndRoutes.GatewayRoutes),
+	}
 
 	topologyRef := &topology
 

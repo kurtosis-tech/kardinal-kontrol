@@ -21,7 +21,9 @@ func MergeClusterTopologies(baseTopology resolved.ClusterTopology, clusterTopolo
 		mergedTopology.Services = append(mergedTopology.Services, topology.Services...)
 		mergedTopology.ServiceDependencies = append(mergedTopology.ServiceDependencies, topology.ServiceDependencies...)
 		mergedTopology.Ingresses = append(mergedTopology.Ingresses, topology.Ingresses...)
+		mergedTopology.GatewayAndRoutes.ActiveFlowIDs = append(mergedTopology.GatewayAndRoutes.ActiveFlowIDs, topology.GatewayAndRoutes.ActiveFlowIDs...)
 	}
+	mergedTopology.GatewayAndRoutes.ActiveFlowIDs = lo.Uniq(mergedTopology.GatewayAndRoutes.ActiveFlowIDs)
 
 	// TODO improve the filtering method, we could implement the `Service.Equal` method to compare and filter the services
 	// TODO and inside this method we could use the k8s service marshall method (https://pkg.go.dev/k8s.io/api/core/v1#Service.Marsha) and also the same for other k8s fields
