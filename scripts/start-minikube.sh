@@ -8,6 +8,6 @@ minikube addons enable ingress
 
 minikube addons enable metrics-server
 
-istioctl install --set profile=demo -y
+istioctl install --set profile=minimal --set meshConfig.accessLogFile=/dev/stdout -y
 
 minikube dashboard
