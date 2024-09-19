@@ -91,7 +91,6 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 				authorizationPolicies = append(authorizationPolicies, *authorizationPolicy)
 			}
 		}
-
 	}
 
 	sharedServiceBackupVersions := map[string][]string{}
@@ -111,8 +110,10 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 	}
 	logrus.Infof("have total of %d envoy filters", len(envoyFilters))
 
+	routes, frontServices := getHTTPRoutes(clusterTopology.GatewayAndRoutes, clusterTopology.Services, namespace)
+
 	return types.ClusterResources{
-		Services: serviceList,
+		Services: append(serviceList, frontServices...),
 
 		Deployments: lo.FilterMap(clusterTopology.Services, func(service *resolved.Service, _ int) (appsv1.Deployment, bool) {
 			// Deployment spec is nil for external services, don't need to add anything to cluster
@@ -124,7 +125,7 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 
 		Gateways: getGateways(clusterTopology.GatewayAndRoutes),
 
-		HTTPRoutes: getHTTPRoutes(clusterTopology.GatewayAndRoutes, namespace),
+		HTTPRoutes: routes,
 
 		VirtualServices: virtualServices,
 
@@ -359,25 +360,88 @@ func getDeployment(service *resolved.Service, namespace string) *appsv1.Deployme
 
 func getGateways(gatewayAndRoutes *resolved.GatewayAndRoutes) []gateway.Gateway {
 	return lo.Map(gatewayAndRoutes.Gateways, func(gateway *gateway.Gateway, gwId int) gateway.Gateway {
+		if gateway.Namespace == "" {
+			gateway.Namespace = "default"
+		}
 		return *gateway
 	})
 }
 
-func getHTTPRoutes(gatewayAndRoutes *resolved.GatewayAndRoutes, namespace string) []gateway.HTTPRoute {
-	return lo.Map(gatewayAndRoutes.GatewayRoutes, func(routeSpec *gateway.HTTPRouteSpec, gwId int) gateway.HTTPRoute {
-		routeSpecCopy := routeSpec.DeepCopy()
-		routeSpecCopy.ParentRefs = lo.Map(routeSpec.ParentRefs, func(ref gateway.ParentReference, _ int) gateway.ParentReference {
-			ref.Name = gateway.ObjectName(fmt.Sprintf("gateway-%d", gwId))
-			return ref
-		})
-		return gateway.HTTPRoute{
+func findBackendRefService(backendRef gateway.HTTPBackendRef, services []*resolved.Service) (*resolved.Service, bool) {
+	return lo.Find(services, func(service *resolved.Service) bool {
+		return service.ServiceID == string(backendRef.Name)
+	})
+}
+
+func getVersionedService(service *resolved.Service, namespace string) v1.Service {
+	serviceSpecCopy := service.ServiceSpec.DeepCopy()
+
+	serviceSpecCopy.Selector = map[string]string{
+		"app":     service.ServiceID,
+		"version": service.Version,
+	}
+
+	return v1.Service{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "v1",
+			Kind:       "Service",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%s", service.ServiceID, service.Version),
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app": service.ServiceID,
+			},
+		},
+		Spec: *serviceSpecCopy,
+	}
+}
+
+func getHTTPRoutes(
+	gatewayAndRoutes *resolved.GatewayAndRoutes,
+	services []*resolved.Service,
+	namespace string,
+) ([]gateway.HTTPRoute, []v1.Service) {
+	routes := []gateway.HTTPRoute{}
+	versionedServices := []v1.Service{}
+	frontServices := []*resolved.Service{}
+
+	for routeId, routeSpecOriginal := range gatewayAndRoutes.GatewayRoutes {
+		routeSpec := routeSpecOriginal.DeepCopy()
+
+		for _, rule := range routeSpec.Rules {
+			for refIx, ref := range rule.BackendRefs {
+				target, found := findBackendRefService(ref, services)
+				if found && !slices.Contains(frontServices, target) {
+					frontServices = append(frontServices, target)
+					versionedServices = append(versionedServices, getVersionedService(target, namespace))
+					ref.Name = gateway.ObjectName(fmt.Sprintf("%s-%s", target.ServiceID, target.Version))
+					rule.BackendRefs[refIx] = ref
+				} else {
+					logrus.Errorf(">> service not found %v", ref.Name)
+				}
+			}
+		}
+
+		for parentRefIx, parentRef := range routeSpec.ParentRefs {
+			if parentRef.Namespace == nil || string(*parentRef.Namespace) == "" {
+				defaultNS := gateway.Namespace("default")
+				parentRef.Namespace = &defaultNS
+			}
+			routeSpec.ParentRefs[parentRefIx] = parentRef
+		}
+
+		route := gateway.HTTPRoute{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("http-route-%d", gwId),
+				Name:      fmt.Sprintf("http-route-%d", routeId),
 				Namespace: namespace,
 			},
-			Spec: *routeSpecCopy,
+			Spec: *routeSpec,
 		}
-	})
+		routes = append(routes, route)
+	}
+
+	return routes, versionedServices
 }
 
 func getEnvoyFilters(
