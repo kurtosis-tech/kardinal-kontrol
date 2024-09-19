@@ -116,7 +116,7 @@ func generateClusterTopology(
 
 	gatewayAndRoutes := resolved.GatewayAndRoutes{
 		ActiveFlowIDs: []string{version},
-		GatewaySpecs:  []*gateway.GatewaySpec{},
+		Gateways:      []*gateway.Gateway{},
 		GatewayRoutes: []*gateway.HTTPRouteSpec{},
 	}
 	for _, gatewayConfig := range gatewayConfigs {
@@ -133,7 +133,10 @@ func generateClusterTopology(
 					}
 				}
 			}
-			gatewayAndRoutes.GatewaySpecs = append(gatewayAndRoutes.GatewaySpecs, &gateway.Spec)
+			logrus.Infof("Managing gateway: %v", gateway.Name)
+			gatewayAndRoutes.Gateways = append(gatewayAndRoutes.Gateways, &gateway)
+		} else {
+			logrus.Infof("Gateway %v is not a Kardinal gateway", gateway.Name)
 		}
 	}
 	for _, routeConfig := range routeConfigs {
@@ -245,7 +248,7 @@ func generateClusterTopology(
 		clusterTopologyServices = append(clusterTopologyServices, &clusterTopologyService)
 	}
 
-	if len(clusterTopologyIngress) == 0 && len(gatewayAndRoutes.GatewaySpecs) == 0 && len(gatewayAndRoutes.GatewayRoutes) == 0 {
+	if len(clusterTopologyIngress) == 0 && len(gatewayAndRoutes.Gateways) == 0 && len(gatewayAndRoutes.GatewayRoutes) == 0 {
 		logrus.Warnf("No ingress or gateway found in the service configs")
 	}
 	clusterTopology.Ingresses = clusterTopologyIngress

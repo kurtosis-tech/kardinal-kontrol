@@ -122,7 +122,7 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 			return *getDeployment(service, namespace), true
 		}),
 
-		Gateways: getGateways(clusterTopology.GatewayAndRoutes, namespace),
+		Gateways: getGateways(clusterTopology.GatewayAndRoutes),
 
 		HTTPRoutes: getHTTPRoutes(clusterTopology.GatewayAndRoutes, namespace),
 
@@ -357,15 +357,9 @@ func getDeployment(service *resolved.Service, namespace string) *appsv1.Deployme
 	return &deployment
 }
 
-func getGateways(gatewayAndRoutes *resolved.GatewayAndRoutes, namespace string) []gateway.Gateway {
-	return lo.Map(gatewayAndRoutes.GatewaySpecs, func(gatewaySpec *gateway.GatewaySpec, gwId int) gateway.Gateway {
-		return gateway.Gateway{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("gateway-%d", gwId),
-				Namespace: namespace,
-			},
-			Spec: *gatewaySpec,
-		}
+func getGateways(gatewayAndRoutes *resolved.GatewayAndRoutes) []gateway.Gateway {
+	return lo.Map(gatewayAndRoutes.Gateways, func(gateway *gateway.Gateway, gwId int) gateway.Gateway {
+		return *gateway
 	})
 }
 

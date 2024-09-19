@@ -54,7 +54,7 @@ type Ingress struct {
 
 type GatewayAndRoutes struct {
 	ActiveFlowIDs []string                 `json:"activeFlowIDs"`
-	GatewaySpecs  []*gateway.GatewaySpec   `json:"gatewaySpecs"`
+	Gateways      []*gateway.Gateway       `json:"gateway"`
 	GatewayRoutes []*gateway.HTTPRouteSpec `json:"gatewayRoutes"`
 }
 
