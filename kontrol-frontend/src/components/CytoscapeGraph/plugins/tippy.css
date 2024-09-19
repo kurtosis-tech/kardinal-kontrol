@@ -8,6 +8,7 @@
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   font-family: monospace;
   font-size: 16px;
+  width: 600px;
 }
 
 .tooltip ul {
@@ -17,23 +18,23 @@
 .tooltip::before {
   content: "";
   position: absolute;
-  top: 50%;
-  left: -15px; /* Adjust this value to position the arrow correctly */
-  margin-top: -8px; /* This value should be half of border-width to center the arrow */
+  top: -7px;
+  left: 50%;
+  margin-top: -8px;
   border-width: 8px;
   border-style: solid;
-  border-color: transparent #c0bfbf transparent transparent;
+  border-color: transparent transparent #c0bfbf transparent;
 }
 
 .tooltip::after {
   content: "";
   position: absolute;
-  top: 50%;
-  left: -14px; /* Adjust this value to position the arrow correctly */
-  margin-top: -8px; /* This value should be half of border-width to center the arrow */
+  top: -6px;
+  left: 50%;
+  margin-top: -8px;
   border-width: 8px;
   border-style: solid;
-  border-color: transparent white transparent transparent;
+  border-color: transparent transparent white transparent;
 }
 
 .dot {
@@ -43,4 +44,15 @@
   background-color: red;
   border-radius: 50%;
   margin-right: 8px;
+}
+
+.tooltip table {
+  font-family: monospace;
+}
+
+.tooltip table td, .tooltip table th {
+  padding: 4px 8px;
+  font-size: 14px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
 }

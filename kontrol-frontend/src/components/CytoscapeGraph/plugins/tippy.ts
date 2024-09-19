@@ -1,5 +1,6 @@
 import cytoscapePopper from "cytoscape-popper";
 import tippy, { Instance } from "tippy.js";
+import { NodeVersion } from "@/types";
 import "./tippy.css";
 
 // @ts-expect-error WIP
@@ -14,7 +15,7 @@ const tippyFactory: cytoscapePopper.PopperFactory = (ref, content) => {
     content: content,
     // your own preferences:
     arrow: true,
-    placement: "right",
+    placement: "bottom",
     hideOnClick: false,
     sticky: "reference",
 
@@ -29,7 +30,8 @@ const tippyFactory: cytoscapePopper.PopperFactory = (ref, content) => {
 export const createTooltip = (
   node: cytoscape.NodeSingular,
 ): Instance | null => {
-  const versions = node.data("versions");
+  const versions: NodeVersion[] = node.data("versions");
+  console.log("versions", versions);
   if (!versions || versions.length === 0) {
     return null;
   }
@@ -37,7 +39,19 @@ export const createTooltip = (
     content: () => {
       const elem = document.createElement("div");
       // TODO: sanitize
-      elem.innerHTML = `Versions: <ul>${versions.map((v: string) => `<li>${v.toString()}</li>`).join("")}</ul>`;
+      elem.innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Flow ID</th>
+            <th>Image Tag</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${versions.map((v: NodeVersion) => `<tr><td>${v.flowId}</td><td>${v.imageTag || "N/A"}</td><tr>`).join("")}
+        </tbody>
+      </table>
+      `;
       elem.classList.add("tooltip");
       return elem;
     },
