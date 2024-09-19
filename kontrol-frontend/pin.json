@@ -1,7 +1,7 @@
 {
   "version": "0.9.0",
   "x86_64-darwin": "",
-  "x86_64-linux": "sha256-4lx4eSRv+auM27K4RLyLVS3lk4+a5SCFrsyBrOY2qMI=",
+  "x86_64-linux": "sha256-0L/RHC4vHimBUV1ZxAaqK4ePQZbFV2cbLIv/Xp/iKto=",
   "aarch64-darwin": "sha256-7eJPigPZrdtTcZgrww6Xp529NQ3/H4i0E4Cbq9R2/Ns=",
   "aarch64-linux": "sha256-iHZRAxgNluI3bvXIc6hgkAs/xM9Z4ib5W1ifnvGs9SQ="
 }
