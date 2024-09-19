@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.29](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.28...0.1.29) (2024-09-19)
+
+
+### Features
+
+* frontend uses relative API path ([#34](https://github.com/kurtosis-tech/kardinal-kontrol/issues/34)) ([65ce046](https://github.com/kurtosis-tech/kardinal-kontrol/commit/65ce046c8e43814d392f235fc7fc30050a63fbd7))
+
 ## [0.1.28](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.27...0.1.28) (2024-09-19)
 
 
