@@ -45,7 +45,7 @@ const Legend = ({ elements }: Props) => {
           service?.data.versions[0].isBaseline,
       )
     ) {
-      return "—";
+      return "All services";
     }
     return services.map((service) => service?.data.label).join(", ");
   };

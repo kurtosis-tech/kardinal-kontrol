@@ -48,7 +48,7 @@ export const createTooltip = (
           </tr>
         </thead>
         <tbody>
-          ${versions.map((v: NodeVersion) => `<tr><td>${v.flowId}</td><td>${v.imageTag}</td><tr>`).join("")}
+          ${versions.map((v: NodeVersion) => `<tr><td>${v.flowId}</td><td>${v.imageTag || "N/A"}</td><tr>`).join("")}
         </tbody>
       </table>
       `;
