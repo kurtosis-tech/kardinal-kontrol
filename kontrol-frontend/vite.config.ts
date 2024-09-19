@@ -14,9 +14,14 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: {
+        // local dev mode proxy, default is local kontrol service.
+        // change this to hit production etc if desired.
+        // in production, this behavior is handled by kardinal nginx ingress
         "/api": {
-          target: "https://app.kardinal.dev",
+          // target: "https://app.kardinal.dev",
+          target: "http://localhost:8080",
           changeOrigin: true,
+          rewrite: (path) => path.replace(/^\/api/, ""),
         },
       },
     },
