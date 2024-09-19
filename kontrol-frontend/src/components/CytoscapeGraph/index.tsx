@@ -35,6 +35,9 @@ const CytoscapeGraph = ({
   const tooltip = useRef<TooltipInstance | null>(null);
   const [tooltipPortalElem, setTooltipPortalElem] =
     useState<HTMLElement | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<cytoscape.NodeSingular | null>(
+    null,
+  );
   const [animationsEnabled, setAnimationsEnabled] = useState(
     INIT_ANIMATIONS_ENABLED,
   );
@@ -61,11 +64,13 @@ const CytoscapeGraph = ({
         if (tooltipInstance == null) return;
         tooltip.current = tooltipInstance.instance;
         setTooltipPortalElem(tooltipInstance.element);
+        setHoveredNode(e.target);
       });
       cy.current.on("mouseout", function () {
         if (tooltip.current != null) {
           tooltip.current.destroy();
         }
+        setHoveredNode(null);
       });
 
       // stop animations when the user is dragging nodes around
@@ -176,7 +181,7 @@ const CytoscapeGraph = ({
   return (
     <Flex w="100%" h="100%" minHeight="267px" position={"relative"}>
       <Legend elements={elements} />
-      <TooltipPortal element={tooltipPortalElem} />
+      <TooltipPortal element={tooltipPortalElem} node={hoveredNode} />
       <CytoscapeComponent
         id="cytoscape-graph"
         elements={elements}
