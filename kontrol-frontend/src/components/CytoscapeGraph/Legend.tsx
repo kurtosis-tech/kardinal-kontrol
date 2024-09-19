@@ -76,7 +76,7 @@ const Legend = ({ elements }: Props) => {
           <Tbody>
             {uniqueFlowIds.map((flowId) => {
               return (
-                <Tr>
+                <Tr key={flowId}>
                   <Td>{flowId}</Td>
                   <Td>{servicesForFlowId(flowId)}</Td>
                 </Tr>
