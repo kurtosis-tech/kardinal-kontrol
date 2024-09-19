@@ -192,7 +192,7 @@ func (ingress *Ingress) GetTargetServices() []string {
 }
 
 func (service *Service) IsHTTP() bool {
-	if len(service.ServiceSpec.Ports) == 0 {
+	if service == nil || service.ServiceSpec == nil || len(service.ServiceSpec.Ports) == 0 {
 		return false
 	}
 	servicePort := service.ServiceSpec.Ports[0]
