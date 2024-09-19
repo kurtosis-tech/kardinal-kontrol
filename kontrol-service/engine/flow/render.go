@@ -348,6 +348,9 @@ func getDeployment(service *resolved.Service, namespace string) *appsv1.Deployme
 	deployment.Spec.Template.ObjectMeta = metav1.ObjectMeta{
 		Annotations: map[string]string{
 			"sidecar.istio.io/inject": "true",
+			// TODO: make this a flag to help debugging
+			// One can view the logs with: kubeclt logs -f -l app=<serviceID> -n <namespace> -c istio-proxy
+			"sidecar.istio.io/componentLogLevel": "lua:info",
 		},
 		Labels: map[string]string{
 			"app":     service.ServiceID,
@@ -444,7 +447,7 @@ func getHTTPRoutes(
 					Kind:       "HTTPRoute",
 				},
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      fmt.Sprintf("http-route-%d", routeId),
+					Name:      fmt.Sprintf("http-route-%d-%s", routeId, activeFlowID),
 					Namespace: namespace,
 				},
 				Spec: *routeSpec,
