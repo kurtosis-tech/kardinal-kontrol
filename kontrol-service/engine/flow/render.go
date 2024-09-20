@@ -2,6 +2,7 @@ package flow
 
 import (
 	"fmt"
+	"hash/fnv"
 	"slices"
 	"strings"
 
@@ -87,9 +88,10 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 
 	envoyFiltersForService := getEnvoyFilters(clusterTopology.Services, namespace, targetHttpRouteServices)
 	envoyFilters = append(envoyFilters, envoyFiltersForService...)
-	logrus.Infof("have total of %d envoy filters", len(envoyFilters))
 
-	routes, frontServices := getHTTPRoutes(clusterTopology.GatewayAndRoutes, clusterTopology.Services, namespace)
+	routes, frontServices, inboundFrontFilters := getHTTPRoutes(clusterTopology.GatewayAndRoutes, clusterTopology.Services, namespace)
+	envoyFilters = append(envoyFilters, inboundFrontFilters...)
+	logrus.Infof("have total of %d envoy filters", len(envoyFilters))
 
 	return types.ClusterResources{
 		Services: append(serviceList, frontServices...),
@@ -372,7 +374,8 @@ func getVersionedService(service *resolved.Service, flowVersion string, namespac
 			Name:      fmt.Sprintf("%s-%s", service.ServiceID, flowVersion),
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app": service.ServiceID,
+				"app":     service.ServiceID,
+				"version": flowVersion,
 			},
 		},
 		Spec: *serviceSpecCopy,
@@ -381,23 +384,28 @@ func getVersionedService(service *resolved.Service, flowVersion string, namespac
 
 func getHTTPRoutes(
 	gatewayAndRoutes *resolved.GatewayAndRoutes,
-	services []*resolved.Service,
+	allServices []*resolved.Service,
 	namespace string,
-) ([]gateway.HTTPRoute, []v1.Service) {
+) ([]gateway.HTTPRoute, []v1.Service, []istioclient.EnvoyFilter) {
 	routes := []gateway.HTTPRoute{}
 	frontServices := map[string]v1.Service{}
+	filters := []istioclient.EnvoyFilter{}
 
 	for _, activeFlowID := range gatewayAndRoutes.ActiveFlowIDs {
 		logrus.Infof("Setting gateway route for active flow ID: %v", activeFlowID)
 		for routeId, routeSpecOriginal := range gatewayAndRoutes.GatewayRoutes {
 			routeSpec := routeSpecOriginal.DeepCopy()
 
+			routeSpec.Hostnames = lo.Map(routeSpec.Hostnames, func(hostname gateway.Hostname, _ int) gateway.Hostname {
+				return gateway.Hostname(resolved.ReplaceOrAddSubdomain(string(hostname), activeFlowID))
+			})
+
 			for _, rule := range routeSpec.Rules {
 				for refIx, ref := range rule.BackendRefs {
-					target, found := findBackendRefService(ref, activeFlowID, services)
+					target, found := findBackendRefService(ref, activeFlowID, allServices)
 					// fallback to prod if backend not found at the active flow
 					if !found {
-						target, found = findBackendRefService(ref, "prod", services)
+						target, found = findBackendRefService(ref, prodVersion, allServices)
 					}
 					if found {
 						idVersion := fmt.Sprintf("%s-%s", target.ServiceID, activeFlowID)
@@ -406,6 +414,12 @@ func getHTTPRoutes(
 							frontServices[idVersion] = getVersionedService(target, activeFlowID, namespace)
 							ref.Name = gateway.ObjectName(idVersion)
 							rule.BackendRefs[refIx] = ref
+
+							// Set Envoy FIlter for the service
+							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, routeSpec.Hostnames)
+							inboundFilter := getInboundFilter(target.ServiceID, namespace, -1, &target.Version, &luaFilterFrontend)
+							logrus.Debugf("Adding inbound filter to setup routing table for flow '%s' on service '%s', version '%s'", activeFlowID, target.ServiceID, target.Version)
+							filters = append(filters, inboundFilter)
 						}
 					} else {
 						logrus.Errorf(">> service not found %v", ref.Name)
@@ -420,9 +434,6 @@ func getHTTPRoutes(
 				}
 				routeSpec.ParentRefs[parentRefIx] = parentRef
 			}
-			routeSpec.Hostnames = lo.Map(routeSpec.Hostnames, func(hostname gateway.Hostname, _ int) gateway.Hostname {
-				return gateway.Hostname(resolved.ReplaceOrAddSubdomain(string(hostname), activeFlowID))
-			})
 
 			route := gateway.HTTPRoute{
 				TypeMeta: metav1.TypeMeta{
@@ -439,7 +450,7 @@ func getHTTPRoutes(
 		}
 	}
 
-	return routes, lo.Values(frontServices)
+	return routes, lo.Values(frontServices), filters
 }
 
 func getEnvoyFilters(
@@ -447,9 +458,8 @@ func getEnvoyFilters(
 	namespace string,
 	targetHttpRouteServices []string,
 ) []istioclient.EnvoyFilter {
-	luaFilterFrontend := generateDynamicLuaScript(allServices)
-
 	filters := []istioclient.EnvoyFilter{}
+	traceIdEnforcerLuaScript := generateTraceIDEnforcerLuaScript()
 
 	// HttpRoute (workload) are applied at the serviceID level, not the serviceID-version level
 	groupedServices := lo.GroupBy(allServices, func(item *resolved.Service) string { return item.ServiceID })
@@ -468,120 +478,160 @@ func getEnvoyFilters(
 
 		isTargertService := slices.Contains(targetHttpRouteServices, fmt.Sprintf("%s/%s", namespace, serviceID))
 
-		luaFilter := inboundRequestTraceIDFilter
+		// more inbound EnvoyFilters for routing routing traffic on frontend services are added by the getHTTPRoutes function
 		if isTargertService {
-			luaFilter = luaFilterFrontend
+			logrus.Debugf("Adding inbound filter to enforce trace IDs for service '%s'", serviceID)
+			inboundFilter := getInboundFilter(serviceID, namespace, 0, nil, &traceIdEnforcerLuaScript)
+			filters = append(filters, inboundFilter)
+		} else {
+			logrus.Debugf("Adding inbound filter for inner service '%s'", serviceID)
+			inboundFilter := getInboundFilter(serviceID, namespace, 0, nil, nil)
+			filters = append(filters, inboundFilter)
 		}
 
-		inboundFilter := istioclient.EnvoyFilter{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "networking.istio.io/v1alpha3",
-				Kind:       "EnvoyFilter",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("%s-inbound-trace-id-check", serviceID),
-				Namespace: namespace,
-			},
-			Spec: v1alpha3.EnvoyFilter{
-				WorkloadSelector: &v1alpha3.WorkloadSelector{
-					Labels: map[string]string{
-						"app": serviceID,
-					},
-				},
-				ConfigPatches: []*v1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
-					{
-						ApplyTo: v1alpha3.EnvoyFilter_HTTP_FILTER,
-						Match: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
-							Context: v1alpha3.EnvoyFilter_SIDECAR_INBOUND,
-							ObjectTypes: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-								Listener: &v1alpha3.EnvoyFilter_ListenerMatch{
-									FilterChain: &v1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
-										Filter: &v1alpha3.EnvoyFilter_ListenerMatch_FilterMatch{
-											Name: "envoy.filters.network.http_connection_manager",
-										},
-									},
-								},
-							},
-						},
-						Patch: &v1alpha3.EnvoyFilter_Patch{
-							Operation: v1alpha3.EnvoyFilter_Patch_INSERT_BEFORE,
-							Value: &structpb.Struct{
-								Fields: map[string]*structpb.Value{
-									"name": {Kind: &structpb.Value_StringValue{StringValue: "envoy.lua"}},
-									"typed_config": {
-										Kind: &structpb.Value_StructValue{
-											StructValue: &structpb.Struct{
-												Fields: map[string]*structpb.Value{
-													"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
-													"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: luaFilter}},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-
-		outboundFilter := istioclient.EnvoyFilter{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "networking.istio.io/v1alpha3",
-				Kind:       "EnvoyFilter",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      fmt.Sprintf("%s-outbound-trace-router", serviceID),
-				Namespace: namespace,
-			},
-			Spec: v1alpha3.EnvoyFilter{
-				WorkloadSelector: &v1alpha3.WorkloadSelector{
-					Labels: map[string]string{
-						"app": serviceID,
-					},
-				},
-				ConfigPatches: []*v1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
-					{
-						ApplyTo: v1alpha3.EnvoyFilter_HTTP_FILTER,
-						Match: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
-							Context: v1alpha3.EnvoyFilter_SIDECAR_OUTBOUND,
-							ObjectTypes: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-								Listener: &v1alpha3.EnvoyFilter_ListenerMatch{
-									FilterChain: &v1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
-										Filter: &v1alpha3.EnvoyFilter_ListenerMatch_FilterMatch{
-											Name: "envoy.filters.network.http_connection_manager",
-										},
-									},
-								},
-							},
-						},
-						Patch: &v1alpha3.EnvoyFilter_Patch{
-							Operation: v1alpha3.EnvoyFilter_Patch_INSERT_BEFORE,
-							Value: &structpb.Struct{
-								Fields: map[string]*structpb.Value{
-									"name": {Kind: &structpb.Value_StringValue{StringValue: "envoy.lua"}},
-									"typed_config": {
-										Kind: &structpb.Value_StructValue{
-											StructValue: &structpb.Struct{
-												Fields: map[string]*structpb.Value{
-													"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
-													"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: getOutgoingRequestTraceIDFilter()}},
-												},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		}
-		filters = append(filters, inboundFilter, outboundFilter)
+		outboundFilter := getOutboundFilter(serviceID, namespace)
+		filters = append(filters, outboundFilter)
 	}
 
 	return filters
+}
+
+func getInboundFilter(serviceID, namespace string, priority int32, versionSelector, luaFilterFrontend *string) istioclient.EnvoyFilter {
+	labelSelector := map[string]string{
+		"app": serviceID,
+	}
+	if versionSelector != nil {
+		labelSelector["version"] = *versionSelector
+	}
+
+	var filterHashStr *string
+	luaFilter := inboundRequestTraceIDFilter
+	if luaFilterFrontend != nil {
+		luaFilter = *luaFilterFrontend
+
+		hash := fnv.New32a()
+		hash.Write([]byte(*luaFilterFrontend))
+		hashStr := fmt.Sprintf("%d", hash.Sum32())
+		filterHashStr = &hashStr
+
+	}
+
+	idStr := "inbound-router"
+	ids := []*string{&serviceID, &idStr, versionSelector, filterHashStr}
+	name := strings.Join(lo.FilterMap(ids, func(id *string, _ int) (string, bool) {
+		if id != nil {
+			return *id, true
+		} else {
+			return "", false
+		}
+	}), "-")
+
+	return istioclient.EnvoyFilter{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "networking.istio.io/v1alpha3",
+			Kind:       "EnvoyFilter",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		Spec: v1alpha3.EnvoyFilter{
+			Priority: priority,
+			WorkloadSelector: &v1alpha3.WorkloadSelector{
+				Labels: labelSelector,
+			},
+			ConfigPatches: []*v1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
+				{
+					ApplyTo: v1alpha3.EnvoyFilter_HTTP_FILTER,
+					Match: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: v1alpha3.EnvoyFilter_SIDECAR_INBOUND,
+						ObjectTypes: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+							Listener: &v1alpha3.EnvoyFilter_ListenerMatch{
+								FilterChain: &v1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
+									Filter: &v1alpha3.EnvoyFilter_ListenerMatch_FilterMatch{
+										Name: "envoy.filters.network.http_connection_manager",
+									},
+								},
+							},
+						},
+					},
+					Patch: &v1alpha3.EnvoyFilter_Patch{
+						Operation: v1alpha3.EnvoyFilter_Patch_INSERT_BEFORE,
+						Value: &structpb.Struct{
+							Fields: map[string]*structpb.Value{
+								"name": {Kind: &structpb.Value_StringValue{StringValue: "envoy.lua"}},
+								"typed_config": {
+									Kind: &structpb.Value_StructValue{
+										StructValue: &structpb.Struct{
+											Fields: map[string]*structpb.Value{
+												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
+												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: luaFilter}},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+}
+
+func getOutboundFilter(serviceID, namespace string) istioclient.EnvoyFilter {
+	return istioclient.EnvoyFilter{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "networking.istio.io/v1alpha3",
+			Kind:       "EnvoyFilter",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-outbound-router", serviceID),
+			Namespace: namespace,
+		},
+		Spec: v1alpha3.EnvoyFilter{
+			WorkloadSelector: &v1alpha3.WorkloadSelector{
+				Labels: map[string]string{
+					"app": serviceID,
+				},
+			},
+			ConfigPatches: []*v1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
+				{
+					ApplyTo: v1alpha3.EnvoyFilter_HTTP_FILTER,
+					Match: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
+						Context: v1alpha3.EnvoyFilter_SIDECAR_OUTBOUND,
+						ObjectTypes: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
+							Listener: &v1alpha3.EnvoyFilter_ListenerMatch{
+								FilterChain: &v1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
+									Filter: &v1alpha3.EnvoyFilter_ListenerMatch_FilterMatch{
+										Name: "envoy.filters.network.http_connection_manager",
+									},
+								},
+							},
+						},
+					},
+					Patch: &v1alpha3.EnvoyFilter_Patch{
+						Operation: v1alpha3.EnvoyFilter_Patch_INSERT_BEFORE,
+						Value: &structpb.Struct{
+							Fields: map[string]*structpb.Value{
+								"name": {Kind: &structpb.Value_StringValue{StringValue: "envoy.lua"}},
+								"typed_config": {
+									Kind: &structpb.Value_StructValue{
+										StructValue: &structpb.Struct{
+											Fields: map[string]*structpb.Value{
+												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
+												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: getOutgoingRequestTraceIDFilter()}},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 }
 
 // getAuthorizationPolicy returns an authorization policy that denies requests with the missing header
@@ -616,42 +666,7 @@ func getAuthorizationPolicy(service *resolved.Service, namespace string) *securi
 	}
 }
 
-func generateDynamicLuaScript(services []*resolved.Service) string {
-	var setRouteCalls strings.Builder
-
-	// Helper function to add a setRoute call
-	addSetRouteCall := func(service, destination string) {
-		setRouteCalls.WriteString(fmt.Sprintf(`
-    request_handle:httpCall(
-      "outbound|8080||trace-router.default.svc.cluster.local",
-      {
-        [":method"] = "POST",
-        [":path"] = "/set-route?trace_id=" .. trace_id .. "&hostname=%s&destination=%s",
-        [":authority"] = "trace-router.default.svc.cluster.local",
-        ["Content-Type"] = "application/json"
-      },
-      "{}",
-      5000
-    )
-`, service, destination))
-	}
-
-	for _, service := range services {
-		if service == nil {
-			continue
-		}
-
-		if service.IsShared {
-			setRouteCalls.WriteString(fmt.Sprintf(`\n    if hostname == "%s" then`, service.OriginalVersionIfShared))
-			destination := fmt.Sprintf("%s-%s", service.ServiceID, constants.SharedVersionVersionString)
-			addSetRouteCall(service.ServiceID, destination)
-			setRouteCalls.WriteString(`\n    end`)
-		} else {
-			destination := fmt.Sprintf("%s-%s", service.ServiceID, service.Version)
-			addSetRouteCall(service.ServiceID, destination)
-		}
-	}
-
+func generateTraceIDEnforcerLuaScript() string {
 	return fmt.Sprintf(`
 %s
 
@@ -671,7 +686,7 @@ function envoy_on_request(request_handle)
   local trace_id = headers:get("x-kardinal-trace-id")
   local hostname = headers:get(":authority")
 
-  request_handle:logInfo("Processing request - Initial trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none"))
+  request_handle:logInfo("Enforcing trace ID header - Initial trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none"))
 
   if not trace_id then
     local found_trace_id, source_header = get_trace_id(headers)
@@ -700,10 +715,91 @@ function envoy_on_request(request_handle)
     end
 
     request_handle:headers():add("x-kardinal-trace-id", trace_id)
+  end
 
+end
+`, generateLuaTraceHeaderPriorities())
+}
+
+func generateDynamicLuaScript(allServices []*resolved.Service, flowId string, hostnames []gateway.Hostname) string {
+	var setRouteCalls strings.Builder
+
+	// Helper function to add a setRoute call
+	addSetRouteCall := func(service, destination string) {
+		setRouteCalls.WriteString(fmt.Sprintf(`
+    request_handle:httpCall(
+      "outbound|8080||trace-router.default.svc.cluster.local",
+      {
+        [":method"] = "POST",
+        [":path"] = "/set-route?trace_id=" .. trace_id .. "&hostname=%s&destination=%s",
+        [":authority"] = "trace-router.default.svc.cluster.local",
+        ["Content-Type"] = "application/json"
+      },
+      "{}",
+      5000
+    )
+`, service, destination))
+	}
+
+	groupedServices := lo.GroupBy(allServices, func(item *resolved.Service) string { return item.ServiceID })
+	for serviceID, services := range groupedServices {
+		if len(services) == 0 {
+			continue
+		}
+
+		var service, fallbackService *resolved.Service
+		for _, s := range services {
+			if s.Version == flowId {
+				service = s
+			}
+			if s.Version == prodVersion {
+				fallbackService = s
+			}
+		}
+
+		if service == nil {
+			service = fallbackService
+		}
+		if service == nil {
+			logrus.Errorf("No service found for '%s' for version '%s' or baseline '%s'. No routing can configured.", serviceID, flowId, prodVersion)
+			continue
+		}
+
+		if service.IsShared {
+			setRouteCalls.WriteString(fmt.Sprintf(`
+    if hostname == "%s" then`, service.OriginalVersionIfShared))
+			destination := fmt.Sprintf("%s-%s", service.ServiceID, constants.SharedVersionVersionString)
+			addSetRouteCall(service.ServiceID, destination)
+			setRouteCalls.WriteString(`
+    end`)
+		} else {
+			for _, hostname := range hostnames {
+				setRouteCalls.WriteString(fmt.Sprintf(`
+    if hostname == "%s" then`, string(hostname)))
+				destination := fmt.Sprintf("%s-%s", service.ServiceID, service.Version)
+				addSetRouteCall(service.ServiceID, destination)
+				setRouteCalls.WriteString(`
+    end`)
+			}
+		}
+	}
+
+	return fmt.Sprintf(`
+%s
+
+function envoy_on_request(request_handle)
+  local headers = request_handle:headers()
+  local trace_id = headers:get("x-kardinal-trace-id")
+  local hostname = headers:get(":authority")
+
+  request_handle:logInfo("Setting routing table for flowId %s, trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none"))
+
+  if not trace_id then
+    request_handle:logWarn("Missing trace ID from " .. source_header .. ", make sure traceId enforcer filter was apply before.")
+  else
     %s
   end
 
 end
-`, generateLuaTraceHeaderPriorities(), setRouteCalls.String())
+`, generateLuaTraceHeaderPriorities(), flowId, setRouteCalls.String())
 }
