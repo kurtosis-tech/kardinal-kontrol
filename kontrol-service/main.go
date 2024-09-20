@@ -103,8 +103,10 @@ func startServer(isDevMode bool) {
 			defer func() {
 				if r := recover(); r != nil {
 
+					msg := "The server could not handle this request.  Please make sure you are using the latest Kardinal API.  For the CLI, it means using the latest CLI release.  You can open an issue against the Kardinal repo if you continue to get this error at https://github.com/kurtosis-tech/kardinal/issues/new"
 					internalServerErrorResponse := cli_api.ErrorJSONResponse{
-						Error: "internal server error",
+						Error: "Internal Server Error",
+						Msg: &msg,
 					}
 
 					// Handle the panic and return a 500 error response
@@ -118,7 +120,7 @@ func startServer(isDevMode bool) {
 					default:
 						debugMsg = "recover didn't get error msg"
 					}
-					logrus.Errorf("HTTP server handle this internal panic: %s", debugMsg)
+					logrus.Errorf("HTTP server handled this internal panic: %s", debugMsg)
 				}
 			}()
 			return next(c)
