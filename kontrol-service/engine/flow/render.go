@@ -355,7 +355,7 @@ func findBackendRefService(backendRef gateway.HTTPBackendRef, serviceVersion str
 	})
 }
 
-func getVersionedService(service *resolved.Service, namespace string) v1.Service {
+func getVersionedService(service *resolved.Service, flowVersion string, namespace string) v1.Service {
 	serviceSpecCopy := service.ServiceSpec.DeepCopy()
 
 	serviceSpecCopy.Selector = map[string]string{
@@ -369,7 +369,7 @@ func getVersionedService(service *resolved.Service, namespace string) v1.Service
 			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-%s", service.ServiceID, service.Version),
+			Name:      fmt.Sprintf("%s-%s", service.ServiceID, flowVersion),
 			Namespace: namespace,
 			Labels: map[string]string{
 				"app": service.ServiceID,
@@ -395,11 +395,15 @@ func getHTTPRoutes(
 			for _, rule := range routeSpec.Rules {
 				for refIx, ref := range rule.BackendRefs {
 					target, found := findBackendRefService(ref, activeFlowID, services)
+					// fallback to prod if backend not found at the active flow
+					if !found {
+						target, found = findBackendRefService(ref, "prod", services)
+					}
 					if found {
 						idVersion := fmt.Sprintf("%s-%s", target.ServiceID, activeFlowID)
 						_, serviceAlreadyAdded := frontServices[idVersion]
 						if !serviceAlreadyAdded {
-							frontServices[idVersion] = getVersionedService(target, namespace)
+							frontServices[idVersion] = getVersionedService(target, activeFlowID, namespace)
 							ref.Name = gateway.ObjectName(idVersion)
 							rule.BackendRefs[refIx] = ref
 						}
