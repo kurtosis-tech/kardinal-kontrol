@@ -451,12 +451,21 @@ func getEnvoyFilters(
 
 	filters := []istioclient.EnvoyFilter{}
 
-	for _, service := range allServices {
-		if service == nil || !service.IsHTTP() {
+	// HttpRoute (workload) are applied at the serviceID level, not the serviceID-version level
+	groupedServices := lo.GroupBy(allServices, func(item *resolved.Service) string { return item.ServiceID })
+	for serviceID, services := range groupedServices {
+		if len(services) == 0 {
 			continue
 		}
 
-		serviceID := service.ServiceID
+		anyNonHttp := lo.SomeBy(services, func(service *resolved.Service) bool {
+			return !service.IsHTTP()
+		})
+		if anyNonHttp {
+			logrus.Infof("Service '%s' is not an HTTP service, skipping filters", serviceID)
+			continue
+		}
+
 		isTargertService := slices.Contains(targetHttpRouteServices, fmt.Sprintf("%s/%s", namespace, serviceID))
 
 		luaFilter := inboundRequestTraceIDFilter
