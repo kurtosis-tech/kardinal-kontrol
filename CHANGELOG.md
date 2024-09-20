@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.30](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.29...0.1.30) (2024-09-20)
+
+
+### Features
+
+* Add more details about API compatibility ([#38](https://github.com/kurtosis-tech/kardinal-kontrol/issues/38)) ([1220d31](https://github.com/kurtosis-tech/kardinal-kontrol/commit/1220d3152752455b4bda86a54c8b92117784ef51))
+
 ## [0.1.29](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.28...0.1.29) (2024-09-19)
 
 
