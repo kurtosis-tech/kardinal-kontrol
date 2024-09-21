@@ -322,7 +322,7 @@ func clusterTopologyExample() resolved.ClusterTopology {
 	}
 
 	// Create ingress rules
-	ingressRules := []*netv1.IngressRule{
+	ingressRules := []netv1.IngressRule{
 		{
 			Host: "online-boutique.com",
 			IngressRuleValue: netv1.IngressRuleValue{
@@ -341,14 +341,19 @@ func clusterTopologyExample() resolved.ClusterTopology {
 	// Create ingress
 	ingress := resolved.Ingress{
 		ActiveFlowIDs: []string{"main-flow"},
-		IngressID:     "main-ingress",
-		IngressRules:  ingressRules,
+		Ingresses: []netv1.Ingress{
+			{
+				Spec: netv1.IngressSpec{
+					Rules: ingressRules,
+				},
+			},
+		},
 	}
 
 	// Create cluster topology
 	clusterTopology := resolved.ClusterTopology{
-		FlowID:    "test-prod",
-		Ingresses: []*resolved.Ingress{&ingress},
+		FlowID:  "test-prod",
+		Ingress: &ingress,
 		Services: []*resolved.Service{
 			&frontendService,
 			&cartService,

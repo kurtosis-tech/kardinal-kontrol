@@ -304,6 +304,13 @@ func (sv *Server) GetTenantUuidManifest(_ context.Context, request api.GetTenant
 				}
 			}
 
+			for _, resource := range clusterResources.Ingresses {
+				if err := yamlPrinter.PrintObj(&resource, &yamlBuffer); err != nil {
+					logrus.WithError(err).Errorf("An error occurred printing '%s' in the yaml buffer", resource.Name)
+					return nil, stacktrace.Propagate(err, "an error occurred printing ingress '%s' in the yaml buffer", resource.Name)
+				}
+			}
+
 			response := api.GetTenantUuidManifest200ApplicationxYamlResponse{
 				Body:          &yamlBuffer,
 				ContentLength: int64(yamlBuffer.Len()),
@@ -692,6 +699,7 @@ func newManagerAPIClusterResources(clusterResources types.ClusterResources) mana
 		DestinationRules:      &clusterResources.DestinationRules,
 		Gateways:              &clusterResources.Gateways,
 		HttpRoutes:            &clusterResources.HTTPRoutes,
+		Ingresses:             &clusterResources.Ingresses,
 		EnvoyFilters:          &clusterResources.EnvoyFilters,
 		AuthorizationPolicies: &clusterResources.AuthorizationPolicies,
 	}

@@ -22,6 +22,7 @@ import (
 	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	gateway "sigs.k8s.io/gateway-api/apis/v1"
 )
@@ -64,15 +65,7 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 			}
 			serviceList = append(serviceList, *getService(services[0], namespace))
 
-			var gateway *string
-			var extHost *string
-			if ingressService, found := clusterTopology.GetIngressForService(services[0]); found {
-				logrus.Infof("The service has an ingress")
-				gateway = &ingressService.IngressID
-				extHost = ingressService.GetHost()
-			}
-
-			virtualService, destinationRule := getVirtualService(serviceID, services, namespace, gateway, extHost)
+			virtualService, destinationRule := getVirtualService(serviceID, services, namespace)
 			virtualServices = append(virtualServices, *virtualService)
 			if destinationRule != nil {
 				destinationRules = append(destinationRules, *destinationRule)
@@ -90,11 +83,17 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 	envoyFilters = append(envoyFilters, envoyFiltersForService...)
 
 	routes, frontServices, inboundFrontFilters := getHTTPRoutes(clusterTopology.GatewayAndRoutes, clusterTopology.Services, namespace)
+	serviceList = append(serviceList, frontServices...)
 	envoyFilters = append(envoyFilters, inboundFrontFilters...)
+
+	ingresses, frontServices, inboundFrontFilters := getIngresses(clusterTopology.Ingress, clusterTopology.Services, namespace)
+	serviceList = append(serviceList, frontServices...)
+	envoyFilters = append(envoyFilters, inboundFrontFilters...)
+
 	logrus.Infof("have total of %d envoy filters", len(envoyFilters))
 
 	return types.ClusterResources{
-		Services: append(serviceList, frontServices...),
+		Services: serviceList,
 
 		Deployments: lo.FilterMap(clusterTopology.Services, func(service *resolved.Service, _ int) (appsv1.Deployment, bool) {
 			// Deployment spec is nil for external services, don't need to add anything to cluster
@@ -107,6 +106,8 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 		Gateways: getGateways(clusterTopology.GatewayAndRoutes),
 
 		HTTPRoutes: routes,
+
+		Ingresses: ingresses,
 
 		VirtualServices: virtualServices,
 
@@ -179,9 +180,7 @@ func getHTTPRoute(service *resolved.Service, host *string) *v1alpha3.HTTPRoute {
 	}
 }
 
-func getVirtualService(serviceID string, services []*resolved.Service, namespace string, gateway *string, extHost *string) (*istioclient.VirtualService, *istioclient.DestinationRule) {
-	extHosts := []string{}
-
+func getVirtualService(serviceID string, services []*resolved.Service, namespace string) (*istioclient.VirtualService, *istioclient.DestinationRule) {
 	httpRoutes := []*v1alpha3.HTTPRoute{}
 	tcpRoutes := []*v1alpha3.TCPRoute{}
 	destinationRule := getDestinationRule(serviceID, services, namespace)
@@ -190,11 +189,6 @@ func getVirtualService(serviceID string, services []*resolved.Service, namespace
 		// TODO: Support for multiple ports
 		servicePort := &service.ServiceSpec.Ports[0]
 		var flowHost *string
-		if extHost != nil {
-			flowHostTemp := resolved.ReplaceOrAddSubdomain(*extHost, service.Version)
-			flowHost = &flowHostTemp
-			extHosts = append(extHosts, *flowHost)
-		}
 
 		if servicePort.AppProtocol != nil && *servicePort.AppProtocol == "HTTP" {
 			httpRoutes = append(httpRoutes, getHTTPRoute(service, flowHost))
@@ -206,16 +200,7 @@ func getVirtualService(serviceID string, services []*resolved.Service, namespace
 	virtualServiceSpec := v1alpha3.VirtualService{}
 	virtualServiceSpec.Http = httpRoutes
 	virtualServiceSpec.Tcp = tcpRoutes
-
-	if gateway != nil {
-		virtualServiceSpec.Gateways = []string{*gateway}
-	}
-
-	if extHost != nil {
-		virtualServiceSpec.Hosts = extHosts
-	} else {
-		virtualServiceSpec.Hosts = []string{serviceID}
-	}
+	virtualServiceSpec.Hosts = []string{serviceID}
 
 	return &istioclient.VirtualService{
 		TypeMeta: metav1.TypeMeta{
@@ -351,9 +336,9 @@ func getGateways(gatewayAndRoutes *resolved.GatewayAndRoutes) []gateway.Gateway 
 	})
 }
 
-func findBackendRefService(backendRef gateway.HTTPBackendRef, serviceVersion string, services []*resolved.Service) (*resolved.Service, bool) {
+func findBackendRefService(serviceName string, serviceVersion string, services []*resolved.Service) (*resolved.Service, bool) {
 	return lo.Find(services, func(service *resolved.Service) bool {
-		return service.ServiceID == string(backendRef.Name) && service.Version == serviceVersion
+		return service.ServiceID == serviceName && service.Version == serviceVersion
 	})
 }
 
@@ -382,6 +367,75 @@ func getVersionedService(service *resolved.Service, flowVersion string, namespac
 	}
 }
 
+func getIngresses(
+	ingress *resolved.Ingress,
+	allServices []*resolved.Service,
+	namespace string,
+) ([]net.Ingress, []v1.Service, []istioclient.EnvoyFilter) {
+	ingressList := []net.Ingress{}
+	frontServices := map[string]v1.Service{}
+	filters := []istioclient.EnvoyFilter{}
+
+	for _, ingressSpecOriginal := range ingress.Ingresses {
+		ingressDefinition := ingressSpecOriginal.DeepCopy()
+		newRules := []net.IngressRule{}
+
+		for _, ruleOriginal := range ingressDefinition.Spec.Rules {
+			for _, activeFlowID := range ingress.ActiveFlowIDs {
+				logrus.Infof("Setting gateway route for active flow ID: %v", activeFlowID)
+
+				newPaths := []net.HTTPIngressPath{}
+
+				rule := ruleOriginal.DeepCopy()
+
+				flowHostname := resolved.ReplaceOrAddSubdomain(rule.Host, activeFlowID)
+				rule.Host = flowHostname
+				hostnames := []string{
+					flowHostname,
+				}
+
+				for _, pathOriginal := range ruleOriginal.HTTP.Paths {
+					target, found := findBackendRefService(pathOriginal.Backend.Service.Name, activeFlowID, allServices)
+					// fallback to prod if backend not found at the active flow
+					if !found {
+						target, found = findBackendRefService(pathOriginal.Backend.Service.Name, prodVersion, allServices)
+					}
+					if found {
+						path := *pathOriginal.DeepCopy()
+						idVersion := fmt.Sprintf("%s-%s", target.ServiceID, activeFlowID)
+						_, serviceAlreadyAdded := frontServices[idVersion]
+						if !serviceAlreadyAdded {
+							frontServices[idVersion] = getVersionedService(target, activeFlowID, namespace)
+							path.Backend.Service.Name = idVersion
+							newPaths = append(newPaths, path)
+
+							// Set Envoy FIlter for the service
+							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, hostnames)
+							inboundFilter := getInboundFilter(target.ServiceID, namespace, -1, &target.Version, &luaFilterFrontend)
+							logrus.Debugf("Adding inbound filter to setup routing table for flow '%s' on service '%s', version '%s'", activeFlowID, target.ServiceID, target.Version)
+							filters = append(filters, inboundFilter)
+						}
+					} else {
+						logrus.Errorf("Backend service %v for Ingress %v not found", pathOriginal.Backend.Service.Name, ingressDefinition.Name)
+					}
+				}
+				rule.HTTP.Paths = newPaths
+				newRules = append(newRules, *rule)
+			}
+		}
+
+		ingressDefinition.Spec.Rules = newRules
+
+		if ingressDefinition.Namespace == "" {
+			ingressDefinition.Namespace = constants.DefaultNS
+		}
+
+		ingressList = append(ingressList, *ingressDefinition)
+	}
+
+	return ingressList, lo.Values(frontServices), filters
+}
+
 func getHTTPRoutes(
 	gatewayAndRoutes *resolved.GatewayAndRoutes,
 	allServices []*resolved.Service,
@@ -402,10 +456,10 @@ func getHTTPRoutes(
 
 			for _, rule := range routeSpec.Rules {
 				for refIx, ref := range rule.BackendRefs {
-					target, found := findBackendRefService(ref, activeFlowID, allServices)
+					target, found := findBackendRefService(string(ref.Name), activeFlowID, allServices)
 					// fallback to prod if backend not found at the active flow
 					if !found {
-						target, found = findBackendRefService(ref, prodVersion, allServices)
+						target, found = findBackendRefService(string(ref.Name), prodVersion, allServices)
 					}
 					if found {
 						idVersion := fmt.Sprintf("%s-%s", target.ServiceID, activeFlowID)
@@ -415,8 +469,9 @@ func getHTTPRoutes(
 							ref.Name = gateway.ObjectName(idVersion)
 							rule.BackendRefs[refIx] = ref
 
+							hostnames := lo.Map(routeSpec.Hostnames, func(item gateway.Hostname, _ int) string { return string(item) })
 							// Set Envoy FIlter for the service
-							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, routeSpec.Hostnames)
+							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, hostnames)
 							inboundFilter := getInboundFilter(target.ServiceID, namespace, -1, &target.Version, &luaFilterFrontend)
 							logrus.Debugf("Adding inbound filter to setup routing table for flow '%s' on service '%s', version '%s'", activeFlowID, target.ServiceID, target.Version)
 							filters = append(filters, inboundFilter)
@@ -721,7 +776,7 @@ end
 `, generateLuaTraceHeaderPriorities())
 }
 
-func generateDynamicLuaScript(allServices []*resolved.Service, flowId string, hostnames []gateway.Hostname) string {
+func generateDynamicLuaScript(allServices []*resolved.Service, flowId string, hostnames []string) string {
 	var setRouteCalls strings.Builder
 
 	// Helper function to add a setRoute call

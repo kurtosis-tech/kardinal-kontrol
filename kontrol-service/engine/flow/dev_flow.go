@@ -36,15 +36,10 @@ func CreateDevFlow(
 	topology.FlowID = flowID
 	topology.Services = deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.Services)
 	topology.ServiceDependencies = deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.ServiceDependencies)
-	topology.Ingresses = lo.Map(baseClusterTopologyMaybeWithTemplateOverrides.Ingresses, func(item *resolved.Ingress, _ int) *resolved.Ingress {
-		copiedIngress := resolved.Ingress{
-			ActiveFlowIDs: []string{flowID},
-			IngressID:     item.IngressID,
-			IngressRules:  deepCopySlice(item.IngressRules),
-			ServiceSpec:   item.ServiceSpec,
-		}
-		return &copiedIngress
-	})
+	topology.Ingress = &resolved.Ingress{
+		ActiveFlowIDs: []string{flowID},
+		Ingresses:     deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.Ingress.Ingresses),
+	}
 	topology.GatewayAndRoutes = &resolved.GatewayAndRoutes{
 		ActiveFlowIDs: []string{flowID},
 		Gateways:      deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.GatewayAndRoutes.Gateways),

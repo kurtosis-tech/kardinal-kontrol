@@ -5,12 +5,10 @@ import (
 	"strings"
 
 	"github.com/kurtosis-tech/stacktrace"
-	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
-	v1 "k8s.io/api/core/v1"
 	net "k8s.io/api/networking/v1"
 	gateway "sigs.k8s.io/gateway-api/apis/v1"
 
@@ -80,13 +78,15 @@ func generateClusterTopology(
 	namespace, version string,
 ) (*resolved.ClusterTopology, error) {
 	clusterTopology := resolved.ClusterTopology{}
-
 	clusterTopologyServices := []*resolved.Service{}
-	clusterTopologyIngress := []*resolved.Ingress{}
 	clusterTopologyServiceDependencies := []resolved.ServiceDependency{}
 	clusterTopology.Namespace = namespace
 
-	alreadyFoundIngress := false
+	clusterTopologyIngress := resolved.Ingress{
+		ActiveFlowIDs: []string{version},
+		Ingresses:     []net.Ingress{},
+	}
+
 	for _, ingressConfig := range ingressConfigs {
 		ingress := ingressConfig.Ingress
 		ingressAnnotations := ingress.GetObjectMeta().GetAnnotations()
@@ -94,23 +94,11 @@ func generateClusterTopology(
 		// Ingress?
 		isIngress, ok := ingressAnnotations["kardinal.dev.service/ingress"]
 		if ok && isIngress == "true" {
-			ingressObj := resolved.Ingress{
-				ActiveFlowIDs: []string{version},
-				IngressID:     ingress.ObjectMeta.Name,
-				IngressSpec:   &ingress.Spec,
-			}
 			_, ok := ingressAnnotations["kardinal.dev.service/host"]
 			if ok {
 				logrus.Debugf("Found hostname Kardinal annotation on Ingress '%v' but using Ingress Rules provided by k8s Ingress object instead.", ingress.Name)
 			}
-
-			// A k8s ingress object should specify the Ingress rules so use those instead of creating one manually
-			for _, ingressRule := range ingress.Spec.Rules {
-				ingressObj.IngressRules = append(ingressObj.IngressRules, &ingressRule)
-			}
-
-			clusterTopologyIngress = append(clusterTopologyIngress, &ingressObj)
-			alreadyFoundIngress = true
+			clusterTopologyIngress.Ingresses = append(clusterTopologyIngress.Ingresses, ingress)
 		}
 	}
 
@@ -153,30 +141,6 @@ func generateClusterTopology(
 		service := serviceConfig.Service
 		deployment := serviceConfig.Deployment
 		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
-
-		// Ingress?
-		isIngress, ok := serviceAnnotations["kardinal.dev.service/ingress"]
-		if ok && isIngress == "true" {
-			if !alreadyFoundIngress {
-				ingress := resolved.Ingress{
-					ActiveFlowIDs: []string{version},
-					IngressID:     service.ObjectMeta.Name,
-					ServiceSpec:   &service.Spec,
-				}
-				host, ok := serviceAnnotations["kardinal.dev.service/host"]
-				if ok {
-					ingress.IngressRules = []*net.IngressRule{
-						{
-							Host: host,
-						},
-					}
-				}
-				clusterTopologyIngress = append(clusterTopologyIngress, &ingress)
-			}
-			// TODO: why this need to be a separated service?
-			// Don't add ingress services to the list of resolved services
-			continue
-		}
 
 		// Service
 		logrus.Infof("Processing service: %v", service.GetObjectMeta().GetName())
@@ -248,10 +212,10 @@ func generateClusterTopology(
 		clusterTopologyServices = append(clusterTopologyServices, &clusterTopologyService)
 	}
 
-	if len(clusterTopologyIngress) == 0 && len(gatewayAndRoutes.Gateways) == 0 && len(gatewayAndRoutes.GatewayRoutes) == 0 {
+	if len(clusterTopologyIngress.Ingresses) == 0 && len(gatewayAndRoutes.Gateways) == 0 && len(gatewayAndRoutes.GatewayRoutes) == 0 {
 		logrus.Warnf("No ingress or gateway found in the service configs")
 	}
-	clusterTopology.Ingresses = clusterTopologyIngress
+	clusterTopology.Ingress = &clusterTopologyIngress
 
 	if len(clusterTopologyServices) == 0 {
 		return nil, stacktrace.NewError("At least one service is required in addition to the ingress service(s)")
@@ -261,11 +225,6 @@ func generateClusterTopology(
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
 		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
-
-		if isServiceIngress(&clusterTopology, service) || alreadyFoundIngress {
-			logrus.Infof("Service %s is an ingress service, skipping dependency resolution", service.GetObjectMeta().GetName())
-			continue
-		}
 
 		clusterTopologyService, err := clusterTopology.GetService(service.GetObjectMeta().GetName())
 		if err != nil {
@@ -298,10 +257,4 @@ func generateClusterTopology(
 	clusterTopology.ServiceDependencies = clusterTopologyServiceDependencies
 
 	return &clusterTopology, nil
-}
-
-func isServiceIngress(clusterTopology *resolved.ClusterTopology, service v1.Service) bool {
-	return lo.SomeBy(clusterTopology.Ingresses, func(item *resolved.Ingress) bool {
-		return item.IngressID == service.GetObjectMeta().GetName()
-	})
 }

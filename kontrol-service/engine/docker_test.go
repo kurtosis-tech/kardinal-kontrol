@@ -43,8 +43,8 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 	require.Equal(t, dependency.DependsOnService, redisProdService)
 	require.Equal(t, *dependency.DependencyPort, testServiceConfigs[0].Service.Spec.Ports[0])
 
-	ingressService := cluster.Ingresses
-	require.Equal(t, ingressService[0].IngressID, "voting-app-lb")
+	ingressService := cluster.Ingress
+	require.Equal(t, ingressService.Ingresses[0].Name, "voting-app-lb")
 }
 
 func TestIngressConfigsTakePrecedenceOverK8sServicesActingAsIngresses(t *testing.T) {
@@ -63,9 +63,9 @@ func TestIngressConfigsTakePrecedenceOverK8sServicesActingAsIngresses(t *testing
 		t.Errorf("Error generating cluster: %s", err)
 	}
 
-	ingressService := cluster.Ingresses
-	require.Equal(t, ingressService[0].IngressID, "kontrol-ingress")
+	ingressService := cluster.Ingress.Ingresses
+	require.Equal(t, ingressService[0].Name, "kontrol-ingress")
 	require.Len(t, ingressService, 1)
-	require.Len(t, ingressService[0].IngressRules, 1)
-	require.Equal(t, ingressService[0].IngressRules[0].Host, "app.kardinal.dev")
+	require.Len(t, ingressService[0].Spec.Rules, 1)
+	require.Equal(t, ingressService[0].Spec.Rules[0].Host, "app.kardinal.dev")
 }

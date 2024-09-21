@@ -13,7 +13,6 @@ import (
 // Aggregate mode: clusterTopology is the base topology and flowsClusterTopology contains the topologies for all the flows.
 // Single flow mode: clusterToppology is the flow topology and flowsClusterTopology is set to nil.
 func ClusterTopology(clusterTopology *resolved.ClusterTopology, flowsClusterTopology *[]resolved.ClusterTopology) *apiTypes.ClusterTopology {
-
 	var topology *resolved.ClusterTopology
 	if flowsClusterTopology != nil {
 		topology = flow.MergeClusterTopologies(*clusterTopology, *flowsClusterTopology)
@@ -43,43 +42,97 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology, flowsClusterTopo
 		}
 	})
 
-	gateways := lo.Map(clusterTopology.Ingresses, func(ingress *resolved.Ingress, _ int) apiTypes.Node {
-		gwLabel := ingress.IngressID
-		return apiTypes.Node{
-			Id:       gwLabel,
-			Label:    &gwLabel,
-			Type:     apiTypes.Gateway,
-			Versions: &[]string{},
+	if topology.GatewayAndRoutes != nil {
+		for _, gw := range topology.GatewayAndRoutes.Gateways {
+			gwLabel := gw.Name
+			nodes = append(nodes, apiTypes.Node{
+				Id:       gwLabel,
+				Label:    &gwLabel,
+				Type:     apiTypes.Gateway,
+				Versions: &[]string{},
+			})
 		}
-	})
+	}
 
-	allNodes := append(nodes, gateways...)
-	sort.Slice(allNodes, func(i, j int) bool {
-		if len(*allNodes[i].Versions) == len(*allNodes[j].Versions) {
-			return allNodes[i].Id < allNodes[j].Id
+	if topology.Ingress != nil {
+		for _, ingress := range topology.Ingress.Ingresses {
+			ingressLabel := ingress.Name
+			nodes = append(nodes, apiTypes.Node{
+				Id:       ingressLabel,
+				Label:    &ingressLabel,
+				Type:     apiTypes.Gateway,
+				Versions: &[]string{},
+			})
+		}
+	}
+
+	sort.Slice(nodes, func(i, j int) bool {
+		if len(*nodes[i].Versions) == len(*nodes[j].Versions) {
+			return nodes[i].Id < nodes[j].Id
 		} else {
-			return len(*allNodes[i].Versions) > len(*allNodes[j].Versions)
+			return len(*nodes[i].Versions) > len(*nodes[j].Versions)
 		}
 	})
 	return &apiTypes.ClusterTopology{
-		Nodes: allNodes,
+		Nodes: nodes,
 		Edges: edges,
 	}
+}
+
+func getIngressEdges(ingress *resolved.Ingress) []apiTypes.Edge {
+	edges := []apiTypes.Edge{}
+
+	if ingress == nil {
+		return edges
+	}
+
+	for _, ingress := range ingress.Ingresses {
+		gwLabel := ingress.Name
+		for _, rule := range ingress.Spec.Rules {
+			for _, path := range rule.IngressRuleValue.HTTP.Paths {
+				edges = append(edges, apiTypes.Edge{
+					Source: gwLabel,
+					Target: path.Backend.Service.Name,
+				})
+			}
+		}
+	}
+
+	return edges
+}
+
+func getGatewayEdges(gw *resolved.GatewayAndRoutes) []apiTypes.Edge {
+	edges := []apiTypes.Edge{}
+
+	if gw == nil {
+		return edges
+	}
+
+	for _, route := range gw.GatewayRoutes {
+		for _, ref := range route.ParentRefs {
+			gwLabel := string(ref.Name)
+			for _, rule := range route.Rules {
+				for _, backRef := range rule.BackendRefs {
+					edges = append(edges, apiTypes.Edge{
+						Source: gwLabel,
+						Target: string(backRef.Name),
+					})
+				}
+			}
+		}
+	}
+
+	return edges
 }
 
 func getClusterTopologyEdges(clusterTopology *resolved.ClusterTopology) []apiTypes.Edge {
 	edges := []apiTypes.Edge{}
 
-	for _, ingress := range clusterTopology.Ingresses {
-		gwLabel := ingress.IngressID
+	ingressEdges := getIngressEdges(clusterTopology.Ingress)
+	edges = append(edges, ingressEdges...)
 
-		for _, targetService := range ingress.GetTargetServices() {
-			edges = append(edges, apiTypes.Edge{
-				Source: gwLabel,
-				Target: targetService,
-			})
-		}
-	}
+	gatewayEdges := getGatewayEdges(clusterTopology.GatewayAndRoutes)
+	edges = append(edges, gatewayEdges...)
 
 	for _, serviceDependency := range clusterTopology.ServiceDependencies {
 		edges = append(edges, apiTypes.Edge{
@@ -95,5 +148,6 @@ func getClusterTopologyEdges(clusterTopology *resolved.ClusterTopology) []apiTyp
 			return edges[i].Source < edges[j].Source
 		}
 	})
+
 	return edges
 }
