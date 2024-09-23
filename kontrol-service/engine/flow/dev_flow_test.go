@@ -368,6 +368,186 @@ func clusterTopologyExample() resolved.ClusterTopology {
 	return clusterTopology
 }
 
+func secondClusterTopologyExample() resolved.ClusterTopology {
+	dummySpec := &appsv1.DeploymentSpec{}
+	httpProtocol := "HTTP"
+
+	// Create services
+	frontendService := resolved.Service{
+		ServiceID: "frontend",
+		ServiceSpec: &v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name:        "http",
+					Port:        80,
+					AppProtocol: &httpProtocol,
+				},
+			},
+			Selector: map[string]string{
+				"app": "frontend",
+			},
+		},
+		DeploymentSpec: dummySpec,
+		IsExternal:     false,
+		IsStateful:     false,
+		StatefulPlugins: []*resolved.StatefulPlugin{
+			{
+				Name:        dummyPluginName,
+				ServiceName: "free-currency-api",
+				Type:        "external",
+				Args:        map[string]string{},
+			},
+		},
+	}
+
+	cartService := resolved.Service{
+		ServiceID: "cartservice",
+		ServiceSpec: &v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name:        "grpc",
+					Port:        7070,
+					AppProtocol: &httpProtocol,
+				},
+			},
+			Selector: map[string]string{
+				"app": "cartservice",
+			},
+		},
+		DeploymentSpec: dummySpec,
+		IsExternal:     false,
+		IsStateful:     false,
+		StatefulPlugins: []*resolved.StatefulPlugin{
+			{
+				Name:        dummyPluginName,
+				ServiceName: "neon-postgres-db",
+				Type:        "external",
+				Args:        map[string]string{},
+			},
+		},
+	}
+
+	productCatalogService := resolved.Service{
+		ServiceID: "productcatalogservice",
+		ServiceSpec: &v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name:        "grpc",
+					Port:        3550,
+					AppProtocol: &httpProtocol,
+				},
+			},
+			Selector: map[string]string{
+				"app": "productcatalogservice",
+			},
+		},
+		DeploymentSpec: dummySpec,
+		IsExternal:     false,
+		IsStateful:     false,
+	}
+
+	postgresService := resolved.Service{
+		ServiceID: "postgres",
+		ServiceSpec: &v1.ServiceSpec{
+			Ports: []v1.ServicePort{
+				{
+					Name: "tcp",
+					Port: 5432,
+				},
+			},
+			Selector: map[string]string{
+				"app": "postgres",
+			},
+		},
+		DeploymentSpec: dummySpec,
+		IsExternal:     false,
+		IsStateful:     true,
+	}
+
+	jsdeliverAPIPluginService := resolved.Service{
+		ServiceID:       "jsdelivr-api",
+		ServiceSpec:     nil,
+		DeploymentSpec:  nil,
+		IsExternal:      true,
+		IsStateful:      false,
+		StatefulPlugins: nil,
+	}
+
+	// Create service dependencies
+	serviceDependencies := []resolved.ServiceDependency{
+		{
+			Service:          &frontendService,
+			DependsOnService: &productCatalogService,
+			DependencyPort: &v1.ServicePort{
+				Name: "http",
+				Port: 8070,
+			},
+		},
+		{
+			Service:          &frontendService,
+			DependsOnService: &cartService,
+			DependencyPort: &v1.ServicePort{
+				Name: "http",
+				Port: 8090,
+			},
+		},
+		{
+			Service:          &frontendService,
+			DependsOnService: &jsdeliverAPIPluginService,
+		},
+
+		{
+			Service:          &cartService,
+			DependsOnService: &postgresService,
+			DependencyPort: &v1.ServicePort{
+				Name: "tcp",
+				Port: 5432,
+			},
+		},
+	}
+
+	// Create ingress rules
+	ingressRules := []*netv1.IngressRule{
+		{
+			Host: "online-boutique.com",
+			IngressRuleValue: netv1.IngressRuleValue{
+				HTTP: &netv1.HTTPIngressRuleValue{
+					Paths: []netv1.HTTPIngressPath{
+						{
+							Path:    "/",
+							Backend: netv1.IngressBackend{},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Create ingress
+	ingress := resolved.Ingress{
+		ActiveFlowIDs: []string{"main-flow"},
+		IngressID:     "main-ingress",
+		IngressRules:  ingressRules,
+	}
+
+	// Create cluster topology
+	clusterTopology := resolved.ClusterTopology{
+		FlowID:    "test-prod",
+		Ingresses: []*resolved.Ingress{&ingress},
+		Services: []*resolved.Service{
+			&frontendService,
+			&cartService,
+			&productCatalogService,
+			&jsdeliverAPIPluginService,
+			&postgresService,
+		},
+		ServiceDependencies: serviceDependencies,
+	}
+
+	// Use the clusterTopology as needed
+	return clusterTopology
+}
+
 func getServiceRef(cluster *resolved.ClusterTopology, serviceID string) *resolved.Service {
 	service, found := lo.Find(cluster.Services, func(item *resolved.Service) bool { return item.ServiceID == serviceID })
 	if !found {
@@ -450,6 +630,31 @@ func TestTopologyToGraph(t *testing.T) {
 		{targetService, paymentservice},
 		{targetService, shippingservice},
 		{targetService, cartservice, redis},
+	}
+
+	require.Equal(t, expected, resultGraph)
+}
+
+func TestTopologyToGraph2(t *testing.T) {
+	cluster := secondClusterTopologyExample()
+	g := topologyToGraph(&cluster)
+	targetService, err := cluster.GetService("frontend")
+	require.Nil(t, err)
+
+	resultGraph := findAllDownstreamStatefulPaths(targetService, g, &cluster)
+	fmt.Println("Paths:")
+	for _, paths := range resultGraph {
+		fmt.Println("Segs:")
+		for _, dep := range paths {
+			fmt.Println(dep)
+		}
+	}
+
+	cartservice := getServiceRef(&cluster, "cartservice")
+	postgres := getServiceRef(&cluster, "postgres")
+
+	expected := [][]*resolved.Service{
+		{targetService, cartservice, postgres},
 	}
 
 	require.Equal(t, expected, resultGraph)
