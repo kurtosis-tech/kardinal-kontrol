@@ -1,5 +1,5 @@
-import { NodeVersion } from "@/types";
 import { Flex, IconButton } from "@chakra-ui/react";
+import { useApi } from "@/contexts/ApiContext";
 import {
   Table,
   Thead,
@@ -9,37 +9,37 @@ import {
   Td,
   TableContainer,
 } from "@/components/Table";
-import { useState } from "react";
-import { FiEye, FiEyeOff } from "react-icons/fi";
+import { FiExternalLink, FiEye, FiEyeOff } from "react-icons/fi";
+import { useEffect, useState } from "react";
+import { ClusterTopology, NodeVersion, Node } from "@/types";
+import { Link } from "@chakra-ui/react";
 
-interface Props {
-  elements: cytoscape.ElementDefinition[];
-}
+const Legend = () => {
+  const { flows, getFlows, getTopology } = useApi();
+  const [topology, setTopology] = useState<ClusterTopology | null>(null);
 
-const Legend = ({ elements }: Props) => {
-  const [highlightedFlowId, setHighlightedFlowId] = useState<string | null>(
-    null,
-  );
-
-  const serviceVersions: NodeVersion[] = elements
-    .map((element) => element.data.versions)
-    .flat()
-    .filter(Boolean);
-
-  const flowIds = serviceVersions.map((version) => version.flowId);
-  const uniqueFlowIds = [...new Set(flowIds)];
-
-  const servicesForFlowId = (flowId: string): cytoscape.ElementDefinition[] => {
-    const services = elements.filter(
-      (element) =>
-        element.data.versions != null &&
-        element.data.versions.some(
+  const servicesForFlowId = (flowId: string, isBaseline: boolean): Node[] => {
+    if (topology == null) {
+      return [];
+    }
+    const services = topology.nodes.filter(
+      (node) =>
+        node.versions != null &&
+        node.versions.some(
           (version: NodeVersion) =>
-            version.flowId === flowId && !version.isBaseline,
+            version.flowId === flowId && version.isBaseline === isBaseline,
         ),
     );
     return services;
   };
+
+  useEffect(() => {
+    getFlows();
+    getTopology().then(setTopology);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const highlightedFlowId = null;
 
   return (
     <Flex
@@ -57,20 +57,28 @@ const Legend = ({ elements }: Props) => {
           <Thead>
             <Tr>
               <Th>Flow ID</Th>
-              <Th>Deployed Services</Th>
               <Th>Baseline</Th>
+              <Th>URL</Th>
               <Th>Show/Hide</Th>
             </Tr>
           </Thead>
           <Tbody>
-            {uniqueFlowIds.map((flowId) => {
-              const sffi = servicesForFlowId(flowId);
-              const isBaseline = sffi.length === 0;
+            {flows.map((flow) => {
+              // TODO: Update these when this PR is merged:
+              // https://github.com/kurtosis-tech/kardinal/pull/234
+              const flowId = flow["flow-id"];
+              const flowUrls = flow["flow-urls"];
+              const isBaseline = servicesForFlowId(flowId, false).length === 0;
               return (
                 <Tr key={flowId}>
                   <Td>{flowId}</Td>
-                  <Td>{sffi.length === 0 ? "All" : sffi.length}</Td>
                   <Td textTransform={"capitalize"}>{isBaseline.toString()}</Td>
+                  <Td>
+                    <Link href={flowUrls[0]} isExternal target="_blank">
+                      {flowUrls[0]}
+                      <FiExternalLink size={12} />
+                    </Link>
+                  </Td>
                   <Td textAlign={"right"}>
                     {highlightedFlowId === flowId ? (
                       <IconButton
@@ -83,7 +91,7 @@ const Legend = ({ elements }: Props) => {
                         icon={<FiEyeOff size={16} />}
                         disabled={isBaseline}
                         onClick={() => {
-                          setHighlightedFlowId(null);
+                          // setHighlightedFlowId(null);
                         }}
                       />
                     ) : (
@@ -98,7 +106,7 @@ const Legend = ({ elements }: Props) => {
                         color={isBaseline ? "gray.300" : "gray.600"}
                         cursor={isBaseline ? "not-allowed" : "pointer"}
                         onClick={() => {
-                          setHighlightedFlowId(flowId);
+                          // setHighlightedFlowId(flowId);
                         }}
                       />
                     )}

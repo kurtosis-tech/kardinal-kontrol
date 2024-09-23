@@ -180,7 +180,7 @@ const CytoscapeGraph = ({
 
   return (
     <Flex w="100%" h="100%" minHeight="267px" position={"relative"}>
-      <Legend elements={elements} />
+      <Legend />
       <TooltipPortal element={tooltipPortalElem} node={hoveredNode} />
       <CytoscapeComponent
         id="cytoscape-graph"

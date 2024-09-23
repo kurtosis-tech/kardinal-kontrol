@@ -29,9 +29,14 @@ const stylesheet = [
       content: "data(label)",
       "background-image": (elem: cytoscape.NodeSingular) => {
         const versions = elem.data("versions");
+        const isExternal = elem.data("type") === "external";
         return svgDot(
-          versions.length.toString(),
-          versions.length >= 2 ? colors.orange : colors.gray,
+          isExternal ? "~" : versions.length.toString(),
+          isExternal
+            ? colors.purple
+            : versions.length >= 2
+              ? colors.orange
+              : colors.gray,
         );
       },
       "background-size": "24px 24px",
@@ -138,9 +143,9 @@ const stylesheet = [
     selector: ".external",
     css: {
       "line-style": "dashed",
-      "border-style": "dashed",
-      "background-color": "#EFF6FF",
-      "border-color": "#c0bfbf",
+      "border-style": "dotted",
+      "background-color": "#f2ebf8",
+      "border-color": colors.purple,
       color: "#5A5A59",
     },
   },
