@@ -59,7 +59,7 @@ const Legend = () => {
               <Th>Flow ID</Th>
               <Th>Baseline</Th>
               <Th>URL</Th>
-              <Th>Show/Hide</Th>
+              {/* <Th>Show/Hide</Th> */}
             </Tr>
           </Thead>
           <Tbody>
@@ -73,12 +73,21 @@ const Legend = () => {
                 <Tr key={flowId}>
                   <Td>{flowId}</Td>
                   <Td textTransform={"capitalize"}>{isBaseline.toString()}</Td>
-                  <Td>
-                    <Link href={flowUrls[0]} isExternal target="_blank">
+                  <Td whiteSpace={"nowrap"}>
+                    <Link
+                      href={`http://${flowUrls[0]}`}
+                      isExternal
+                      target="_blank"
+                      display={"flex"}
+                      alignItems={"center"}
+                      gap={2}
+                    >
                       {flowUrls[0]}
                       <FiExternalLink size={12} />
                     </Link>
                   </Td>
+                  {/* TODO: Uncomment when this feature is fully implemented
+                   *
                   <Td textAlign={"right"}>
                     {highlightedFlowId === flowId ? (
                       <IconButton
@@ -111,6 +120,7 @@ const Legend = () => {
                       />
                     )}
                   </Td>
+                   **/}
                 </Tr>
               );
             })}
