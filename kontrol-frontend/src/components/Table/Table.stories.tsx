@@ -29,8 +29,8 @@ export const Example: Story = {
       <Table>
         <Thead>
           <Tr>
-            <Th isFirst>Flow ID</Th>
-            <Th isLast>Image Tag</Th>
+            <Th>Flow ID</Th>
+            <Th>Image Tag</Th>
           </Tr>
         </Thead>
         <Tbody>

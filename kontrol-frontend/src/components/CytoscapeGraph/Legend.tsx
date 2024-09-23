@@ -1,4 +1,4 @@
-import { Flex, IconButton } from "@chakra-ui/react";
+import { Flex } from "@chakra-ui/react";
 import { useApi } from "@/contexts/ApiContext";
 import {
   Table,
@@ -9,7 +9,7 @@ import {
   Td,
   TableContainer,
 } from "@/components/Table";
-import { FiExternalLink, FiEye, FiEyeOff } from "react-icons/fi";
+import { FiExternalLink } from "react-icons/fi";
 import { useEffect, useState } from "react";
 import { ClusterTopology, NodeVersion, Node } from "@/types";
 import { Link } from "@chakra-ui/react";
@@ -38,8 +38,6 @@ const Legend = () => {
     getTopology().then(setTopology);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const highlightedFlowId = null;
 
   return (
     <Flex
