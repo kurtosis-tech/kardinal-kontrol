@@ -1,5 +1,5 @@
 import { NodeVersion } from "@/types";
-import { Flex } from "@chakra-ui/react";
+import { Flex, IconButton } from "@chakra-ui/react";
 import {
   Table,
   Thead,
@@ -8,13 +8,19 @@ import {
   Th,
   Td,
   TableContainer,
-} from "@chakra-ui/react";
+} from "@/components/Table";
+import { useState } from "react";
+import { FiEye, FiEyeOff } from "react-icons/fi";
 
 interface Props {
   elements: cytoscape.ElementDefinition[];
 }
 
 const Legend = ({ elements }: Props) => {
+  const [highlightedFlowId, setHighlightedFlowId] = useState<string | null>(
+    null,
+  );
+
   const serviceVersions: NodeVersion[] = elements
     .map((element) => element.data.versions)
     .flat()
@@ -23,31 +29,16 @@ const Legend = ({ elements }: Props) => {
   const flowIds = serviceVersions.map((version) => version.flowId);
   const uniqueFlowIds = [...new Set(flowIds)];
 
-  const servicesForFlowId = (flowId: string): string => {
-    const services = elements
-      .map((element) => {
-        const versions = element.data.versions;
-        if (
-          versions != null &&
-          versions.length > 0 &&
-          versions.some((version: NodeVersion) => version.flowId === flowId)
-        ) {
-          return element;
-        }
-        return undefined;
-      })
-      .filter(Boolean);
-    // If flow ID is baseline flow, dont show all services
-    if (
-      services.some(
-        (service) =>
-          service?.data.versions.length === 1 &&
-          service?.data.versions[0].isBaseline,
-      )
-    ) {
-      return "All services";
-    }
-    return services.map((service) => service?.data.label).join(", ");
+  const servicesForFlowId = (flowId: string): cytoscape.ElementDefinition[] => {
+    const services = elements.filter(
+      (element) =>
+        element.data.versions != null &&
+        element.data.versions.some(
+          (version: NodeVersion) =>
+            version.flowId === flowId && !version.isBaseline,
+        ),
+    );
+    return services;
   };
 
   return (
@@ -59,10 +50,6 @@ const Legend = ({ elements }: Props) => {
       top={0}
       left={0}
       borderRadius={12}
-      borderWidth={1}
-      borderStyle={"solid"}
-      borderColor={"gray.300"}
-      padding={4}
       zIndex={5}
     >
       <TableContainer>
@@ -71,14 +58,51 @@ const Legend = ({ elements }: Props) => {
             <Tr>
               <Th>Flow ID</Th>
               <Th>Deployed Services</Th>
+              <Th>Baseline</Th>
+              <Th>Show/Hide</Th>
             </Tr>
           </Thead>
           <Tbody>
             {uniqueFlowIds.map((flowId) => {
+              const sffi = servicesForFlowId(flowId);
+              const isBaseline = sffi.length === 0;
               return (
                 <Tr key={flowId}>
                   <Td>{flowId}</Td>
-                  <Td>{servicesForFlowId(flowId)}</Td>
+                  <Td>{sffi.length === 0 ? "All" : sffi.length}</Td>
+                  <Td textTransform={"capitalize"}>{isBaseline.toString()}</Td>
+                  <Td textAlign={"right"}>
+                    {highlightedFlowId === flowId ? (
+                      <IconButton
+                        aria-label="Hide"
+                        h={"24px"}
+                        minH={"24px"}
+                        w={"24px"}
+                        minW={"24px"}
+                        color={isBaseline ? "gray.300" : "gray.600"}
+                        icon={<FiEyeOff size={16} />}
+                        disabled={isBaseline}
+                        onClick={() => {
+                          setHighlightedFlowId(null);
+                        }}
+                      />
+                    ) : (
+                      <IconButton
+                        aria-label="Show"
+                        h={"24px"}
+                        minH={"24px"}
+                        w={"24px"}
+                        minW={"24px"}
+                        icon={<FiEye size={16} />}
+                        disabled={isBaseline}
+                        color={isBaseline ? "gray.300" : "gray.600"}
+                        cursor={isBaseline ? "not-allowed" : "pointer"}
+                        onClick={() => {
+                          setHighlightedFlowId(flowId);
+                        }}
+                      />
+                    )}
+                  </Td>
                 </Tr>
               );
             })}

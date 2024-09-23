@@ -12,7 +12,7 @@ const data: ClusterTopology = {
     },
     {
       source: "checkoutservice",
-      target: "emailservice",
+      target: "mailchimp",
     },
     {
       source: "checkoutservice",
@@ -92,13 +92,12 @@ const data: ClusterTopology = {
       ],
     },
     {
-      id: "emailservice",
-      label: "emailservice",
-      type: "service",
+      id: "mailchimp",
+      label: "mailchimp",
+      type: "external",
       versions: [
         {
           flowId: "k8s-namespace-1",
-          imageTag: "kurtosistech/emailservice:main",
           isBaseline: true,
         },
       ],

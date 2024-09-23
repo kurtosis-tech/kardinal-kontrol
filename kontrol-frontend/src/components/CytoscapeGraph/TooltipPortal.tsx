@@ -48,7 +48,7 @@ const TooltipPortal = ({ element, node }: Props) => {
             return (
               <Tr key={flowId}>
                 <Td>{flowId}</Td>
-                <Td>{imageTag}</Td>
+                <Td>{imageTag ?? "N/A (external service)"}</Td>
               </Tr>
             );
           })}

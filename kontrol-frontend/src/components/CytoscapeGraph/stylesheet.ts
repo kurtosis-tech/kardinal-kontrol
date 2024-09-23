@@ -134,6 +134,16 @@ const stylesheet = [
       underlayOpacity: 0.2,
     },
   },
+  {
+    selector: ".external",
+    css: {
+      "line-style": "dashed",
+      "border-style": "dashed",
+      "background-color": "#EFF6FF",
+      "border-color": "#c0bfbf",
+      color: "#5A5A59",
+    },
+  },
 ];
 
 export default stylesheet;
