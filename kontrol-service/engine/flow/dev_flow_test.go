@@ -368,7 +368,7 @@ func clusterTopologyExample() resolved.ClusterTopology {
 	return clusterTopology
 }
 
-func secondClusterTopologyExample() resolved.ClusterTopology {
+func getNewOBDClusterTopologyExample() resolved.ClusterTopology {
 	dummySpec := &appsv1.DeploymentSpec{}
 	httpProtocol := "HTTP"
 
@@ -626,17 +626,17 @@ func TestTopologyToGraph(t *testing.T) {
 	cartservice := getServiceRef(&cluster, "cartservice")
 	redis := getServiceRef(&cluster, "redis")
 
-	expected := [][]*resolved.Service{
-		{targetService, paymentservice},
-		{targetService, shippingservice},
-		{targetService, cartservice, redis},
+	expected := [][]resolved.ServiceHash{
+		{targetService.Hash(), paymentservice.Hash()},
+		{targetService.Hash(), shippingservice.Hash()},
+		{targetService.Hash(), cartservice.Hash(), redis.Hash()},
 	}
 
 	require.Equal(t, expected, resultGraph)
 }
 
-func TestTopologyToGraph2(t *testing.T) {
-	cluster := secondClusterTopologyExample()
+func TestNewOBDTopologyToGraph(t *testing.T) {
+	cluster := getNewOBDClusterTopologyExample()
 	g := topologyToGraph(&cluster)
 	targetService, err := cluster.GetService("frontend")
 	require.Nil(t, err)
@@ -653,8 +653,8 @@ func TestTopologyToGraph2(t *testing.T) {
 	cartservice := getServiceRef(&cluster, "cartservice")
 	postgres := getServiceRef(&cluster, "postgres")
 
-	expected := [][]*resolved.Service{
-		{targetService, cartservice, postgres},
+	expected := [][]resolved.ServiceHash{
+		{targetService.Hash(), cartservice.Hash(), postgres.Hash()},
 	}
 
 	require.Equal(t, expected, resultGraph)
