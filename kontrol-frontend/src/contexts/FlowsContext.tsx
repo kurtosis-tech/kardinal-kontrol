@@ -55,10 +55,6 @@ export const FlowsContextProvider = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    console.log("flowVisibility", flowVisibility);
-  }, [flowVisibility]);
-
   const refetchFlows = async () => {
     const newFlows = await getFlows();
     setFlows(newFlows);

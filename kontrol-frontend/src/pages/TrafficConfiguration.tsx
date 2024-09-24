@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useMemo } from "react";
 import { Grid } from "@chakra-ui/react";
 import CytoscapeGraph, { utils } from "@/components/CytoscapeGraph";
 import { ElementDefinition } from "cytoscape";
@@ -11,12 +11,23 @@ const Page = () => {
   const [elems, setElems] = useState<ElementDefinition[]>([]);
   const prevResponse = useRef<string>();
   const { getTopology } = useApi();
-  const { refetchFlows } = useFlowsContext();
+  const { refetchFlows, flowVisibility } = useFlowsContext();
 
   useEffect(() => {
     const fetchElems = async () => {
       const response = await getTopology();
-      const newElems = utils.normalizeData(response);
+      const filtered = {
+        ...response,
+        nodes: response.nodes.map((node) => {
+          return {
+            ...node,
+            versions: node.versions?.filter((version) => {
+              return flowVisibility[version.flowId] === true;
+            }),
+          };
+        }),
+      };
+      const newElems = utils.normalizeData(filtered);
 
       // dont update react state if the API response is identical to the previous one
       // This avoids unnecessary re-renders
@@ -34,7 +45,7 @@ const Page = () => {
     fetchElems();
     return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [flowVisibility]);
 
   return (
     <Grid

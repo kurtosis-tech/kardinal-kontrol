@@ -40,6 +40,10 @@ const Legend = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const sortedFlows = flows.sort((a, b) => {
+    return a["flow-id"].localeCompare(b["flow-id"]);
+  });
+
   return (
     <Flex
       position={"absolute"}
@@ -62,7 +66,7 @@ const Legend = () => {
             </Tr>
           </Thead>
           <Tbody>
-            {flows.map((flow) => {
+            {sortedFlows.map((flow) => {
               // TODO: Update these when this PR is merged:
               // https://github.com/kurtosis-tech/kardinal/pull/234
               const flowId = flow["flow-id"];
