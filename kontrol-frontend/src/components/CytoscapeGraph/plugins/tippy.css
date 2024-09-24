@@ -1,40 +1,9 @@
 
 .tooltip {
   background-color: white;
-  color: #1B1A19;
-  padding: 16px;
   border-radius: 12px;
-  border: 1px solid #c0bfbf;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-  font-family: monospace;
-  font-size: 16px;
-  width: 600px;
-}
-
-.tooltip ul {
-  margin-left: 24px;
-}
-
-.tooltip::before {
-  content: "";
-  position: absolute;
-  top: -7px;
-  left: 50%;
-  margin-top: -8px;
-  border-width: 8px;
-  border-style: solid;
-  border-color: transparent transparent #c0bfbf transparent;
-}
-
-.tooltip::after {
-  content: "";
-  position: absolute;
-  top: -6px;
-  left: 50%;
-  margin-top: -8px;
-  border-width: 8px;
-  border-style: solid;
-  border-color: transparent transparent white transparent;
+  width: 400px;
+  box-shadow: 1px 2px 16px 2px rgba(0, 0, 0, 0.07);
 }
 
 .dot {
@@ -44,15 +13,4 @@
   background-color: red;
   border-radius: 50%;
   margin-right: 8px;
-}
-
-.tooltip table {
-  font-family: monospace;
-}
-
-.tooltip table td, .tooltip table th {
-  padding: 4px 8px;
-  font-size: 14px;
-  text-align: left;
-  border-bottom: 1px solid #f0f0f0;
 }

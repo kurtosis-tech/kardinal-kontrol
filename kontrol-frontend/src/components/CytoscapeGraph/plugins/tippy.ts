@@ -3,7 +3,7 @@ import tippy, { Instance } from "tippy.js";
 import { NodeVersion } from "@/types";
 import "./tippy.css";
 
-// @ts-expect-error WIP
+// @ts-expect-error Poor typing upstream
 const tippyFactory: cytoscapePopper.PopperFactory = (ref, content) => {
   // Since tippy constructor requires DOM element/elements, create a placeholder
   const dummyDomEle = document.createElement("div");
@@ -29,37 +29,23 @@ const tippyFactory: cytoscapePopper.PopperFactory = (ref, content) => {
 
 export const createTooltip = (
   node: cytoscape.NodeSingular,
-): Instance | null => {
+): { instance: Instance; element: HTMLElement } | null => {
   const versions: NodeVersion[] = node.data("versions");
-  console.log("versions", versions);
   if (!versions || versions.length === 0) {
     return null;
   }
-  const tip = node.popper({
-    content: () => {
-      const elem = document.createElement("div");
-      // TODO: sanitize
-      elem.innerHTML = `
-      <table>
-        <thead>
-          <tr>
-            <th>Flow ID</th>
-            <th>Image Tag</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${versions.map((v: NodeVersion) => `<tr><td>${v.flowId}</td><td>${v.imageTag || "N/A"}</td><tr>`).join("")}
-        </tbody>
-      </table>
-      `;
-      elem.classList.add("tooltip");
-      return elem;
-    },
+
+  const element = document.createElement("div");
+  element.classList.add("tooltip");
+
+  const instance = node.popper({
+    // tooltip content is rendered through the TooltipPortal component
+    content: () => element,
   }) as unknown as Instance;
 
-  tip.show();
+  instance.show();
 
-  return tip;
+  return { instance, element };
 };
 
 export type TooltipInstance = Instance;

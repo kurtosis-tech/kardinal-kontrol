@@ -21,7 +21,7 @@ const App = () => {
       <GridItem area={"side"} display={"flex"}>
         <Sidebar />
       </GridItem>
-      <GridItem area={"main"} p={8} pb={16}>
+      <GridItem area={"main"} bg={"#FAFAFA"} p={8} pb={16}>
         <Outlet />
       </GridItem>
     </Grid>
