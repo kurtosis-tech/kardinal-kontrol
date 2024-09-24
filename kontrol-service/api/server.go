@@ -729,11 +729,12 @@ func newManagerAPIClusterResources(clusterResources types.ClusterResources) mana
 func toApiIngressAccessEntries(entries []resolved.IngressAccessEntry) []apitypes.IngressAccessEntry {
 	return lo.Map(entries, func(item resolved.IngressAccessEntry, _ int) apitypes.IngressAccessEntry {
 		return apitypes.IngressAccessEntry{
-			FlowId:    item.FlowID,
-			Hostname:  item.Hostname,
-			Service:   item.Service,
-			Namespace: item.Namespace,
-			Type:      item.Type,
+			FlowId:        item.FlowID,
+			FlowNamespace: item.FlowNamespace,
+			Hostname:      item.Hostname,
+			Service:       item.Service,
+			Namespace:     item.Namespace,
+			Type:          item.Type,
 		}
 	})
 }

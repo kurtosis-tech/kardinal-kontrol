@@ -56,11 +56,12 @@ type GatewayAndRoutes struct {
 }
 
 type IngressAccessEntry struct {
-	FlowID    string `json:"flowID"`
-	Hostname  string `json:"hostname"`
-	Service   string `json:"service"`
-	Namespace string `json:"namespace"`
-	Type      string `json:"type"`
+	FlowID        string `json:"flowID"`
+	FlowNamespace string `json:"flowNamespace"`
+	Hostname      string `json:"hostname"`
+	Service       string `json:"service"`
+	Namespace     string `json:"namespace"`
+	Type          string `json:"type"`
 }
 
 func (clusterTopology *ClusterTopology) GetServiceAndPort(serviceName string, servicePortName string) (*Service, *corev1.ServicePort, error) {
@@ -141,7 +142,7 @@ func (service *Service) IsHTTP() bool {
 	return servicePort.AppProtocol != nil && *servicePort.AppProtocol == "HTTP"
 }
 
-func getIngressFlowHostMap(ingress *Ingress) map[string][]IngressAccessEntry {
+func getIngressFlowHostMap(ingress *Ingress, namespace string) map[string][]IngressAccessEntry {
 	flowHostMapping := map[string][]IngressAccessEntry{}
 
 	if ingress == nil {
@@ -161,11 +162,12 @@ func getIngressFlowHostMap(ingress *Ingress) map[string][]IngressAccessEntry {
 					ns = ing.Namespace
 				}
 				entry := IngressAccessEntry{
-					FlowID:    flowID,
-					Hostname:  host,
-					Service:   ing.Name,
-					Namespace: ns,
-					Type:      "ingress",
+					FlowID:        flowID,
+					FlowNamespace: namespace,
+					Hostname:      host,
+					Service:       ing.Name,
+					Namespace:     ns,
+					Type:          "ingress",
 				}
 				flowHostMapping[flowID] = append(flowHostMapping[flowID], entry)
 			}
@@ -175,7 +177,7 @@ func getIngressFlowHostMap(ingress *Ingress) map[string][]IngressAccessEntry {
 	return flowHostMapping
 }
 
-func getGatewayFlowHostMap(gw *GatewayAndRoutes) map[string][]IngressAccessEntry {
+func getGatewayFlowHostMap(gw *GatewayAndRoutes, namespace string) map[string][]IngressAccessEntry {
 	flowHostMapping := map[string][]IngressAccessEntry{}
 
 	if gw == nil {
@@ -196,11 +198,12 @@ func getGatewayFlowHostMap(gw *GatewayAndRoutes) map[string][]IngressAccessEntry
 						ns = string(*ref.Namespace)
 					}
 					entry := IngressAccessEntry{
-						FlowID:    flowID,
-						Hostname:  host,
-						Service:   string(ref.Name),
-						Namespace: ns,
-						Type:      "gateway",
+						FlowID:        flowID,
+						FlowNamespace: namespace,
+						Hostname:      host,
+						Service:       string(ref.Name),
+						Namespace:     ns,
+						Type:          "gateway",
 					}
 					flowHostMapping[flowID] = append(flowHostMapping[flowID], entry)
 				}
@@ -252,8 +255,8 @@ func (service *Service) Hash() ServiceHash {
 
 func (clusterTopology *ClusterTopology) GetFlowHostMapping() map[string][]IngressAccessEntry {
 	flowHostMapping := map[string][]IngressAccessEntry{}
-	gatewayFlowHostMap := getGatewayFlowHostMap(clusterTopology.GatewayAndRoutes)
-	ingressFlowHostMap := getIngressFlowHostMap(clusterTopology.Ingress)
+	gatewayFlowHostMap := getGatewayFlowHostMap(clusterTopology.GatewayAndRoutes, clusterTopology.Namespace)
+	ingressFlowHostMap := getIngressFlowHostMap(clusterTopology.Ingress, clusterTopology.Namespace)
 
 	for flowID, entries := range gatewayFlowHostMap {
 		imap, found := ingressFlowHostMap[flowID]
