@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.31](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.30...0.1.31) (2024-09-24)
+
+
+### Features
+
+* implement UI improvements for graph legend and tooltips ([#36](https://github.com/kurtosis-tech/kardinal-kontrol/issues/36)) ([5b6dfc4](https://github.com/kurtosis-tech/kardinal-kontrol/commit/5b6dfc46295ebe90bf8467418ca30b095c83b0d3))
+
+
+### Bug Fixes
+
+* add service hash func to use in topologyToGraph hash func ([#42](https://github.com/kurtosis-tech/kardinal-kontrol/issues/42)) ([c7c4b25](https://github.com/kurtosis-tech/kardinal-kontrol/commit/c7c4b256699f97ed420f9c249c0f03600e380f53))
+
 ## [0.1.30](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.29...0.1.30) (2024-09-20)
 
 
