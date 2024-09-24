@@ -1,5 +1,54 @@
 # Changelog
 
+## [0.1.31](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.30...0.1.31) (2024-09-24)
+
+
+### Features
+
+* implement UI improvements for graph legend and tooltips ([#36](https://github.com/kurtosis-tech/kardinal-kontrol/issues/36)) ([5b6dfc4](https://github.com/kurtosis-tech/kardinal-kontrol/commit/5b6dfc46295ebe90bf8467418ca30b095c83b0d3))
+
+
+### Bug Fixes
+
+* add service hash func to use in topologyToGraph hash func ([#42](https://github.com/kurtosis-tech/kardinal-kontrol/issues/42)) ([c7c4b25](https://github.com/kurtosis-tech/kardinal-kontrol/commit/c7c4b256699f97ed420f9c249c0f03600e380f53))
+
+## [0.1.30](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.29...0.1.30) (2024-09-20)
+
+
+### Features
+
+* Add more details about API compatibility ([#38](https://github.com/kurtosis-tech/kardinal-kontrol/issues/38)) ([1220d31](https://github.com/kurtosis-tech/kardinal-kontrol/commit/1220d3152752455b4bda86a54c8b92117784ef51))
+
+## [0.1.29](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.28...0.1.29) (2024-09-19)
+
+
+### Features
+
+* frontend uses relative API path ([#34](https://github.com/kurtosis-tech/kardinal-kontrol/issues/34)) ([65ce046](https://github.com/kurtosis-tech/kardinal-kontrol/commit/65ce046c8e43814d392f235fc7fc30050a63fbd7))
+
+## [0.1.28](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.27...0.1.28) (2024-09-19)
+
+
+### Features
+
+* Topology graph legend ([#27](https://github.com/kurtosis-tech/kardinal-kontrol/issues/27)) ([1106218](https://github.com/kurtosis-tech/kardinal-kontrol/commit/1106218779233d3c7647f068e382c5e0338627e3))
+* Topology node list of versions containing flow id, image tag and baseline flag ([#28](https://github.com/kurtosis-tech/kardinal-kontrol/issues/28)) ([923b2b6](https://github.com/kurtosis-tech/kardinal-kontrol/commit/923b2b641868e00a376ff76ccf80d21e0594a02c))
+
+## [0.1.27](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.26...0.1.27) (2024-09-16)
+
+
+### Features
+
+* dynamic baseline flow ([#24](https://github.com/kurtosis-tech/kardinal-kontrol/issues/24)) ([45f1826](https://github.com/kurtosis-tech/kardinal-kontrol/commit/45f182638103dabda8aa89301f7ffed295849647))
+* Validate DB connection as part of the api healthcheck ([#26](https://github.com/kurtosis-tech/kardinal-kontrol/issues/26)) ([4ed81f1](https://github.com/kurtosis-tech/kardinal-kontrol/commit/4ed81f1977eb9fd21e031e289f696b6ca940c170))
+
+## [0.1.26](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.25...0.1.26) (2024-09-13)
+
+
+### Features
+
+* dynamic baseline flow ID ([#20](https://github.com/kurtosis-tech/kardinal-kontrol/issues/20)) ([2a9647c](https://github.com/kurtosis-tech/kardinal-kontrol/commit/2a9647c9aad3feb0d6a30f889f6c478e3cf43f5e))
+
 ## [0.1.25](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.24...0.1.25) (2024-09-10)
 
 

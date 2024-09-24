@@ -28,7 +28,7 @@ func GenerateProdOnlyCluster(
 ) (*resolved.ClusterTopology, error) {
 	clusterTopology, err := generateClusterTopology(serviceConfigs, ingressConfigs, gatewayConfigs, routeConfigs, namespace, flowID)
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "An error occured generating the cluster topology from the service configs")
+		return nil, stacktrace.Propagate(err, "An error occurred generating the cluster topology from the service configs")
 	}
 
 	return clusterTopology, nil
@@ -64,7 +64,7 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 
 	clusterTopology, err := flow.CreateDevFlow(pluginRunner, *baseClusterTopologyMaybeWithTemplateOverrides, *baseTopology, flowPatch)
 	if err != nil {
-		return nil, stacktrace.Propagate(err, "An error occured generating the cluster topology from the service configs")
+		return nil, stacktrace.Propagate(err, "An error occurred generating the cluster topology from the service configs")
 	}
 
 	return clusterTopology, nil

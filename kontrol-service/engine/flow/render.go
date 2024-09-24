@@ -216,6 +216,8 @@ func getVirtualService(serviceID string, services []*resolved.Service, namespace
 }
 
 func getDestinationRule(serviceID string, services []*resolved.Service, namespace string) *istioclient.DestinationRule {
+	// the baseline topology (or prod topology) flow ID and flow version are equal to the namespace these three should use same value
+	baselineFlowVersion := namespace
 	// TODO(shared-annotation) - we could store "shared" versions somewhere so that the pointers are the same
 	// if we do that then the render work around isn't necessary
 	subsets := lo.UniqBy(
@@ -229,7 +231,7 @@ func getDestinationRule(serviceID string, services []*resolved.Service, namespac
 
 			// TODO Narrow down this configuration to only subsets created for telepresence intercepts or find a way to enable TLS for telepresence intercepts https://github.com/kurtosis-tech/kardinal-kontrol/issues/14
 			// This config is necessary for Kardinal/Telepresence (https://www.telepresence.io/) integration
-			if service.Version != prodVersion {
+			if service.Version != baselineFlowVersion {
 				newTrafficPolicy := &v1alpha3.TrafficPolicy{
 					Tls: &v1alpha3.ClientTLSSettings{
 						Mode: v1alpha3.ClientTLSSettings_DISABLE,
@@ -396,9 +398,11 @@ func getIngresses(
 
 				for _, pathOriginal := range ruleOriginal.HTTP.Paths {
 					target, found := findBackendRefService(pathOriginal.Backend.Service.Name, activeFlowID, allServices)
-					// fallback to prod if backend not found at the active flow
+					// fallback to baseline if backend not found at the active flow
+					// the baseline topology (or prod topology) flow ID and flow version are equal to the namespace these three should use same value
+					baselineFlowVersion := namespace
 					if !found {
-						target, found = findBackendRefService(pathOriginal.Backend.Service.Name, prodVersion, allServices)
+						target, found = findBackendRefService(pathOriginal.Backend.Service.Name, baselineFlowVersion, allServices)
 					}
 					if found {
 						path := *pathOriginal.DeepCopy()
@@ -410,7 +414,7 @@ func getIngresses(
 							newPaths = append(newPaths, path)
 
 							// Set Envoy FIlter for the service
-							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, hostnames)
+							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, namespace, hostnames)
 							inboundFilter := getInboundFilter(target.ServiceID, namespace, -1, &target.Version, &luaFilterFrontend)
 							logrus.Debugf("Adding inbound filter to setup routing table for flow '%s' on service '%s', version '%s'", activeFlowID, target.ServiceID, target.Version)
 							filters = append(filters, inboundFilter)
@@ -457,9 +461,11 @@ func getHTTPRoutes(
 			for _, rule := range routeSpec.Rules {
 				for refIx, ref := range rule.BackendRefs {
 					target, found := findBackendRefService(string(ref.Name), activeFlowID, allServices)
-					// fallback to prod if backend not found at the active flow
+					// fallback to baseline if backend not found at the active flow
+					// the baseline topology (or prod topology) flow ID and flow version are equal to the namespace these three should use same value
+					baselineFlowVersion := namespace
 					if !found {
-						target, found = findBackendRefService(string(ref.Name), prodVersion, allServices)
+						target, found = findBackendRefService(string(ref.Name), baselineFlowVersion, allServices)
 					}
 					if found {
 						idVersion := fmt.Sprintf("%s-%s", target.ServiceID, activeFlowID)
@@ -471,7 +477,7 @@ func getHTTPRoutes(
 
 							hostnames := lo.Map(routeSpec.Hostnames, func(item gateway.Hostname, _ int) string { return string(item) })
 							// Set Envoy FIlter for the service
-							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, hostnames)
+							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, namespace, hostnames)
 							inboundFilter := getInboundFilter(target.ServiceID, namespace, -1, &target.Version, &luaFilterFrontend)
 							logrus.Debugf("Adding inbound filter to setup routing table for flow '%s' on service '%s', version '%s'", activeFlowID, target.ServiceID, target.Version)
 							filters = append(filters, inboundFilter)
@@ -635,6 +641,8 @@ func getInboundFilter(serviceID, namespace string, priority int32, versionSelect
 }
 
 func getOutboundFilter(serviceID, namespace string) istioclient.EnvoyFilter {
+	// the baseline topology (or prod topology) flow ID and flow version and host are equal to the namespace these four should use same value
+	baselineHostName := namespace
 	return istioclient.EnvoyFilter{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking.istio.io/v1alpha3",
@@ -675,7 +683,7 @@ func getOutboundFilter(serviceID, namespace string) istioclient.EnvoyFilter {
 										StructValue: &structpb.Struct{
 											Fields: map[string]*structpb.Value{
 												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
-												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: getOutgoingRequestTraceIDFilter()}},
+												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: getOutgoingRequestTraceIDFilter(baselineHostName)}},
 											},
 										},
 									},
@@ -776,7 +784,10 @@ end
 `, generateLuaTraceHeaderPriorities())
 }
 
-func generateDynamicLuaScript(allServices []*resolved.Service, flowId string, hostnames []string) string {
+func generateDynamicLuaScript(allServices []*resolved.Service, flowId string, namespace string, hostnames []string) string {
+	// fallback to baseline if backend not found at the active flow
+	// the baseline topology (or prod topology) flow ID and flow version are equal to the namespace these three should use same value
+	baselineFlowVersion := namespace
 	var setRouteCalls strings.Builder
 
 	// Helper function to add a setRoute call
@@ -807,7 +818,7 @@ func generateDynamicLuaScript(allServices []*resolved.Service, flowId string, ho
 			if s.Version == flowId {
 				service = s
 			}
-			if s.Version == prodVersion {
+			if s.Version == baselineFlowVersion {
 				fallbackService = s
 			}
 		}
@@ -816,7 +827,7 @@ func generateDynamicLuaScript(allServices []*resolved.Service, flowId string, ho
 			service = fallbackService
 		}
 		if service == nil {
-			logrus.Errorf("No service found for '%s' for version '%s' or baseline '%s'. No routing can configured.", serviceID, flowId, prodVersion)
+			logrus.Errorf("No service found for '%s' for version '%s' or baseline '%s'. No routing can configured.", serviceID, flowId, &baselineFlowVersion)
 			continue
 		}
 

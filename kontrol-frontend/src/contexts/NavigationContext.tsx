@@ -41,6 +41,7 @@ export const NavigationContextProvider = ({
 };
 
 // Create a custom hook to use the context
+// eslint-disable-next-line react-refresh/only-export-components
 export const useNavigationContext = (): NavigationContextType => {
   const context = useContext(NavigationContext);
   if (context === undefined) {

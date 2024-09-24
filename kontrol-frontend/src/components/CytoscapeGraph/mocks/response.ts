@@ -12,7 +12,7 @@ const data: ClusterTopology = {
     },
     {
       source: "checkoutservice",
-      target: "emailservice",
+      target: "mailchimp",
     },
     {
       source: "checkoutservice",
@@ -44,49 +44,111 @@ const data: ClusterTopology = {
       id: "cartservice",
       label: "cartservice",
       type: "service",
-      versions: ["dev-hr7dwojzkk", "prod"],
+      versions: [
+        {
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/cartservice:main",
+          isBaseline: true,
+        },
+        {
+          flowId: "dev-hr7dwojzkk",
+          imageTag: "kurtosistech/cartservice:demo-on-sale",
+          isBaseline: false,
+        },
+      ],
     },
     {
       id: "checkoutservice",
       label: "checkoutservice",
       type: "service",
-      versions: ["dev-hr7dwojzkk", "prod"],
+      versions: [
+        {
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/checkoutservice:main",
+          isBaseline: true,
+        },
+        {
+          flowId: "dev-hr7dwojzkk",
+          imageTag: "kurtosistech/checkoutservice:demo-on-sale",
+          isBaseline: false,
+        },
+      ],
     },
     {
       id: "frontend",
       label: "frontend",
       type: "service",
-      versions: ["dev-hr7dwojzkk", "prod"],
+      versions: [
+        {
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/frontend:main",
+          isBaseline: true,
+        },
+        {
+          flowId: "dev-hr7dwojzkk",
+          imageTag: "kurtosistech/frontend:demo-on-sale",
+          isBaseline: false,
+        },
+      ],
     },
     {
-      id: "emailservice",
-      label: "emailservice",
-      type: "service",
-      versions: ["prod"],
+      id: "mailchimp",
+      label: "mailchimp",
+      type: "external",
+      versions: [
+        {
+          flowId: "k8s-namespace-1",
+          isBaseline: true,
+        },
+      ],
     },
     {
       id: "paymentservice",
       label: "paymentservice",
       type: "service",
-      versions: ["prod"],
+      versions: [
+        {
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/paymentservice:main",
+          isBaseline: true,
+        },
+      ],
     },
     {
       id: "postgres",
       label: "postgres",
       type: "service",
-      versions: ["prod"],
+      versions: [
+        {
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/postgres:main",
+          isBaseline: true,
+        },
+      ],
     },
     {
       id: "shippingservice",
       label: "shippingservice",
       type: "service",
-      versions: ["prod"],
+      versions: [
+        {
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/shippingservice:main",
+          isBaseline: true,
+        },
+      ],
     },
     {
       id: "ingress",
       label: "ingress",
       type: "gateway",
-      versions: ["prod"],
+      versions: [
+        {
+          flowId: "k8s-namespace-1",
+          imageTag: "kurtosistech/gateway:main",
+          isBaseline: true,
+        },
+      ],
     },
   ],
 };

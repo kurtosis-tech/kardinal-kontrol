@@ -22,7 +22,7 @@ jobs:
     steps:
       - name: Git checkout
         uses: actions/checkout@v3
-      
+
       - name: Install Nix
         uses: cachix/install-nix-action@v27
         # relax sandbox due impure kontrol-service tests during build
@@ -34,10 +34,10 @@ jobs:
         uses: DeterminateSystems/magic-nix-cache-action@v7
 
       - name: Build and load kontrol service image
-        run: | 
+        run: |
           docker load < $(nix build ./#kontrol-service-container --no-link --print-out-paths)
 
-      - name: Start kontrol service and Postgres 
+      - name: Start kontrol service and Postgres
         run: |
           docker version
           docker compose -f ci/docker-compose.yml up -d
@@ -47,9 +47,9 @@ jobs:
         run: sleep 10s
         shell: bash
 
-      - name: Install CLI 
+      - name: Install CLI
         run: curl get.kardinal.dev -sL | sh
-      
+
       - name: Verify kardinal command
         run: bash -c 'source ~/.bashrc; if kardinal | grep -q "Kardinal CLI"; then exit 0; else exit 1; fi'
 
@@ -67,10 +67,11 @@ jobs:
         run: |
           tenant_id=${{ steps.tenant.outputs.id }}
           services=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.services[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
+          echo "Services: $services"
           if [ "${services}" != "cartservice frontend postgres productcatalogservice" ]; then exit 1; fi
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
-          if [ "${deployments}" != "cartservice-prod frontend-prod postgres-prod productcatalogservice-prod" ]; then exit 1; fi
-      
+          echo "Deployments: $deployments"
+          if [ "${deployments}" != "cartservice-baseline frontend-baseline postgres-baseline productcatalogservice-baseline" ]; then exit 1; fi
       - name: Validate topology endpoint
         run: |
           tenant_id=${{ steps.tenant.outputs.id }}
@@ -81,9 +82,11 @@ jobs:
         run: |
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-frontend > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
+          echo "FlowID: $flow_id"
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
-          if [ "${deployments}" != "cartservice-prod frontend-${flow_id} frontend-prod postgres-prod productcatalogservice-prod" ]; then exit 1; fi
+          echo "Deployments: $deployments"
+          if [ "${deployments}" != "cartservice-baseline cartservice-${flow_id} frontend-baseline frontend-${flow_id} postgres-baseline postgres-${flow_id} productcatalogservice-baseline" ]; then exit 1; fi
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
 
@@ -91,12 +94,14 @@ jobs:
         run: |
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-on-sale -s productcatalogservice=kurtosistech/productcatalogservice:demo-on-sale > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
+          echo "FlowID: $flow_id"
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
-          if [ "${deployments}" != "cartservice-prod frontend-${flow_id} frontend-prod postgres-prod productcatalogservice-${flow_id} productcatalogservice-prod" ]; then exit 1; fi
+          echo "Deployments: $deployments"
+          if [ "${deployments}" != "cartservice-baseline cartservice-${flow_id} frontend-baseline frontend-${flow_id} postgres-baseline postgres-${flow_id} productcatalogservice-baseline productcatalogservice-${flow_id}" ]; then exit 1; fi
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
-      
+
       - name: Create template
         run: |
           KARDINAL_CLI_DEV_MODE=TRUE kardinal template create extra-item-shared --template-yaml ci/template.yaml --description "Extra item and postgres is shared"
@@ -108,15 +113,15 @@ jobs:
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
-      
+
       - name: Delete template
         run: |
           KARDINAL_CLI_DEV_MODE=TRUE kardinal template delete extra-item-shared
 
       - name: Delete base topology and dev flows
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete prod
-          if KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep prod; then echo "Topologies not deleted"; exit 1; fi
+          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete baseline
+          if KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep baseline; then echo "Topologies not deleted"; exit 1; fi
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           if [ "${deployments}" != "" ]; then echo "Deployments list not empty"; exit 1; fi

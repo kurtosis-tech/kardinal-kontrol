@@ -1,6 +1,8 @@
 package resolved
 
 import (
+	"crypto/sha256"
+	"encoding/json"
 	"fmt"
 	"regexp"
 
@@ -33,6 +35,8 @@ type Service struct {
 	IsShared                bool                   `json:"isShared"`
 	OriginalVersionIfShared string                 `json:"originalVersionIfShared"`
 }
+
+type ServiceHash string
 
 type ServiceDependency struct {
 	Service          *Service            `json:"service"`
@@ -205,6 +209,45 @@ func getGatewayFlowHostMap(gw *GatewayAndRoutes) map[string][]IngressAccessEntry
 	}
 
 	return flowHostMapping
+}
+
+// Hash generates a hash for the Service struct
+func (service *Service) Hash() ServiceHash {
+	h := sha256.New()
+
+	// Write non-pointer fields directly
+	h.Write([]byte(service.ServiceID))
+	h.Write([]byte(service.Version))
+	h.Write([]byte(fmt.Sprintf("%t", service.IsExternal)))
+	h.Write([]byte(fmt.Sprintf("%t", service.IsStateful)))
+	h.Write([]byte(fmt.Sprintf("%t", service.IsShared)))
+	h.Write([]byte(service.OriginalVersionIfShared))
+
+	// Handle pointer fields
+	if service.ServiceSpec != nil {
+		serviceSpecJSON, _ := json.Marshal(service.ServiceSpec)
+		h.Write(serviceSpecJSON)
+	}
+
+	if service.DeploymentSpec != nil {
+		deploymentSpecJSON, _ := json.Marshal(service.DeploymentSpec)
+		h.Write(deploymentSpecJSON)
+	}
+
+	// Handle slice of StatefulPlugin
+	if service.StatefulPlugins != nil {
+		for _, plugin := range service.StatefulPlugins {
+			if plugin != nil {
+				pluginJSON, _ := json.Marshal(plugin)
+				h.Write(pluginJSON)
+			}
+		}
+	}
+
+	// Return the hex ServiceHash
+	hashString := fmt.Sprintf("%x", h.Sum(nil))
+	// use custom type to improve API
+	return ServiceHash(hashString)
 }
 
 func (clusterTopology *ClusterTopology) GetFlowHostMapping() map[string][]IngressAccessEntry {

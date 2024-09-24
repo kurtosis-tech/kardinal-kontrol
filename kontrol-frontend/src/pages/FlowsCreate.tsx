@@ -7,7 +7,7 @@ import { Stack, Flex, Grid } from "@chakra-ui/react";
 import StatefulService from "@/components/StatefulService";
 import CytoscapeGraph, { utils } from "@/components/CytoscapeGraph";
 import { ChangeEvent, useEffect, useState } from "react";
-import { ClusterTopology, Node } from "@/types";
+import { ClusterTopology, Node, NodeVersion } from "@/types";
 import { useApi } from "@/contexts/ApiContext";
 import { useNavigate } from "react-router-dom";
 
@@ -20,6 +20,18 @@ interface TemplateConfig {
   /** @description The description of the template */
   description?: string;
 }
+
+// fake preview of a flow built on the base topology
+const PREVIEW_DEV_NODE_VERSION: NodeVersion = {
+  flowId: "new-dev-flow",
+  imageTag: "TBD",
+  isBaseline: false,
+};
+const PREVIEW_BASELINE_NODE_VERSION: NodeVersion = {
+  flowId: "baseline",
+  imageTag: "TBD",
+  isBaseline: true,
+};
 
 const Page = () => {
   const navigate = useNavigate();
@@ -51,8 +63,8 @@ const Page = () => {
         ...node,
         versions:
           formState.service.find((o) => o.value === node.id) != null
-            ? ["prod", "new-dev-flow"]
-            : ["prod"],
+            ? [PREVIEW_BASELINE_NODE_VERSION, PREVIEW_DEV_NODE_VERSION]
+            : [PREVIEW_BASELINE_NODE_VERSION],
       };
     }),
   });
@@ -99,7 +111,6 @@ const Page = () => {
 
   const handleMultiSelectChange =
     (field: keyof TemplateConfig) => (option: Option | Option[]) => {
-      console.log("option", option);
       setFormState((prevState) => ({
         ...prevState,
         [field]: option,
