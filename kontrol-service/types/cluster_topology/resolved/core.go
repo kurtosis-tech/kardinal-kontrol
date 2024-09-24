@@ -51,6 +51,14 @@ type GatewayAndRoutes struct {
 	GatewayRoutes []*gateway.HTTPRouteSpec `json:"gatewayRoutes"`
 }
 
+type IngressAccessEntry struct {
+	FlowID    string `json:"flowID"`
+	Hostname  string `json:"hostname"`
+	Service   string `json:"service"`
+	Namespace string `json:"namespace"`
+	Type      string `json:"type"`
+}
+
 func (clusterTopology *ClusterTopology) GetServiceAndPort(serviceName string, servicePortName string) (*Service, *corev1.ServicePort, error) {
 	for _, service := range clusterTopology.Services {
 		if service.ServiceID == serviceName {
@@ -129,8 +137,8 @@ func (service *Service) IsHTTP() bool {
 	return servicePort.AppProtocol != nil && *servicePort.AppProtocol == "HTTP"
 }
 
-func getIngressFlowHostMap(ingress *Ingress) map[string][]string {
-	flowHostMapping := map[string][]string{}
+func getIngressFlowHostMap(ingress *Ingress) map[string][]IngressAccessEntry {
+	flowHostMapping := map[string][]IngressAccessEntry{}
 
 	if ingress == nil {
 		return flowHostMapping
@@ -139,12 +147,23 @@ func getIngressFlowHostMap(ingress *Ingress) map[string][]string {
 	for _, flowID := range ingress.ActiveFlowIDs {
 		_, found := flowHostMapping[flowID]
 		if !found {
-			flowHostMapping[flowID] = []string{}
+			flowHostMapping[flowID] = []IngressAccessEntry{}
 		}
 		for _, ing := range ingress.Ingresses {
 			for _, rule := range ing.Spec.Rules {
 				host := ReplaceOrAddSubdomain(rule.Host, flowID)
-				flowHostMapping[flowID] = append(flowHostMapping[flowID], host)
+				ns := "default"
+				if ing.Namespace != "" {
+					ns = ing.Namespace
+				}
+				entry := IngressAccessEntry{
+					FlowID:    flowID,
+					Hostname:  host,
+					Service:   ing.Name,
+					Namespace: ns,
+					Type:      "ingress",
+				}
+				flowHostMapping[flowID] = append(flowHostMapping[flowID], entry)
 			}
 		}
 	}
@@ -152,8 +171,8 @@ func getIngressFlowHostMap(ingress *Ingress) map[string][]string {
 	return flowHostMapping
 }
 
-func getGatewayFlowHostMap(gw *GatewayAndRoutes) map[string][]string {
-	flowHostMapping := map[string][]string{}
+func getGatewayFlowHostMap(gw *GatewayAndRoutes) map[string][]IngressAccessEntry {
+	flowHostMapping := map[string][]IngressAccessEntry{}
 
 	if gw == nil {
 		return flowHostMapping
@@ -162,12 +181,25 @@ func getGatewayFlowHostMap(gw *GatewayAndRoutes) map[string][]string {
 	for _, flowID := range gw.ActiveFlowIDs {
 		_, found := flowHostMapping[flowID]
 		if !found {
-			flowHostMapping[flowID] = []string{}
+			flowHostMapping[flowID] = []IngressAccessEntry{}
 		}
 		for _, route := range gw.GatewayRoutes {
-			for _, originalHost := range route.Hostnames {
-				host := ReplaceOrAddSubdomain(string(originalHost), flowID)
-				flowHostMapping[flowID] = append(flowHostMapping[flowID], host)
+			for _, ref := range route.ParentRefs {
+				for _, originalHost := range route.Hostnames {
+					host := ReplaceOrAddSubdomain(string(originalHost), flowID)
+					ns := "default"
+					if ref.Namespace != nil {
+						ns = string(*ref.Namespace)
+					}
+					entry := IngressAccessEntry{
+						FlowID:    flowID,
+						Hostname:  host,
+						Service:   string(ref.Name),
+						Namespace: ns,
+						Type:      "gateway",
+					}
+					flowHostMapping[flowID] = append(flowHostMapping[flowID], entry)
+				}
 			}
 		}
 	}
@@ -175,22 +207,22 @@ func getGatewayFlowHostMap(gw *GatewayAndRoutes) map[string][]string {
 	return flowHostMapping
 }
 
-func (clusterTopology *ClusterTopology) GetFlowHostMapping() map[string][]string {
-	flowHostMapping := map[string][]string{}
+func (clusterTopology *ClusterTopology) GetFlowHostMapping() map[string][]IngressAccessEntry {
+	flowHostMapping := map[string][]IngressAccessEntry{}
 	gatewayFlowHostMap := getGatewayFlowHostMap(clusterTopology.GatewayAndRoutes)
 	ingressFlowHostMap := getIngressFlowHostMap(clusterTopology.Ingress)
 
-	for flowID, hosts := range gatewayFlowHostMap {
+	for flowID, entries := range gatewayFlowHostMap {
 		imap, found := ingressFlowHostMap[flowID]
 		if found {
-			hosts = append(hosts, imap...)
+			entries = append(entries, imap...)
 		}
-		flowHostMapping[flowID] = hosts
+		flowHostMapping[flowID] = entries
 	}
-	for flowID, hosts := range ingressFlowHostMap {
+	for flowID, entries := range ingressFlowHostMap {
 		_, found := flowHostMapping[flowID]
 		if !found {
-			flowHostMapping[flowID] = hosts
+			flowHostMapping[flowID] = entries
 		}
 	}
 
