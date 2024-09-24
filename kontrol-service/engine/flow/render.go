@@ -431,7 +431,7 @@ func getIngresses(
 		ingressDefinition.Spec.Rules = newRules
 
 		if ingressDefinition.Namespace == "" {
-			ingressDefinition.Namespace = constants.DefaultNS
+			ingressDefinition.Namespace = namespace
 		}
 
 		ingressList = append(ingressList, *ingressDefinition)
