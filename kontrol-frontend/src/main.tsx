@@ -10,7 +10,7 @@ import DataConfiguration from "@/pages/DataConfiguration";
 import FlowsCreate from "@/pages/FlowsCreate";
 import FlowsIndex from "@/pages/FlowsIndex";
 import MaturityGates from "@/pages/MaturityGates";
-import Page from "@/pages/TrafficConfiguration";
+import TrafficConfiguration from "@/pages/TrafficConfiguration";
 import NotFound from "@/pages/NotFound";
 
 import { ErrorBoundary } from "react-error-boundary";
@@ -53,7 +53,7 @@ const router = createBrowserRouter([
       },
       {
         path: "traffic-configuration",
-        element: <Page />,
+        element: <TrafficConfiguration />,
       },
       {
         path: "data-configuration",

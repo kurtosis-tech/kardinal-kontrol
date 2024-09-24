@@ -111,7 +111,6 @@ const Page = () => {
 
   const handleMultiSelectChange =
     (field: keyof TemplateConfig) => (option: Option | Option[]) => {
-      console.log("option", option);
       setFormState((prevState) => ({
         ...prevState,
         [field]: option,

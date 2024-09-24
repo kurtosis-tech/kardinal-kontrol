@@ -11,7 +11,6 @@ import {
   useContext,
   useState,
   useCallback,
-  // useEffect,
   PropsWithChildren,
 } from "react";
 
@@ -209,6 +208,7 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useApi = (): ApiContextType => {
   const context = useContext(ApiContext);
   if (!context) {

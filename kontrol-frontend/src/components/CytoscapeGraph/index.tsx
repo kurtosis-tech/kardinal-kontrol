@@ -7,6 +7,7 @@ import dagrePlugin, { dagreLayout } from "./plugins/dagre";
 import tippyPlugin, { createTooltip, TooltipInstance } from "./plugins/tippy";
 import { Flex } from "@chakra-ui/react";
 import Legend from "./Legend";
+import TooltipPortal from "./TooltipPortal";
 
 // register plugins with cytoscape
 cytoscape.use(dagrePlugin);
@@ -32,6 +33,11 @@ const CytoscapeGraph = ({
   // keep a ref to the cy instance. using state will cause infinite re-renders
   const cy = useRef<cytoscape.Core>();
   const tooltip = useRef<TooltipInstance | null>(null);
+  const [tooltipPortalElem, setTooltipPortalElem] =
+    useState<HTMLElement | null>(null);
+  const [hoveredNode, setHoveredNode] = useState<cytoscape.NodeSingular | null>(
+    null,
+  );
   const [animationsEnabled, setAnimationsEnabled] = useState(
     INIT_ANIMATIONS_ENABLED,
   );
@@ -54,12 +60,17 @@ const CytoscapeGraph = ({
         if (tooltip.current != null) {
           tooltip.current.destroy();
         }
-        tooltip.current = createTooltip(e.target);
+        const tooltipInstance = createTooltip(e.target);
+        if (tooltipInstance == null) return;
+        tooltip.current = tooltipInstance.instance;
+        setTooltipPortalElem(tooltipInstance.element);
+        setHoveredNode(e.target);
       });
       cy.current.on("mouseout", function () {
         if (tooltip.current != null) {
           tooltip.current.destroy();
         }
+        setHoveredNode(null);
       });
 
       // stop animations when the user is dragging nodes around
@@ -169,7 +180,8 @@ const CytoscapeGraph = ({
 
   return (
     <Flex w="100%" h="100%" minHeight="267px" position={"relative"}>
-      <Legend elements={elements} />
+      <Legend />
+      <TooltipPortal element={tooltipPortalElem} node={hoveredNode} />
       <CytoscapeComponent
         id="cytoscape-graph"
         elements={elements}
