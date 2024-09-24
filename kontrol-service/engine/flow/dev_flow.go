@@ -138,7 +138,7 @@ func markParentsAsShared(topology *resolved.ClusterTopology, service *resolved.S
 func applyPatch(
 	pluginRunner *plugins.PluginRunner,
 	topology *resolved.ClusterTopology,
-	clusterGraph graph.Graph[*resolved.Service, *resolved.Service],
+	clusterGraph graph.Graph[resolved.ServiceHash, *resolved.Service],
 	flowID string,
 	targetService *resolved.Service,
 	deploymentSpec *v1.DeploymentSpec,
@@ -147,9 +147,13 @@ func applyPatch(
 	statefulPaths := findAllDownstreamStatefulPaths(targetService, clusterGraph, topology)
 	statefulServices := make([]*resolved.Service, 0)
 	for _, path := range statefulPaths {
-		statefulService, err := lo.Last(path)
-		if statefulService == nil || err != nil {
-			logrus.Infof("Error finding last stateful service in path %v: %v", path, err)
+		statefulServiceHash, err := lo.Last(path)
+		if statefulServiceHash == "" || err != nil {
+			logrus.Infof("Error finding last stateful service hash in path %v: %v", path, err)
+		}
+		statefulService, err := clusterGraph.Vertex(statefulServiceHash)
+		if err != nil {
+			return nil, fmt.Errorf("an error occurred getting stateful service vertex from graph: %s", err)
 		}
 		statefulServices = append(statefulServices, statefulService)
 	}
@@ -159,9 +163,13 @@ func applyPatch(
 	externalServices := make([]*resolved.Service, 0)
 	alreadyHandledExternalServices := make([]string, 0)
 	for _, path := range externalPaths {
-		externalService, err := lo.Last(path)
-		if externalService == nil || err != nil {
-			logrus.Infof("Error finding last external service in path %v: %v", path, err)
+		externalServiceHash, err := lo.Last(path)
+		if externalServiceHash == "" || err != nil {
+			logrus.Infof("Error finding last external service hash in path %v: %v", path, err)
+		}
+		externalService, err := clusterGraph.Vertex(externalServiceHash)
+		if err != nil {
+			return nil, fmt.Errorf("an error occurred getting external service vertex from graph: %s", err)
 		}
 		externalServices = append(externalServices, externalService)
 	}
@@ -345,9 +353,9 @@ func DeleteDevFlow(pluginRunner *plugins.PluginRunner, flowId string, service *r
 	return nil
 }
 
-func topologyToGraph(topology *resolved.ClusterTopology) graph.Graph[*resolved.Service, *resolved.Service] {
-	serviceHash := func(service *resolved.Service) *resolved.Service {
-		return service
+func topologyToGraph(topology *resolved.ClusterTopology) graph.Graph[resolved.ServiceHash, *resolved.Service] {
+	serviceHash := func(service *resolved.Service) resolved.ServiceHash {
+		return service.Hash()
 	}
 	graph := graph.New(serviceHash, graph.Directed())
 
@@ -356,20 +364,20 @@ func topologyToGraph(topology *resolved.ClusterTopology) graph.Graph[*resolved.S
 	}
 
 	for _, dependency := range topology.ServiceDependencies {
-		graph.AddEdge(dependency.Service, dependency.DependsOnService)
+		graph.AddEdge(dependency.Service.Hash(), dependency.DependsOnService.Hash())
 	}
 
 	return graph
 }
 
-func findAllDownstreamStatefulPaths(targetService *resolved.Service, clusterGraph graph.Graph[*resolved.Service, *resolved.Service], topology *resolved.ClusterTopology) [][]*resolved.Service {
-	allPaths := make([][]*resolved.Service, 0)
+func findAllDownstreamStatefulPaths(targetService *resolved.Service, clusterGraph graph.Graph[resolved.ServiceHash, *resolved.Service], topology *resolved.ClusterTopology) [][]resolved.ServiceHash {
+	allPaths := make([][]resolved.ServiceHash, 0)
 	for _, service := range topology.Services {
 		if service.IsStateful {
-			paths, err := graph.AllPathsBetween(clusterGraph, targetService, service)
+			paths, err := graph.AllPathsBetween(clusterGraph, targetService.Hash(), service.Hash())
 			if err != nil {
 				logrus.Infof("Error finding paths between %s and %s: %v", targetService.ServiceID, service.ServiceID, err)
-				paths = [][]*resolved.Service{}
+				paths = [][]resolved.ServiceHash{}
 			}
 			allPaths = append(allPaths, paths...)
 		}
@@ -377,14 +385,14 @@ func findAllDownstreamStatefulPaths(targetService *resolved.Service, clusterGrap
 	return allPaths
 }
 
-func findAllDownstreamExternalPaths(targetService *resolved.Service, g graph.Graph[*resolved.Service, *resolved.Service], topology *resolved.ClusterTopology) [][]*resolved.Service {
-	allPaths := make([][]*resolved.Service, 0)
+func findAllDownstreamExternalPaths(targetService *resolved.Service, g graph.Graph[resolved.ServiceHash, *resolved.Service], topology *resolved.ClusterTopology) [][]resolved.ServiceHash {
+	allPaths := make([][]resolved.ServiceHash, 0)
 	for _, service := range topology.Services {
 		if service.IsExternal {
-			paths, err := graph.AllPathsBetween(g, targetService, service)
+			paths, err := graph.AllPathsBetween(g, targetService.Hash(), service.Hash())
 			if err != nil {
 				logrus.Infof("Error finding paths between %s and %s: %v", targetService.ServiceID, service.ServiceID, err)
-				paths = [][]*resolved.Service{}
+				paths = [][]resolved.ServiceHash{}
 			}
 			allPaths = append(allPaths, paths...)
 		}

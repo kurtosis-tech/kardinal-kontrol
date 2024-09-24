@@ -86,7 +86,7 @@ jobs:
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           echo "Deployments: $deployments"
-          if [ "${deployments}" != "cartservice-baseline frontend-baseline frontend-${flow_id} postgres-baseline productcatalogservice-baseline" ]; then exit 1; fi
+          if [ "${deployments}" != "cartservice-baseline cartservice-${flow_id} frontend-baseline frontend-${flow_id} postgres-baseline postgres-${flow_id} productcatalogservice-baseline" ]; then exit 1; fi
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
 
@@ -98,7 +98,7 @@ jobs:
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           echo "Deployments: $deployments"
-          if [ "${deployments}" != "cartservice-baseline frontend-baseline frontend-${flow_id} postgres-baseline productcatalogservice-baseline productcatalogservice-${flow_id}" ]; then exit 1; fi
+          if [ "${deployments}" != "cartservice-baseline cartservice-${flow_id} frontend-baseline frontend-${flow_id} postgres-baseline postgres-${flow_id} productcatalogservice-baseline productcatalogservice-${flow_id}" ]; then exit 1; fi
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
           KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
 
