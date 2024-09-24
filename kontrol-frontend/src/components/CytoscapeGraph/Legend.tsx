@@ -18,7 +18,7 @@ import { useFlowsContext } from "@/contexts/FlowsContext";
 const Legend = () => {
   const { getTopology } = useApi();
   const [topology, setTopology] = useState<ClusterTopology | null>(null);
-  const { flows, setActiveFlowId, activeFlowId } = useFlowsContext();
+  const { flows, flowVisibility, setFlowVisibility } = useFlowsContext();
 
   const servicesForFlowId = (flowId: string, isBaseline: boolean): Node[] => {
     if (topology == null) {
@@ -86,7 +86,7 @@ const Legend = () => {
                     </Link>
                   </Td>
                   <Td textAlign={"right"}>
-                    {activeFlowId === flowId ? (
+                    {flowVisibility[flowId] === true ? (
                       <IconButton
                         aria-label="Hide"
                         h={"24px"}
@@ -94,10 +94,11 @@ const Legend = () => {
                         w={"24px"}
                         minW={"24px"}
                         color={isBaseline ? "gray.300" : "gray.600"}
-                        icon={<FiEyeOff size={16} />}
+                        icon={<FiEye size={16} />}
                         disabled={isBaseline}
                         onClick={() => {
-                          setActiveFlowId(null);
+                          if (isBaseline) return; // cant hide baseline flow
+                          setFlowVisibility(flowId, false);
                         }}
                       />
                     ) : (
@@ -107,13 +108,12 @@ const Legend = () => {
                         minH={"24px"}
                         w={"24px"}
                         minW={"24px"}
-                        icon={<FiEye size={16} />}
                         disabled={isBaseline}
+                        icon={<FiEyeOff size={16} />}
                         color={isBaseline ? "gray.300" : "gray.600"}
                         cursor={isBaseline ? "not-allowed" : "pointer"}
                         onClick={() => {
-                          if (isBaseline) return; // cant toggle baseline flow
-                          setActiveFlowId(flowId);
+                          setFlowVisibility(flowId, true);
                         }}
                       />
                     )}

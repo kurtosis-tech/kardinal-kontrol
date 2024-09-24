@@ -11,16 +11,16 @@ import { Flow } from "@/types";
 interface FlowsContextType {
   flows: Flow[];
   refetchFlows: () => Promise<Flow[]>;
-  activeFlowId: string | null;
-  setActiveFlowId: (flowId: string | null) => void;
+  flowVisibility: Record<string, boolean>;
+  setFlowVisibility: (flowId: string, visible: boolean) => void;
 }
 
 // Create the context with a default value
 const FlowsContext = createContext<FlowsContextType>({
   flows: [],
   refetchFlows: async () => [],
-  activeFlowId: null,
-  setActiveFlowId: () => {},
+  flowVisibility: {},
+  setFlowVisibility: () => {},
 });
 
 // Create a provider component
@@ -34,12 +34,30 @@ export const FlowsContextProvider = ({
   const { getFlows } = useApi();
   const [flows, setFlows] = useState<Flow[]>([]);
 
-  const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
+  const [flowVisibility, setFlowVisibility] = useState<Record<string, boolean>>(
+    {},
+  );
+
+  useEffect(() => {
+    setFlowVisibility((prevState) =>
+      flows.reduce(
+        (acc, flow) => ({
+          ...acc,
+          [flow["flow-id"]]: prevState[flow["flow-id"]] ?? true,
+        }),
+        {},
+      ),
+    );
+  }, [flows]);
 
   useEffect(() => {
     getFlows().then(setFlows);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    console.log("flowVisibility", flowVisibility);
+  }, [flowVisibility]);
 
   const refetchFlows = async () => {
     const newFlows = await getFlows();
@@ -52,8 +70,10 @@ export const FlowsContextProvider = ({
       value={{
         flows,
         refetchFlows,
-        activeFlowId,
-        setActiveFlowId,
+        flowVisibility,
+        setFlowVisibility: (flowId: string, visible: boolean) => {
+          setFlowVisibility({ ...flowVisibility, [flowId]: visible });
+        },
       }}
     >
       {children}
