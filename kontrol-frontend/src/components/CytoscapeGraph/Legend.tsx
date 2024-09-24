@@ -1,4 +1,4 @@
-import { Flex } from "@chakra-ui/react";
+import { Flex, IconButton } from "@chakra-ui/react";
 import { useApi } from "@/contexts/ApiContext";
 import {
   Table,
@@ -9,14 +9,16 @@ import {
   Td,
   TableContainer,
 } from "@/components/Table";
-import { FiExternalLink } from "react-icons/fi";
+import { FiExternalLink, FiEye, FiEyeOff } from "react-icons/fi";
 import { useEffect, useState } from "react";
 import { ClusterTopology, NodeVersion, Node } from "@/types";
 import { Link } from "@chakra-ui/react";
+import { useFlowsContext } from "@/contexts/FlowsContext";
 
 const Legend = () => {
-  const { flows, getFlows, getTopology } = useApi();
+  const { getTopology } = useApi();
   const [topology, setTopology] = useState<ClusterTopology | null>(null);
+  const { flows, setActiveFlowId, activeFlowId } = useFlowsContext();
 
   const servicesForFlowId = (flowId: string, isBaseline: boolean): Node[] => {
     if (topology == null) {
@@ -34,7 +36,6 @@ const Legend = () => {
   };
 
   useEffect(() => {
-    getFlows();
     getTopology().then(setTopology);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -57,7 +58,7 @@ const Legend = () => {
               <Th>Flow ID</Th>
               <Th>Baseline</Th>
               <Th>URL</Th>
-              {/* <Th>Show/Hide</Th> */}
+              <Th>Show/Hide</Th>
             </Tr>
           </Thead>
           <Tbody>
@@ -84,10 +85,8 @@ const Legend = () => {
                       <FiExternalLink size={12} />
                     </Link>
                   </Td>
-                  {/* TODO: Uncomment when this feature is fully implemented
-                   *
                   <Td textAlign={"right"}>
-                    {highlightedFlowId === flowId ? (
+                    {activeFlowId === flowId ? (
                       <IconButton
                         aria-label="Hide"
                         h={"24px"}
@@ -98,7 +97,7 @@ const Legend = () => {
                         icon={<FiEyeOff size={16} />}
                         disabled={isBaseline}
                         onClick={() => {
-                          // setHighlightedFlowId(null);
+                          setActiveFlowId(null);
                         }}
                       />
                     ) : (
@@ -113,12 +112,12 @@ const Legend = () => {
                         color={isBaseline ? "gray.300" : "gray.600"}
                         cursor={isBaseline ? "not-allowed" : "pointer"}
                         onClick={() => {
-                          // setHighlightedFlowId(flowId);
+                          if (isBaseline) return; // cant toggle baseline flow
+                          setActiveFlowId(flowId);
                         }}
                       />
                     )}
                   </Td>
-                   **/}
                 </Tr>
               );
             })}
