@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useMemo } from "react";
+import { useRef, useEffect, useState } from "react";
 import { Grid } from "@chakra-ui/react";
 import CytoscapeGraph, { utils } from "@/components/CytoscapeGraph";
 import { ElementDefinition } from "cytoscape";
