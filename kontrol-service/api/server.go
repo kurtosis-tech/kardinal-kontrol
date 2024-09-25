@@ -185,8 +185,12 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 
 	flowId, flowUrls, err := applyProdDevFlow(sv, request.Uuid, patches, templateSpec)
 	if err != nil {
-		logrus.Errorf("an error occured while updating dev flow. error was \n: '%v'", err.Error())
-		return nil, err
+		errMsg := "An error occurred creating flow"
+		errResp := api.ErrorJSONResponse{
+			Error: err.Error(),
+			Msg:   &errMsg,
+		}
+		return api.PostTenantUuidFlowCreate500JSONResponse{errResp}, nil
 	}
 	resp := apitypes.Flow{FlowId: *flowId, FlowUrls: flowUrls}
 	return api.PostTenantUuidFlowCreate200JSONResponse(resp), nil
