@@ -322,7 +322,7 @@ metadata:
   name: ingress
 spec:
   rules:
-    - host: prod.app.localhost
+    - host: baseline.app.localhost
       http:
         paths:
           - path: /
