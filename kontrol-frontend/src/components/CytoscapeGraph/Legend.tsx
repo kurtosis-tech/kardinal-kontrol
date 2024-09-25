@@ -65,7 +65,7 @@ const Legend = () => {
               // TODO: Update these when this PR is merged:
               // https://github.com/kurtosis-tech/kardinal/pull/234
               const flowId = flow["flow-id"];
-              const flowUrls = flow["flow-urls"];
+              const flowUrls = flow["access-entry"];
               const isBaseline = servicesForFlowId(flowId, false).length === 0;
               return (
                 <Tr key={flowId}>
@@ -80,7 +80,7 @@ const Legend = () => {
                       alignItems={"center"}
                       gap={2}
                     >
-                      {flowUrls[0]}
+                      {flowUrls[0].hostname}
                       <FiExternalLink size={12} />
                     </Link>
                   </Td>
