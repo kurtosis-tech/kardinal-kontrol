@@ -91,17 +91,17 @@
         "nixpkgs": "nixpkgs"
       },
       "locked": {
-        "lastModified": 1726692242,
-        "narHash": "sha256-O+SKbXmHX6xXqgQrW2fFohyJpRf/3ypbeFUaD5vEuBk=",
+        "lastModified": 1727265544,
+        "narHash": "sha256-90DIWaHTA4IaGVn4n/PLYF5VR76vuFGSiTm0Udp8jTg=",
         "owner": "kurtosis-tech",
         "repo": "kardinal",
-        "rev": "42f6be285e469fb70eef8836ec0bed7bf0c3775c",
+        "rev": "33a7e30af75149a4f5e805624d2fe1e0165c9f59",
         "type": "github"
       },
       "original": {
         "owner": "kurtosis-tech",
+        "ref": "33a7e30af751",
         "repo": "kardinal",
-        "rev": "42f6be285e469fb70eef8836ec0bed7bf0c3775c",
         "type": "github"
       }
     },

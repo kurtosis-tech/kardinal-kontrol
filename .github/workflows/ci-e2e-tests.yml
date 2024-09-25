@@ -48,7 +48,7 @@ jobs:
         shell: bash
 
       - name: Install CLI
-        run: curl get.kardinal.dev -sL | sh
+        run: alias kardinal=$(nix build .#public-kardinal-cli --no-link --print-out-paths)/bin/kardinal.cli
 
       - name: Verify kardinal command
         run: bash -c 'source ~/.bashrc; if kardinal | grep -q "Kardinal CLI"; then exit 0; else exit 1; fi'
