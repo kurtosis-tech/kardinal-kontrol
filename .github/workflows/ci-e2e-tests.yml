@@ -48,17 +48,18 @@ jobs:
         shell: bash
 
       - name: Install CLI
-        run: alias kardinal=$(nix build .#public-kardinal-cli --no-link --print-out-paths)/bin/kardinal.cli
+        run: |
+          echo "KARDINAL_CLI=$(nix build .#public-kardinal-cli --no-link --print-out-paths)/bin/kardinal.cli" >> $GITHUB_ENV
 
       - name: Retrieve the tenant UUID
         id: tenant
         run: |
-          tenant_id=$(kardinal tenant show)
+          tenant_id=$($KARDINAL_CLI tenant show)
           echo "id=${tenant_id}" >> "$GITHUB_OUTPUT"
 
       - name: Deploy boutique demo manifest
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal deploy -k ci/obd-demo.yaml
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI deploy -k ci/obd-demo.yaml
 
       - name: Validate cluster resources endpoint
         run: |
@@ -77,48 +78,48 @@ jobs:
 
       - name: Create, validate and delete flow
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-frontend > kardinal.out
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI flow create frontend kurtosistech/frontend:demo-frontend > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
           echo "FlowID: $flow_id"
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           echo "Deployments: $deployments"
           if [ "${deployments}" != "cartservice-baseline cartservice-${flow_id} frontend-baseline frontend-${flow_id} postgres-baseline postgres-${flow_id} productcatalogservice-baseline" ]; then exit 1; fi
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI flow ls | grep ${flow_id}
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI flow delete ${flow_id}
 
       - name: Create, validate and delete a more complex flow
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-on-sale -s productcatalogservice=kurtosistech/productcatalogservice:demo-on-sale > kardinal.out
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI flow create frontend kurtosistech/frontend:demo-on-sale -s productcatalogservice=kurtosistech/productcatalogservice:demo-on-sale > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
           echo "FlowID: $flow_id"
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           echo "Deployments: $deployments"
           if [ "${deployments}" != "cartservice-baseline cartservice-${flow_id} frontend-baseline frontend-${flow_id} postgres-baseline postgres-${flow_id} productcatalogservice-baseline productcatalogservice-${flow_id}" ]; then exit 1; fi
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI flow ls | grep ${flow_id}
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI flow delete ${flow_id}
 
       - name: Create template
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal template create extra-item-shared --template-yaml ci/template.yaml --description "Extra item and postgres is shared"
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal template ls | grep "extra-item-shared"
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI template create extra-item-shared --template-yaml ci/template.yaml --description "Extra item and postgres is shared"
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI template ls | grep "extra-item-shared"
 
       - name: Create flow with template and delete flow
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow create frontend kurtosistech/frontend:demo-frontend  --template-args ci/template_args.yaml --template extra-item-shared > kardinal.out
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI flow create frontend kurtosistech/frontend:demo-frontend  --template-args ci/template_args.yaml --template extra-item-shared > kardinal.out
           flow_id=$(grep "Flow.*created" kardinal.out | cut -d ' ' -f2 | tr -d "\"")
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep ${flow_id}
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete ${flow_id}
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI flow ls | grep ${flow_id}
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI flow delete ${flow_id}
 
       - name: Delete template
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal template delete extra-item-shared
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI template delete extra-item-shared
 
       - name: Delete base topology and dev flows
         run: |
-          KARDINAL_CLI_DEV_MODE=TRUE kardinal flow delete baseline
-          if KARDINAL_CLI_DEV_MODE=TRUE kardinal flow ls | grep baseline; then echo "Topologies not deleted"; exit 1; fi
+          KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI flow delete baseline
+          if KARDINAL_CLI_DEV_MODE=TRUE $KARDINAL_CLI flow ls | grep baseline; then echo "Topologies not deleted"; exit 1; fi
           tenant_id=${{ steps.tenant.outputs.id }}
           deployments=$(curl http://localhost:8080/tenant/${tenant_id}/cluster-resources | jq -r '.deployments[].metadata.name' | tr " " "\n" | sort -g | tr "\n" " " | xargs)
           if [ "${deployments}" != "" ]; then echo "Deployments list not empty"; exit 1; fi
