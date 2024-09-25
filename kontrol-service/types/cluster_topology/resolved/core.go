@@ -157,10 +157,13 @@ func getIngressFlowHostMap(ingress *Ingress, namespace string) map[string][]Ingr
 		for _, ing := range ingress.Ingresses {
 			for _, rule := range ing.Spec.Rules {
 				host := ReplaceOrAddSubdomain(rule.Host, flowID)
-				ns := "default"
+
+				// Ingress is placed in the same namespace by the render
+				ns := namespace
 				if ing.Namespace != "" {
 					ns = ing.Namespace
 				}
+
 				entry := IngressAccessEntry{
 					FlowID:        flowID,
 					FlowNamespace: namespace,
