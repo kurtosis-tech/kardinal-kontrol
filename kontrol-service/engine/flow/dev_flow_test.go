@@ -350,10 +350,13 @@ func clusterTopologyExample() resolved.ClusterTopology {
 		},
 	}
 
+	gatewayAndRoutes := resolved.GatewayAndRoutes{}
+
 	// Create cluster topology
 	clusterTopology := resolved.ClusterTopology{
-		FlowID:  "test-prod",
-		Ingress: &ingress,
+		FlowID:           "test-prod",
+		Ingress:          &ingress,
+		GatewayAndRoutes: &gatewayAndRoutes,
 		Services: []*resolved.Service{
 			&frontendService,
 			&cartService,
@@ -540,10 +543,13 @@ func getNewOBDClusterTopologyExample() resolved.ClusterTopology {
 		},
 	}
 
+	gatewayAndRoutes := resolved.GatewayAndRoutes{}
+
 	// Create cluster topology
 	clusterTopology := resolved.ClusterTopology{
-		FlowID:  "test-prod",
-		Ingress: &ingress,
+		FlowID:           "test-prod",
+		Ingress:          &ingress,
+		GatewayAndRoutes: &gatewayAndRoutes,
 		Services: []*resolved.Service{
 			&frontendService,
 			&cartService,

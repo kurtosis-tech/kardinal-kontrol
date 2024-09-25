@@ -105,11 +105,13 @@ func getIngressEdges(ingress *resolved.Ingress) []apiTypes.Edge {
 	for _, ingress := range ingress.Ingresses {
 		gwLabel := ingress.Name
 		for _, rule := range ingress.Spec.Rules {
-			for _, path := range rule.IngressRuleValue.HTTP.Paths {
-				edges = append(edges, apiTypes.Edge{
-					Source: gwLabel,
-					Target: path.Backend.Service.Name,
-				})
+			if rule.HTTP != nil {
+				for _, path := range rule.HTTP.Paths {
+					edges = append(edges, apiTypes.Edge{
+						Source: gwLabel,
+						Target: path.Backend.Service.Name,
+					})
+				}
 			}
 		}
 	}

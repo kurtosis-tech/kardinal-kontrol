@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"kardinal.kontrol-service/engine"
@@ -198,45 +199,45 @@ func TestServiceConfigsToTopology(t *testing.T) {
 		},
 	})
 
-	// Gateway
-	version = "prod"
-	appName = "voting-app-lb"
-	serviceName = appName
-	port = int32(80)
-	testServiceConfigs = append(testServiceConfigs, apitypes.ServiceConfig{
-		Service: v1.Service{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "v1",
-				Kind:       "Service",
-			},
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      serviceName,
-				Namespace: "",
-				Labels: map[string]string{
-					"app": appName,
+	testIngressConfigs := []apitypes.IngressConfig{
+		{
+			Ingress: net.Ingress{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "v1",
+					Kind:       "Ingress",
 				},
-				Annotations: map[string]string{
-					"kardinal.dev.service/ingress": "true",
-					"kardinal.dev.service/host":    "test.host",
-				},
-			},
-			Spec: v1.ServiceSpec{
-				Ports: []v1.ServicePort{
-					{
-						Name:       fmt.Sprintf("tcp-%s", containerName),
-						Port:       port,
-						Protocol:   v1.ProtocolTCP,
-						TargetPort: intstr.FromInt(int(port)),
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "kontrol-ingress",
+					Annotations: map[string]string{
+						"kardinal.dev.service/ingress": "true",
 					},
 				},
-				Selector: map[string]string{
-					"app": "azure-vote-front",
+				Spec: net.IngressSpec{
+					Rules: []net.IngressRule{
+						{
+							Host: "app.kardinal.dev",
+							IngressRuleValue: net.IngressRuleValue{
+								HTTP: &net.HTTPIngressRuleValue{
+									Paths: []net.HTTPIngressPath{
+										{
+											Path: "/",
+											Backend: net.IngressBackend{
+												Service: &net.IngressServiceBackend{
+													Name: "azure-vote-front",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
 				},
+				Status: net.IngressStatus{},
 			},
 		},
-	})
+	}
 
-	testIngressConfigs := []apitypes.IngressConfig{}
 	testGatewayConfigs := []apitypes.GatewayConfig{}
 	testRouteConfigs := []apitypes.RouteConfig{}
 	clusterTopology, err := engine.GenerateProdOnlyCluster("prod", testServiceConfigs, testIngressConfigs, testGatewayConfigs, testRouteConfigs, "prod")
@@ -249,6 +250,15 @@ func TestServiceConfigsToTopology(t *testing.T) {
 	clusterTopologyFlowA.FlowID = flowID
 	for _, service := range clusterTopologyFlowA.Services {
 		service.Version = flowID
+		if service == nil {
+			panic("Service is nil")
+		}
+		if service.DeploymentSpec == nil {
+			panic("DeploymentSpec is nil: " + service.ServiceID)
+		}
+		if len(service.DeploymentSpec.Template.Spec.Containers) == 0 {
+			panic("DeploymentSpec is empty: " + service.ServiceID)
+		}
 		image := service.DeploymentSpec.Template.Spec.Containers[0].Image
 		service.DeploymentSpec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s.a", image)
 	}
@@ -275,53 +285,53 @@ func TestServiceConfigsToTopology(t *testing.T) {
 
 	require.Equal(t,
 		[]apiTypes.Node{
-			apiTypes.Node{
+			{
 				Id:    "azure-vote-back",
 				Label: "azure-vote-back",
 				Type:  apiTypes.Service,
 				Versions: &[]apiTypes.NodeVersion{
-					apiTypes.NodeVersion{
+					{
 						FlowId:     "prod",
 						ImageTag:   &expectedAzureVoteBackImageProd,
 						IsBaseline: true,
 					},
-					apiTypes.NodeVersion{
+					{
 						FlowId:     "A",
 						ImageTag:   &expectedAzureVoteBackImageA,
 						IsBaseline: false,
 					},
-					apiTypes.NodeVersion{
+					{
 						FlowId:     "B",
 						ImageTag:   &expectedAzureVoteBackImageB,
 						IsBaseline: false,
 					},
 				},
 			},
-			apiTypes.Node{
+			{
 				Id:    "azure-vote-front",
 				Label: "azure-vote-front",
 				Type:  apiTypes.Service,
 				Versions: &[]apiTypes.NodeVersion{
-					apiTypes.NodeVersion{
+					{
 						FlowId:     "prod",
 						ImageTag:   &expectedAzurVoteFrontImageProd,
 						IsBaseline: true,
 					},
-					apiTypes.NodeVersion{
+					{
 						FlowId:     "A",
 						ImageTag:   &expectedAzurVoteFrontImageA,
 						IsBaseline: false,
 					},
-					apiTypes.NodeVersion{
+					{
 						FlowId:     "B",
 						ImageTag:   &expectedAzurVoteFrontImageB,
 						IsBaseline: false,
 					},
 				},
 			},
-			apiTypes.Node{
-				Id:       "voting-app-lb",
-				Label:    "voting-app-lb",
+			{
+				Id:       "kontrol-ingress",
+				Label:    "kontrol-ingress",
 				Type:     apiTypes.Gateway,
 				Versions: &[]apiTypes.NodeVersion{},
 			},
@@ -330,12 +340,12 @@ func TestServiceConfigsToTopology(t *testing.T) {
 
 	require.Equal(t,
 		[]apiTypes.Edge{
-			apiTypes.Edge{
+			{
 				Source: "azure-vote-front",
 				Target: "azure-vote-back",
 			},
-			apiTypes.Edge{
-				Source: "voting-app-lb",
+			{
+				Source: "kontrol-ingress",
 				Target: "azure-vote-front",
 			},
 		},
