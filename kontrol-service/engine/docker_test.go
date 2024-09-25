@@ -14,7 +14,7 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 	testVersion := "prod"
 	testNamespace := "prod"
 
-	testIngressConfigs := []apitypes.IngressConfig{}
+	testIngressConfigs := test.GetIngressConfigs()
 	testGatewayConfigs := []apitypes.GatewayConfig{}
 	testRouteConfigs := []apitypes.RouteConfig{}
 	cluster, err := generateClusterTopology(testServiceConfigs, testIngressConfigs, testGatewayConfigs, testRouteConfigs, testVersion, testNamespace)
@@ -44,7 +44,7 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 	require.Equal(t, *dependency.DependencyPort, testServiceConfigs[0].Service.Spec.Ports[0])
 
 	ingressService := cluster.Ingress
-	require.Equal(t, ingressService.Ingresses[0].Name, "voting-app-lb")
+	require.Equal(t, ingressService.Ingresses[0].Name, "kontrol-ingress")
 }
 
 func TestIngressConfigsTakePrecedenceOverK8sServicesActingAsIngresses(t *testing.T) {
