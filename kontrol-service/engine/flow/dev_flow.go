@@ -190,7 +190,7 @@ func applyPatch(
 			// find the existing external service and update it in the topology to get a new version
 			externalService, err := topology.GetService(plugin.ServiceName)
 			if err != nil {
-				return nil, fmt.Errorf("external service specified by plugin '%v' was not found in base topology.", plugin.ServiceName)
+				return nil, fmt.Errorf("external service specified by plugin '%v' was not found in base topology", plugin.ServiceName)
 			}
 
 			err = applyExternalServicePlugin(pluginRunner, targetService, externalService, plugin, pluginIdx, flowID)

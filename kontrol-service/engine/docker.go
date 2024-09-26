@@ -149,7 +149,7 @@ func processServiceConfigs(serviceConfigs []apitypes.ServiceConfig, version stri
 		service                *resolved.Service
 		dependenciesAnnotation string
 	}
-	serviceWithDependencies := []*serviceWithDependenciesAnnotation{}
+	servicesWithDependencies := []*serviceWithDependenciesAnnotation{}
 
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
@@ -172,16 +172,16 @@ func processServiceConfigs(serviceConfigs []apitypes.ServiceConfig, version stri
 		dependencies, ok := serviceAnnotations["kardinal.dev.service/dependencies"]
 		if ok {
 			newServiceWithDependenciesAnnotation := &serviceWithDependenciesAnnotation{&clusterTopologyService, dependencies}
-			serviceWithDependencies = append(serviceWithDependencies, newServiceWithDependenciesAnnotation)
+			servicesWithDependencies = append(servicesWithDependencies, newServiceWithDependenciesAnnotation)
 		}
 		clusterTopologyServices = append(clusterTopologyServices, &clusterTopologyService)
 	}
 
 	// Set the service dependencies in the clusterTopologyService
 	// first iterate on the service with dependencies list
-	for _, svcWithDependenciesAnnotation := range serviceWithDependencies {
+	for _, serviceWithDependencies := range servicesWithDependencies {
 
-		serviceAndPorts := strings.Split(svcWithDependenciesAnnotation.dependenciesAnnotation, ",")
+		serviceAndPorts := strings.Split(serviceWithDependencies.dependenciesAnnotation, ",")
 		for _, serviceAndPort := range serviceAndPorts {
 			serviceAndPortParts := strings.Split(serviceAndPort, ":")
 			depService, depServicePort, err := getServiceAndPortFromClusterTopologyServices(serviceAndPortParts[0], serviceAndPortParts[1], clusterTopologyServices)
@@ -190,7 +190,7 @@ func processServiceConfigs(serviceConfigs []apitypes.ServiceConfig, version stri
 			}
 
 			serviceDependency := resolved.ServiceDependency{
-				Service:          svcWithDependenciesAnnotation.service,
+				Service:          serviceWithDependencies.service,
 				DependsOnService: depService,
 				DependencyPort:   depServicePort,
 			}
