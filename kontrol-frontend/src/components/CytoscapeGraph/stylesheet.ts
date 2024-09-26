@@ -142,6 +142,7 @@ const stylesheet = [
   {
     selector: ".external",
     css: {
+      ghost: "no",
       "line-style": "dashed",
       "border-style": "dotted",
       "background-color": "#f2ebf8",

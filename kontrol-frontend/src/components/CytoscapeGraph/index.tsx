@@ -60,10 +60,12 @@ const CytoscapeGraph = ({
         if (tooltip.current != null) {
           tooltip.current.destroy();
         }
-        const tooltipInstance = createTooltip(e.target);
-        if (tooltipInstance == null) return;
-        tooltip.current = tooltipInstance.instance;
-        setTooltipPortalElem(tooltipInstance.element);
+        const newTooltip = createTooltip(e.target);
+        if (newTooltip == null) return;
+        const { instance, element } = newTooltip;
+        if (instance == null || element == null) return;
+        tooltip.current = instance;
+        setTooltipPortalElem(element);
         setHoveredNode(e.target);
       });
       cy.current.on("mouseout", function () {
