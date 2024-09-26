@@ -2,7 +2,7 @@ package flow
 
 import (
 	"fmt"
-	"hash/fnv"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -53,6 +53,26 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 			})
 		}))
 
+	targeIngressServices := lo.Uniq(
+		lo.FlatMap(clusterTopology.Ingress.Ingresses, func(ing net.Ingress, _ int) []string {
+			return lo.FlatMap(ing.Spec.Rules, func(rule net.IngressRule, _ int) []string {
+				return lo.FilterMap(rule.HTTP.Paths, func(path net.HTTPIngressPath, _ int) (string, bool) {
+					// TODO: we are ignoring the namespace from the path, should we?
+					targetNS := namespace
+					if ing.Namespace != "" {
+						targetNS = string(ing.Namespace)
+					}
+					if path.Backend.Service == nil {
+						logrus.Errorf("Ingress %v has a nil backend service", ing.Name)
+						return "", false
+					}
+					return fmt.Sprintf("%s/%s", targetNS, string(path.Backend.Service.Name)), true
+				})
+			})
+		}))
+
+	targetServices := lo.Uniq(append(targetHttpRouteServices, targeIngressServices...))
+
 	groupedServices := lo.GroupBy(clusterTopology.Services, func(item *resolved.Service) string { return item.ServiceID })
 	for serviceID, services := range groupedServices {
 		logrus.Infof("Rendering service with id: '%v'.", serviceID)
@@ -79,7 +99,7 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 		}
 	}
 
-	envoyFiltersForService := getEnvoyFilters(clusterTopology.Services, namespace, targetHttpRouteServices)
+	envoyFiltersForService := getEnvoyFilters(clusterTopology.Services, namespace, targetServices)
 	envoyFilters = append(envoyFilters, envoyFiltersForService...)
 
 	routes, frontServices, inboundFrontFilters := getHTTPRoutes(clusterTopology.GatewayAndRoutes, clusterTopology.Services, namespace)
@@ -414,8 +434,11 @@ func getIngresses(
 							newPaths = append(newPaths, path)
 
 							// Set Envoy FIlter for the service
-							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, namespace, hostnames)
-							inboundFilter := getInboundFilter(target.ServiceID, namespace, -1, &target.Version, &luaFilterFrontend)
+							filter := &externalInboudFilter{
+								filter: generateDynamicLuaScript(allServices, activeFlowID, namespace, hostnames),
+								name:   strings.Join(hostnames, "-"),
+							}
+							inboundFilter := getInboundFilter(target.ServiceID, namespace, -1, &target.Version, filter)
 							logrus.Debugf("Adding inbound filter to setup routing table for flow '%s' on service '%s', version '%s'", activeFlowID, target.ServiceID, target.Version)
 							filters = append(filters, inboundFilter)
 						}
@@ -477,8 +500,11 @@ func getHTTPRoutes(
 
 							hostnames := lo.Map(routeSpec.Hostnames, func(item gateway.Hostname, _ int) string { return string(item) })
 							// Set Envoy FIlter for the service
-							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, namespace, hostnames)
-							inboundFilter := getInboundFilter(target.ServiceID, namespace, -1, &target.Version, &luaFilterFrontend)
+							filter := &externalInboudFilter{
+								filter: generateDynamicLuaScript(allServices, activeFlowID, namespace, hostnames),
+								name:   strings.Join(hostnames, "-"),
+							}
+							inboundFilter := getInboundFilter(target.ServiceID, namespace, -1, &target.Version, filter)
 							logrus.Debugf("Adding inbound filter to setup routing table for flow '%s' on service '%s', version '%s'", activeFlowID, target.ServiceID, target.Version)
 							filters = append(filters, inboundFilter)
 						}
@@ -517,10 +543,9 @@ func getHTTPRoutes(
 func getEnvoyFilters(
 	allServices []*resolved.Service,
 	namespace string,
-	targetHttpRouteServices []string,
+	targetServices []string,
 ) []istioclient.EnvoyFilter {
 	filters := []istioclient.EnvoyFilter{}
-	traceIdEnforcerLuaScript := generateTraceIDEnforcerLuaScript()
 
 	// HttpRoute (workload) are applied at the serviceID level, not the serviceID-version level
 	groupedServices := lo.GroupBy(allServices, func(item *resolved.Service) string { return item.ServiceID })
@@ -537,16 +562,16 @@ func getEnvoyFilters(
 			continue
 		}
 
-		isTargertService := slices.Contains(targetHttpRouteServices, fmt.Sprintf("%s/%s", namespace, serviceID))
+		isTargertService := slices.Contains(targetServices, fmt.Sprintf("%s/%s", namespace, serviceID))
 
 		// more inbound EnvoyFilters for routing routing traffic on frontend services are added by the getHTTPRoutes function
 		if isTargertService {
 			logrus.Debugf("Adding inbound filter to enforce trace IDs for service '%s'", serviceID)
-			inboundFilter := getInboundFilter(serviceID, namespace, 0, nil, &traceIdEnforcerLuaScript)
+			inboundFilter := getInboundFilter(serviceID, namespace, 0, nil, &traceIdEnforcer{})
 			filters = append(filters, inboundFilter)
 		} else {
 			logrus.Debugf("Adding inbound filter for inner service '%s'", serviceID)
-			inboundFilter := getInboundFilter(serviceID, namespace, 0, nil, nil)
+			inboundFilter := getInboundFilter(serviceID, namespace, 0, nil, &innerInboundFilter{})
 			filters = append(filters, inboundFilter)
 		}
 
@@ -557,7 +582,46 @@ func getEnvoyFilters(
 	return filters
 }
 
-func getInboundFilter(serviceID, namespace string, priority int32, versionSelector, luaFilterFrontend *string) istioclient.EnvoyFilter {
+type luaFilter interface {
+	getName() string
+	getFilter() string
+}
+
+type innerInboundFilter struct{}
+
+type externalInboudFilter struct {
+	filter string
+	name   string
+}
+
+type traceIdEnforcer struct{}
+
+func (f *innerInboundFilter) getName() string {
+	return "inbound-router"
+}
+
+func (f *innerInboundFilter) getFilter() string {
+	return inboundRequestTraceIDFilter
+}
+
+func (f *externalInboudFilter) getName() string {
+	id := regexp.MustCompile(`[^a-z0-9.-]`).ReplaceAllString(f.name, "")
+	return "inbound-router-" + id + "-external"
+}
+
+func (f *externalInboudFilter) getFilter() string {
+	return f.filter
+}
+
+func (f *traceIdEnforcer) getName() string {
+	return "trace-id-enforcer"
+}
+
+func (f *traceIdEnforcer) getFilter() string {
+	return generateTraceIDEnforcerLuaScript()
+}
+
+func getInboundFilter(serviceID, namespace string, priority int32, versionSelector *string, luaFilter luaFilter) istioclient.EnvoyFilter {
 	labelSelector := map[string]string{
 		"app": serviceID,
 	}
@@ -565,20 +629,11 @@ func getInboundFilter(serviceID, namespace string, priority int32, versionSelect
 		labelSelector["version"] = *versionSelector
 	}
 
-	var filterHashStr *string
-	luaFilter := inboundRequestTraceIDFilter
-	if luaFilterFrontend != nil {
-		luaFilter = *luaFilterFrontend
-
-		hash := fnv.New32a()
-		hash.Write([]byte(*luaFilterFrontend))
-		hashStr := fmt.Sprintf("%d", hash.Sum32())
-		filterHashStr = &hashStr
-
+	if luaFilter == nil {
+		luaFilter = &innerInboundFilter{}
 	}
-
-	idStr := "inbound-router"
-	ids := []*string{&serviceID, &idStr, versionSelector, filterHashStr}
+	filterName := luaFilter.getName()
+	ids := []*string{&serviceID, versionSelector, &filterName}
 	name := strings.Join(lo.FilterMap(ids, func(id *string, _ int) (string, bool) {
 		if id != nil {
 			return *id, true
@@ -626,7 +681,7 @@ func getInboundFilter(serviceID, namespace string, priority int32, versionSelect
 										StructValue: &structpb.Struct{
 											Fields: map[string]*structpb.Value{
 												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
-												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: luaFilter}},
+												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: luaFilter.getFilter()}},
 											},
 										},
 									},

@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.2](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.2.1...0.2.2) (2024-09-26)
+
+
+### Bug Fixes
+
+* remove unused annotation ([#50](https://github.com/kurtosis-tech/kardinal-kontrol/issues/50)) ([2dd5306](https://github.com/kurtosis-tech/kardinal-kontrol/commit/2dd53063cd5ca1936d2d02deb55d265ea07c7d5d))
+* stable filter name ([#53](https://github.com/kurtosis-tech/kardinal-kontrol/issues/53)) ([fade8af](https://github.com/kurtosis-tech/kardinal-kontrol/commit/fade8af7f1b66f344912d598acd7a55d8caa52c9))
+
+## [0.2.1](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.2.0...0.2.1) (2024-09-26)
+
+
+### Bug Fixes
+
+* Get target frontend from ingresses ([#48](https://github.com/kurtosis-tech/kardinal-kontrol/issues/48)) ([b4ad5a3](https://github.com/kurtosis-tech/kardinal-kontrol/commit/b4ad5a30755fa66abd2b3457a74987440184852c))
+
 ## [0.2.0](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.31...0.2.0) (2024-09-26)
 
 

@@ -94,10 +94,6 @@ func generateClusterTopology(
 		// Ingress?
 		isIngress, ok := ingressAnnotations["kardinal.dev.service/ingress"]
 		if ok && isIngress == "true" {
-			_, ok := ingressAnnotations["kardinal.dev.service/host"]
-			if ok {
-				logrus.Debugf("Found hostname Kardinal annotation on Ingress '%v' but using Ingress Rules provided by k8s Ingress object instead.", ingress.Name)
-			}
 			clusterTopologyIngress.Ingresses = append(clusterTopologyIngress.Ingresses, ingress)
 		}
 	}

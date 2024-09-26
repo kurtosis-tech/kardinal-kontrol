@@ -4,6 +4,7 @@ import (
 	"flag"
 	"net/http"
 	"os"
+	"runtime/debug"
 	"strconv"
 
 	cli_api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
@@ -35,7 +36,6 @@ func main() {
 }
 
 func startServer(isDevMode bool) {
-
 	dbHostname := os.Getenv("DB_HOSTNAME")
 	dbUsername := os.Getenv("DB_USERNAME")
 	dbPassword := os.Getenv("DB_PASSWORD")
@@ -121,6 +121,9 @@ func startServer(isDevMode bool) {
 						debugMsg = "recover didn't get error msg"
 					}
 					logrus.Errorf("HTTP server handled this internal panic: %s", debugMsg)
+					// Log the error message along with the stack trace
+					stackTrace := string(debug.Stack())
+					logrus.Errorf("HTTP server handled this internal panic: %s\nStack trace: %s", debugMsg, stackTrace)
 				}
 			}()
 			return next(c)
