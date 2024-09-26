@@ -43,18 +43,18 @@ export interface ApiContextType {
 }
 
 const defaultContextValue: ApiContextType = {
-  deleteFlow: async () => {},
-  deleteTemplate: async () => {},
+  deleteFlow: async () => { },
+  deleteTemplate: async () => { },
   error: null,
   flows: [],
-  getFlows: async () => {},
-  getTemplates: async () => {},
+  getFlows: async () => { },
+  getTemplates: async () => { },
   getTopology: async () => {
     return { nodes: [], edges: [] };
   },
   loading: false,
-  postFlowCreate: async () => {},
-  postTemplateCreate: async () => {},
+  postFlowCreate: async () => { },
+  postTemplateCreate: async () => { },
   templates: [],
 };
 
