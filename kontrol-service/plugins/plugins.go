@@ -331,6 +331,7 @@ func (pr *PluginRunner) getOrCloneRepo(repoURL string) (string, error) {
 	}
 
 	repoPath := filepath.Join(tempDir, repoName)
+	logrus.Infof("Cloning plugin from %s to %s", repoURL, repoPath)
 	err := pr.gitPluginProvider.PullGitHubPlugin(repoPath, repoURL)
 	if err != nil {
 		return "", fmt.Errorf("An error occurred pulling plugin from GitHub:\n%v", err.Error())

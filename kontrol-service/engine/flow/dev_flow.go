@@ -2,6 +2,7 @@ package flow
 
 import (
 	"fmt"
+
 	"kardinal.kontrol-service/constants"
 
 	"github.com/kurtosis-tech/stacktrace"
@@ -20,7 +21,12 @@ import (
 // CreateDevFlow creates a dev flow from the given topologies
 // baseClusterTopologyMaybeWithTemplateOverrides - if a template is used then this is a modified version of the baseTopology
 // we pass in the base topology anyway as we use services which remain in `prod` version from it
-func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseClusterTopologyMaybeWithTemplateOverrides resolved.ClusterTopology, baseTopology resolved.ClusterTopology, flowPatch flow_spec.FlowPatch) (*resolved.ClusterTopology, error) {
+func CreateDevFlow(
+	pluginRunner *plugins.PluginRunner,
+	baseClusterTopologyMaybeWithTemplateOverrides resolved.ClusterTopology,
+	baseTopology resolved.ClusterTopology,
+	flowPatch flow_spec.FlowPatch,
+) (*resolved.ClusterTopology, error) {
 	flowID := flowPatch.FlowId
 
 	// shallow copy the base topology
@@ -30,15 +36,15 @@ func CreateDevFlow(pluginRunner *plugins.PluginRunner, baseClusterTopologyMaybeW
 	topology.FlowID = flowID
 	topology.Services = deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.Services)
 	topology.ServiceDependencies = deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.ServiceDependencies)
-	topology.Ingresses = lo.Map(baseClusterTopologyMaybeWithTemplateOverrides.Ingresses, func(item *resolved.Ingress, _ int) *resolved.Ingress {
-		copiedIngress := resolved.Ingress{
-			ActiveFlowIDs: []string{flowID},
-			IngressID:     item.IngressID,
-			IngressRules:  deepCopySlice(item.IngressRules),
-			ServiceSpec:   item.ServiceSpec,
-		}
-		return &copiedIngress
-	})
+	topology.Ingress = &resolved.Ingress{
+		ActiveFlowIDs: []string{flowID},
+		Ingresses:     deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.Ingress.Ingresses),
+	}
+	topology.GatewayAndRoutes = &resolved.GatewayAndRoutes{
+		ActiveFlowIDs: []string{flowID},
+		Gateways:      deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.GatewayAndRoutes.Gateways),
+		GatewayRoutes: deepCopySlice(baseClusterTopologyMaybeWithTemplateOverrides.GatewayAndRoutes.GatewayRoutes),
+	}
 
 	topologyRef := &topology
 
@@ -310,7 +316,8 @@ func applyExternalServicePlugin(
 	externalService *resolved.Service,
 	externalServicePlugin *resolved.StatefulPlugin,
 	pluginIdx int,
-	flowId string) error {
+	flowId string,
+) error {
 	if externalServicePlugin.Type != "external" {
 		return nil
 	}

@@ -2,15 +2,17 @@ package types
 
 import (
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
+	net "k8s.io/api/networking/v1"
+	gateway "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 type Traffic struct {
-	HasMirroring           bool
-	MirrorPercentage       uint
-	MirrorToVersion        string
-	MirrorExternalHostname string
-	ExternalHostname       string
-	GatewayName            string
+	HasMirroring     bool
+	MirrorPercentage uint
+	MirrorToVersion  string
+	Routes           []*gateway.HTTPRoute
+	Gateways         []*gateway.Gateway
+	Ingresses        []*net.Ingress
 }
 
 // TODO: Needs to: 1) Validate/restrict version and name, 2) assume just on port on TCP
@@ -35,7 +37,6 @@ type ServiceDependency struct {
 type Cluster struct {
 	Services            []*ServiceSpec
 	ServiceDependencies []*ServiceDependency
-	FrontdoorService    []*ServiceSpec
 	TrafficSource       Traffic
 	Namespace           NamespaceSpec
 }
