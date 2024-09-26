@@ -1,4 +1,4 @@
-import { Flex } from "@chakra-ui/react";
+import { Flex, IconButton } from "@chakra-ui/react";
 import { useApi } from "@/contexts/ApiContext";
 import {
   Table,
@@ -9,14 +9,16 @@ import {
   Td,
   TableContainer,
 } from "@/components/Table";
-import { FiExternalLink } from "react-icons/fi";
+import { FiExternalLink, FiEye, FiEyeOff } from "react-icons/fi";
 import { useEffect, useState } from "react";
 import { ClusterTopology, NodeVersion, Node } from "@/types";
 import { Link } from "@chakra-ui/react";
+import { useFlowsContext } from "@/contexts/FlowsContext";
 
 const Legend = () => {
-  const { flows, getFlows, getTopology } = useApi();
+  const { getTopology } = useApi();
   const [topology, setTopology] = useState<ClusterTopology | null>(null);
+  const { flows, flowVisibility, setFlowVisibility } = useFlowsContext();
 
   const servicesForFlowId = (flowId: string, isBaseline: boolean): Node[] => {
     if (topology == null) {
@@ -34,10 +36,13 @@ const Legend = () => {
   };
 
   useEffect(() => {
-    getFlows();
     getTopology().then(setTopology);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const sortedFlows = flows.sort((a, b) => {
+    return a["flow-id"].localeCompare(b["flow-id"]);
+  });
 
   return (
     <Flex
@@ -57,15 +62,15 @@ const Legend = () => {
               <Th>Flow ID</Th>
               <Th>Baseline</Th>
               <Th>URL</Th>
-              {/* <Th>Show/Hide</Th> */}
+              <Th>Show/Hide</Th>
             </Tr>
           </Thead>
           <Tbody>
-            {flows.map((flow) => {
+            {sortedFlows.map((flow) => {
               // TODO: Update these when this PR is merged:
               // https://github.com/kurtosis-tech/kardinal/pull/234
               const flowId = flow["flow-id"];
-              const flowUrls = flow["flow-urls"];
+              const flowUrls = flow["access-entry"];
               const isBaseline = servicesForFlowId(flowId, false).length === 0;
               return (
                 <Tr key={flowId}>
@@ -80,14 +85,12 @@ const Legend = () => {
                       alignItems={"center"}
                       gap={2}
                     >
-                      {flowUrls[0]}
+                      {flowUrls[0].hostname}
                       <FiExternalLink size={12} />
                     </Link>
                   </Td>
-                  {/* TODO: Uncomment when this feature is fully implemented
-                   *
                   <Td textAlign={"right"}>
-                    {highlightedFlowId === flowId ? (
+                    {flowVisibility[flowId] === true ? (
                       <IconButton
                         aria-label="Hide"
                         h={"24px"}
@@ -95,10 +98,11 @@ const Legend = () => {
                         w={"24px"}
                         minW={"24px"}
                         color={isBaseline ? "gray.300" : "gray.600"}
-                        icon={<FiEyeOff size={16} />}
+                        icon={<FiEye size={16} />}
                         disabled={isBaseline}
                         onClick={() => {
-                          // setHighlightedFlowId(null);
+                          if (isBaseline) return; // cant hide baseline flow
+                          setFlowVisibility(flowId, false);
                         }}
                       />
                     ) : (
@@ -108,17 +112,16 @@ const Legend = () => {
                         minH={"24px"}
                         w={"24px"}
                         minW={"24px"}
-                        icon={<FiEye size={16} />}
                         disabled={isBaseline}
+                        icon={<FiEyeOff size={16} />}
                         color={isBaseline ? "gray.300" : "gray.600"}
                         cursor={isBaseline ? "not-allowed" : "pointer"}
                         onClick={() => {
-                          // setHighlightedFlowId(flowId);
+                          setFlowVisibility(flowId, true);
                         }}
                       />
                     )}
                   </Td>
-                   **/}
                 </Tr>
               );
             })}

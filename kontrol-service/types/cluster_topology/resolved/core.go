@@ -4,20 +4,21 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
+	"regexp"
+
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/mohae/deepcopy"
-	"github.com/samber/lo"
-	appsv1 "k8s.io/api/apps/v1"
-	"slices"
 
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	net "k8s.io/api/networking/v1"
-	"regexp"
+	gateway "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 type ClusterTopology struct {
 	FlowID              string              `json:"flowID"`
-	Ingresses           []*Ingress          `json:"ingress"`
+	GatewayAndRoutes    *GatewayAndRoutes   `json:"gatewayAndRoutes"`
+	Ingress             *Ingress            `json:"ingress"`
 	Services            []*Service          `json:"services"`
 	ServiceDependencies []ServiceDependency `json:"serviceDependencies"`
 	Namespace           string              `json:"namespace"`
@@ -44,14 +45,23 @@ type ServiceDependency struct {
 }
 
 type Ingress struct {
-	ActiveFlowIDs []string           `json:"activeFlowIDs"`
-	IngressID     string             `json:"ingressID"`
-	IngressRules  []*net.IngressRule `json:"ingressRules"`
-	// IngressSpec and ServiceSpec are mutually exclusive
-	// IngressSpec is set if a k8s Ingress type is being used for this Ingress
-	// ServiceSpec is set if a k8s Service type is acting as an Ingress (eg. LoadBalancer, custom gateway)
-	IngressSpec *net.IngressSpec    `json:"ingressSpec"`
-	ServiceSpec *corev1.ServiceSpec `json:"serviceSpec"`
+	ActiveFlowIDs []string      `json:"activeFlowIDs"`
+	Ingresses     []net.Ingress `json:"ingresses"`
+}
+
+type GatewayAndRoutes struct {
+	ActiveFlowIDs []string                 `json:"activeFlowIDs"`
+	Gateways      []*gateway.Gateway       `json:"gateway"`
+	GatewayRoutes []*gateway.HTTPRouteSpec `json:"gatewayRoutes"`
+}
+
+type IngressAccessEntry struct {
+	FlowID        string `json:"flowID"`
+	FlowNamespace string `json:"flowNamespace"`
+	Hostname      string `json:"hostname"`
+	Service       string `json:"service"`
+	Namespace     string `json:"namespace"`
+	Type          string `json:"type"`
 }
 
 func (clusterTopology *ClusterTopology) GetServiceAndPort(serviceName string, servicePortName string) (*Service, *corev1.ServicePort, error) {
@@ -90,39 +100,6 @@ func (clusterTopology *ClusterTopology) UpdateWithService(modifiedService *Servi
 	return stacktrace.NewError("Service %s not found in the list of services", modifiedService.ServiceID)
 }
 
-func (clusterTopology *ClusterTopology) IsIngressDestination(service *Service) bool {
-	return lo.SomeBy(clusterTopology.Ingresses, func(item *Ingress) bool {
-		return slices.Contains(item.GetTargetServices(), service.ServiceID)
-	})
-}
-
-func (clusterTopology *ClusterTopology) GetIngressForService(service *Service) (*Ingress, bool) {
-	// TODO: How to force that a service can't have more than one ingress?
-	return lo.Find(clusterTopology.Ingresses, func(item *Ingress) bool {
-		return slices.Contains(item.GetTargetServices(), service.ServiceID)
-	})
-}
-
-func (ingress *Ingress) GetHost() *string {
-	if len(ingress.IngressRules) > 0 {
-		return &ingress.IngressRules[0].Host
-	}
-	return nil
-}
-
-func (clusterTopology *ClusterTopology) GetFlowHostMapping() map[string][]string {
-	result := make(map[string][]string)
-
-	if clusterTopology != nil && clusterTopology.Ingresses != nil {
-		for _, ing := range clusterTopology.Ingresses {
-			for key, value := range ing.GetFlowHostMapping() {
-				result[key] = append(result[key], value)
-			}
-		}
-	}
-	return result
-}
-
 func (clusterTopology *ClusterTopology) FindImmediateParents(service *Service) []*Service {
 	parents := make([]*Service, 0)
 	for _, dependency := range clusterTopology.ServiceDependencies {
@@ -152,47 +129,92 @@ func (clusterTopology *ClusterTopology) MoveServiceToVersion(service *Service, v
 	return clusterTopology.UpdateWithService(duplicatedService)
 }
 
-func (ingress *Ingress) GetFlowHostMapping() map[string]string {
-	mapping := make(map[string]string)
-	if len(ingress.IngressRules) > 0 {
-		baseHost := &ingress.IngressRules[0].Host
-		for _, flowID := range ingress.ActiveFlowIDs {
-			mapping[flowID] = ReplaceOrAddSubdomain(*baseHost, flowID)
-		}
-	}
-
-	return mapping
-}
-
 func ReplaceOrAddSubdomain(url string, newSubdomain string) string {
 	re := regexp.MustCompile(`^(https?://)?(([^./]+\.)?([^./]+\.[^./]+))(.*)$`)
 	return re.ReplaceAllString(url, fmt.Sprintf("${1}%s.${4}${5}", newSubdomain))
 }
 
-func (ingress *Ingress) GetTargetServices() []string {
-	targetServices := []string{}
-	if ingress.IngressSpec != nil {
-		for _, rule := range ingress.IngressSpec.Rules {
-			for _, httpPath := range rule.HTTP.Paths {
-				targetServices = append(targetServices, httpPath.Backend.Service.Name)
-			}
-		}
-	}
-	if ingress.ServiceSpec != nil {
-		appName, ok := ingress.ServiceSpec.Selector["app"]
-		if ok {
-			targetServices = append(targetServices, appName)
-		}
-	}
-	return targetServices
-}
-
 func (service *Service) IsHTTP() bool {
-	if len(service.ServiceSpec.Ports) == 0 {
+	if service == nil || service.ServiceSpec == nil || len(service.ServiceSpec.Ports) == 0 {
 		return false
 	}
 	servicePort := service.ServiceSpec.Ports[0]
 	return servicePort.AppProtocol != nil && *servicePort.AppProtocol == "HTTP"
+}
+
+func getIngressFlowHostMap(ingress *Ingress, namespace string) map[string][]IngressAccessEntry {
+	flowHostMapping := map[string][]IngressAccessEntry{}
+
+	if ingress == nil {
+		return flowHostMapping
+	}
+
+	for _, flowID := range ingress.ActiveFlowIDs {
+		_, found := flowHostMapping[flowID]
+		if !found {
+			flowHostMapping[flowID] = []IngressAccessEntry{}
+		}
+		for _, ing := range ingress.Ingresses {
+			for _, rule := range ing.Spec.Rules {
+				host := ReplaceOrAddSubdomain(rule.Host, flowID)
+
+				// Ingress is placed in the same namespace by the render
+				ns := namespace
+				if ing.Namespace != "" {
+					ns = ing.Namespace
+				}
+
+				entry := IngressAccessEntry{
+					FlowID:        flowID,
+					FlowNamespace: namespace,
+					Hostname:      host,
+					Service:       ing.Name,
+					Namespace:     ns,
+					Type:          "ingress",
+				}
+				flowHostMapping[flowID] = append(flowHostMapping[flowID], entry)
+			}
+		}
+	}
+
+	return flowHostMapping
+}
+
+func getGatewayFlowHostMap(gw *GatewayAndRoutes, namespace string) map[string][]IngressAccessEntry {
+	flowHostMapping := map[string][]IngressAccessEntry{}
+
+	if gw == nil {
+		return flowHostMapping
+	}
+
+	for _, flowID := range gw.ActiveFlowIDs {
+		_, found := flowHostMapping[flowID]
+		if !found {
+			flowHostMapping[flowID] = []IngressAccessEntry{}
+		}
+		for _, route := range gw.GatewayRoutes {
+			for _, ref := range route.ParentRefs {
+				for _, originalHost := range route.Hostnames {
+					host := ReplaceOrAddSubdomain(string(originalHost), flowID)
+					ns := "default"
+					if ref.Namespace != nil {
+						ns = string(*ref.Namespace)
+					}
+					entry := IngressAccessEntry{
+						FlowID:        flowID,
+						FlowNamespace: namespace,
+						Hostname:      host,
+						Service:       string(ref.Name),
+						Namespace:     ns,
+						Type:          "gateway",
+					}
+					flowHostMapping[flowID] = append(flowHostMapping[flowID], entry)
+				}
+			}
+		}
+	}
+
+	return flowHostMapping
 }
 
 // Hash generates a hash for the Service struct
@@ -232,4 +254,26 @@ func (service *Service) Hash() ServiceHash {
 	hashString := fmt.Sprintf("%x", h.Sum(nil))
 	// use custom type to improve API
 	return ServiceHash(hashString)
+}
+
+func (clusterTopology *ClusterTopology) GetFlowHostMapping() map[string][]IngressAccessEntry {
+	flowHostMapping := map[string][]IngressAccessEntry{}
+	gatewayFlowHostMap := getGatewayFlowHostMap(clusterTopology.GatewayAndRoutes, clusterTopology.Namespace)
+	ingressFlowHostMap := getIngressFlowHostMap(clusterTopology.Ingress, clusterTopology.Namespace)
+
+	for flowID, entries := range gatewayFlowHostMap {
+		imap, found := ingressFlowHostMap[flowID]
+		if found {
+			entries = append(entries, imap...)
+		}
+		flowHostMapping[flowID] = entries
+	}
+	for flowID, entries := range ingressFlowHostMap {
+		_, found := flowHostMapping[flowID]
+		if !found {
+			flowHostMapping[flowID] = entries
+		}
+	}
+
+	return flowHostMapping
 }

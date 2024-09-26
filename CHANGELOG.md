@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.2.1](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.2.0...0.2.1) (2024-09-26)
+
+
+### Bug Fixes
+
+* Get target frontend from ingresses ([#48](https://github.com/kurtosis-tech/kardinal-kontrol/issues/48)) ([b4ad5a3](https://github.com/kurtosis-tech/kardinal-kontrol/commit/b4ad5a30755fa66abd2b3457a74987440184852c))
+
+## [0.2.0](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.31...0.2.0) (2024-09-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* new gateway management ([#41](https://github.com/kurtosis-tech/kardinal-kontrol/issues/41))
+
+### Features
+
+* Add ability to toggle flow visibility in topology graph ([#44](https://github.com/kurtosis-tech/kardinal-kontrol/issues/44)) ([a428b37](https://github.com/kurtosis-tech/kardinal-kontrol/commit/a428b375283aac34175cfc86a9028da22393f832))
+* new gateway management ([#41](https://github.com/kurtosis-tech/kardinal-kontrol/issues/41)) ([e7df3b0](https://github.com/kurtosis-tech/kardinal-kontrol/commit/e7df3b07c623a084eddbf12d593388463affdf6a))
+
 ## [0.1.31](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.30...0.1.31) (2024-09-24)
 
 

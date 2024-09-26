@@ -2,23 +2,29 @@ package flow
 
 import (
 	"fmt"
-	"kardinal.kontrol-service/constants"
+	"hash/fnv"
+	"slices"
 	"strings"
+
+	"kardinal.kontrol-service/constants"
+	"kardinal.kontrol-service/types"
+	"kardinal.kontrol-service/types/cluster_topology/resolved"
 
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/structpb"
 	"istio.io/api/networking/v1alpha3"
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	securityapi "istio.io/api/security/v1beta1"
 	typev1beta1 "istio.io/api/type/v1beta1"
 	istioclient "istio.io/client-go/pkg/apis/networking/v1alpha3"
 	securityv1beta1 "istio.io/client-go/pkg/apis/security/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
+	net "k8s.io/api/networking/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"kardinal.kontrol-service/types"
-	"kardinal.kontrol-service/types/cluster_topology/resolved"
+	gateway "sigs.k8s.io/gateway-api/apis/v1"
 )
 
 // RenderClusterResources returns a cluster resource for a given topology
@@ -31,16 +37,45 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 
 	authorizationPolicies := []securityv1beta1.AuthorizationPolicy{}
 
-	servicesAgainstVersions := map[string][]string{}
 	serviceList := []v1.Service{}
 
-	allActiveFlows := lo.FlatMap(clusterTopology.Ingresses, func(item *resolved.Ingress, _ int) []string { return item.ActiveFlowIDs })
-	var versionsAgainstExtHost map[string]string
+	targetHttpRouteServices := lo.Uniq(
+		lo.FlatMap(clusterTopology.GatewayAndRoutes.GatewayRoutes, func(item *gateway.HTTPRouteSpec, _ int) []string {
+			return lo.FlatMap(item.Rules, func(rule gateway.HTTPRouteRule, _ int) []string {
+				return lo.Map(rule.BackendRefs, func(ref gateway.HTTPBackendRef, _ int) string {
+					// TODO: we are ignoring the namespace from the ref, should we?
+					targetNS := namespace
+					if ref.Namespace != nil {
+						targetNS = string(*ref.Namespace)
+					}
+					return fmt.Sprintf("%s/%s", targetNS, string(ref.Name))
+				})
+			})
+		}))
+
+	targeIngressServices := lo.Uniq(
+		lo.FlatMap(clusterTopology.Ingress.Ingresses, func(ing net.Ingress, _ int) []string {
+			return lo.FlatMap(ing.Spec.Rules, func(rule net.IngressRule, _ int) []string {
+				return lo.FilterMap(rule.HTTP.Paths, func(path net.HTTPIngressPath, _ int) (string, bool) {
+					// TODO: we are ignoring the namespace from the path, should we?
+					targetNS := namespace
+					if ing.Namespace != "" {
+						targetNS = string(ing.Namespace)
+					}
+					if path.Backend.Service == nil {
+						logrus.Errorf("Ingress %v has a nil backend service", ing.Name)
+						return "", false
+					}
+					return fmt.Sprintf("%s/%s", targetNS, string(path.Backend.Service.Name)), true
+				})
+			})
+		}))
+
+	targetServices := lo.Uniq(append(targetHttpRouteServices, targeIngressServices...))
 
 	groupedServices := lo.GroupBy(clusterTopology.Services, func(item *resolved.Service) string { return item.ServiceID })
 	for serviceID, services := range groupedServices {
 		logrus.Infof("Rendering service with id: '%v'.", serviceID)
-		servicesAgainstVersions[serviceID] = lo.Map(services, func(item *resolved.Service, _ int) string { return item.Version })
 		if len(services) > 0 {
 			// TODO: this assumes service specs didn't change. May we need a new version to ClusterTopology data structure
 
@@ -50,49 +85,32 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 			}
 			serviceList = append(serviceList, *getService(services[0], namespace))
 
-			var gateway *string
-			var extHost *string
-			if ingressService, found := clusterTopology.GetIngressForService(services[0]); found {
-				logrus.Infof("The service has an ingress")
-				gateway = &ingressService.IngressID
-				extHost = ingressService.GetHost()
-
-				// TODO: either update getEnvoyFilters or merge maps in case there is more than one ingress
-				versionsAgainstExtHost = lo.SliceToMap(allActiveFlows, func(item string) (string, string) { return item, resolved.ReplaceOrAddSubdomain(*extHost, item) })
-			}
-
-			virtualService, destinationRule := getVirtualService(serviceID, services, namespace, gateway, extHost)
+			virtualService, destinationRule := getVirtualService(serviceID, services, namespace)
 			virtualServices = append(virtualServices, *virtualService)
 			if destinationRule != nil {
 				destinationRules = append(destinationRules, *destinationRule)
 			}
 			logrus.Infof("adding filters and authorization policies for service '%s'", serviceID)
 
-			envoyFiltersForService := getEnvoyFilters(services[0], namespace)
-			envoyFilters = append(envoyFilters, envoyFiltersForService...)
-
 			authorizationPolicy := getAuthorizationPolicy(services[0], namespace)
 			if authorizationPolicy != nil {
 				authorizationPolicies = append(authorizationPolicies, *authorizationPolicy)
 			}
 		}
-
 	}
+
+	envoyFiltersForService := getEnvoyFilters(clusterTopology.Services, namespace, targetServices)
+	envoyFilters = append(envoyFilters, envoyFiltersForService...)
+
+	routes, frontServices, inboundFrontFilters := getHTTPRoutes(clusterTopology.GatewayAndRoutes, clusterTopology.Services, namespace)
+	serviceList = append(serviceList, frontServices...)
+	envoyFilters = append(envoyFilters, inboundFrontFilters...)
+
+	ingresses, frontServices, inboundFrontFilters := getIngresses(clusterTopology.Ingress, clusterTopology.Services, namespace)
+	serviceList = append(serviceList, frontServices...)
+	envoyFilters = append(envoyFilters, inboundFrontFilters...)
 
 	logrus.Infof("have total of %d envoy filters", len(envoyFilters))
-
-	sharedServiceBackupVersions := map[string][]string{}
-	for _, service := range clusterTopology.Services {
-		if service.IsShared && service.Version == constants.SharedVersionVersionString {
-			logrus.Infof("Found original version '%v' for service '%v'", service.OriginalVersionIfShared, service.ServiceID)
-			sharedServiceBackupVersions[service.ServiceID] = append(sharedServiceBackupVersions[service.ServiceID], service.OriginalVersionIfShared)
-		}
-	}
-	// TODO: make it to use a list of Ingresses
-	// the baseline topology (or prod topology) flow ID and flow version and host are equal to the namespace these four should use same value
-	baselineHostName := namespace
-	gatewayFilter := getEnvoyFilterForGateway(servicesAgainstVersions, versionsAgainstExtHost, sharedServiceBackupVersions, baselineHostName)
-	envoyFilters = append(envoyFilters, *gatewayFilter)
 
 	return types.ClusterResources{
 		Services: serviceList,
@@ -105,7 +123,11 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 			return *getDeployment(service, namespace), true
 		}),
 
-		Gateway: *getGateway(clusterTopology.Ingresses, namespace),
+		Gateways: getGateways(clusterTopology.GatewayAndRoutes),
+
+		HTTPRoutes: routes,
+
+		Ingresses: ingresses,
 
 		VirtualServices: virtualServices,
 
@@ -178,9 +200,7 @@ func getHTTPRoute(service *resolved.Service, host *string) *v1alpha3.HTTPRoute {
 	}
 }
 
-func getVirtualService(serviceID string, services []*resolved.Service, namespace string, gateway *string, extHost *string) (*istioclient.VirtualService, *istioclient.DestinationRule) {
-	extHosts := []string{}
-
+func getVirtualService(serviceID string, services []*resolved.Service, namespace string) (*istioclient.VirtualService, *istioclient.DestinationRule) {
 	httpRoutes := []*v1alpha3.HTTPRoute{}
 	tcpRoutes := []*v1alpha3.TCPRoute{}
 	destinationRule := getDestinationRule(serviceID, services, namespace)
@@ -189,11 +209,6 @@ func getVirtualService(serviceID string, services []*resolved.Service, namespace
 		// TODO: Support for multiple ports
 		servicePort := &service.ServiceSpec.Ports[0]
 		var flowHost *string
-		if extHost != nil {
-			flowHostTemp := resolved.ReplaceOrAddSubdomain(*extHost, service.Version)
-			flowHost = &flowHostTemp
-			extHosts = append(extHosts, *flowHost)
-		}
 
 		if servicePort.AppProtocol != nil && *servicePort.AppProtocol == "HTTP" {
 			httpRoutes = append(httpRoutes, getHTTPRoute(service, flowHost))
@@ -205,16 +220,7 @@ func getVirtualService(serviceID string, services []*resolved.Service, namespace
 	virtualServiceSpec := v1alpha3.VirtualService{}
 	virtualServiceSpec.Http = httpRoutes
 	virtualServiceSpec.Tcp = tcpRoutes
-
-	if gateway != nil {
-		virtualServiceSpec.Gateways = []string{*gateway}
-	}
-
-	if extHost != nil {
-		virtualServiceSpec.Hosts = extHosts
-	} else {
-		virtualServiceSpec.Hosts = []string{serviceID}
-	}
+	virtualServiceSpec.Hosts = []string{serviceID}
 
 	return &istioclient.VirtualService{
 		TypeMeta: metav1.TypeMeta{
@@ -236,7 +242,6 @@ func getDestinationRule(serviceID string, services []*resolved.Service, namespac
 	// if we do that then the render work around isn't necessary
 	subsets := lo.UniqBy(
 		lo.Map(services, func(service *resolved.Service, _ int) *v1alpha3.Subset {
-
 			newSubset := &v1alpha3.Subset{
 				Name: service.Version,
 				Labels: map[string]string{
@@ -331,6 +336,9 @@ func getDeployment(service *resolved.Service, namespace string) *appsv1.Deployme
 	deployment.Spec.Template.ObjectMeta = metav1.ObjectMeta{
 		Annotations: map[string]string{
 			"sidecar.istio.io/inject": "true",
+			// TODO: make this a flag to help debugging
+			// One can view the logs with: kubeclt logs -f -l app=<serviceID> -n <namespace> -c istio-proxy
+			"sidecar.istio.io/componentLogLevel": "lua:info",
 		},
 		Labels: map[string]string{
 			"app":     service.ServiceID,
@@ -341,77 +349,277 @@ func getDeployment(service *resolved.Service, namespace string) *appsv1.Deployme
 	return &deployment
 }
 
-func getGateway(ingresses []*resolved.Ingress, namespace string) *istioclient.Gateway {
-	extHosts := []string{}
-	for _, ingress := range ingresses {
-		ingressHost := ingress.GetHost()
-		if ingressHost != nil {
-			allFlowHosts := lo.Map(ingress.ActiveFlowIDs, func(flowId string, _ int) string { return resolved.ReplaceOrAddSubdomain(*ingressHost, flowId) })
-			extHosts = append(extHosts, allFlowHosts...)
+func getGateways(gatewayAndRoutes *resolved.GatewayAndRoutes) []gateway.Gateway {
+	return lo.Map(gatewayAndRoutes.Gateways, func(gateway *gateway.Gateway, gwId int) gateway.Gateway {
+		if gateway.Namespace == "" {
+			gateway.Namespace = "default"
 		}
-	}
-	extHosts = lo.Uniq(extHosts)
+		return *gateway
+	})
+}
 
-	// We need to return a gateway as part of the cluster resources so we return a dummy one
-	// if there are no ingresses defined.  This can happen when the tenant does not have a base
-	// cluster topology: no initial deploy or the topologies have been deleted.  This gateway also allows
-	// us to communicate the namespace to the kardinal manager helping the resources to be cleaned up.
-	ingressId := "dummy"
-	if len(ingresses) > 0 {
-		ingressId = ingresses[0].IngressID
-	} else {
-		extHosts = []string{"dummy.kardinal.dev"}
+func findBackendRefService(serviceName string, serviceVersion string, services []*resolved.Service) (*resolved.Service, bool) {
+	return lo.Find(services, func(service *resolved.Service) bool {
+		return service.ServiceID == serviceName && service.Version == serviceVersion
+	})
+}
+
+func getVersionedService(service *resolved.Service, flowVersion string, namespace string) v1.Service {
+	serviceSpecCopy := service.ServiceSpec.DeepCopy()
+
+	serviceSpecCopy.Selector = map[string]string{
+		"app":     service.ServiceID,
+		"version": service.Version,
 	}
 
-	return &istioclient.Gateway{
+	return v1.Service{
 		TypeMeta: metav1.TypeMeta{
-			APIVersion: "networking.istio.io/v1alpha3",
-			Kind:       "Gateway",
+			APIVersion: "v1",
+			Kind:       "Service",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      ingressId,
+			Name:      fmt.Sprintf("%s-%s", service.ServiceID, flowVersion),
 			Namespace: namespace,
 			Labels: map[string]string{
-				"app":     ingressId,
-				"version": "v1",
+				"app":     service.ServiceID,
+				"version": flowVersion,
 			},
 		},
-		Spec: v1alpha3.Gateway{
-			Selector: map[string]string{
-				"istio": "ingressgateway",
-			},
-			Servers: []*v1alpha3.Server{
-				{
-					Port: &v1alpha3.Port{
-						Number:   80,
-						Name:     "http",
-						Protocol: "HTTP",
-					},
-					Hosts: extHosts,
-				},
-			},
-		},
+		Spec: *serviceSpecCopy,
 	}
 }
 
-func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.EnvoyFilter {
-	if !service.IsHTTP() {
-		return []istioclient.EnvoyFilter{}
+func getIngresses(
+	ingress *resolved.Ingress,
+	allServices []*resolved.Service,
+	namespace string,
+) ([]net.Ingress, []v1.Service, []istioclient.EnvoyFilter) {
+	ingressList := []net.Ingress{}
+	frontServices := map[string]v1.Service{}
+	filters := []istioclient.EnvoyFilter{}
+
+	for _, ingressSpecOriginal := range ingress.Ingresses {
+		ingressDefinition := ingressSpecOriginal.DeepCopy()
+		newRules := []net.IngressRule{}
+
+		for _, ruleOriginal := range ingressDefinition.Spec.Rules {
+			for _, activeFlowID := range ingress.ActiveFlowIDs {
+				logrus.Infof("Setting gateway route for active flow ID: %v", activeFlowID)
+
+				newPaths := []net.HTTPIngressPath{}
+
+				rule := ruleOriginal.DeepCopy()
+
+				flowHostname := resolved.ReplaceOrAddSubdomain(rule.Host, activeFlowID)
+				rule.Host = flowHostname
+				hostnames := []string{
+					flowHostname,
+				}
+
+				for _, pathOriginal := range ruleOriginal.HTTP.Paths {
+					target, found := findBackendRefService(pathOriginal.Backend.Service.Name, activeFlowID, allServices)
+					// fallback to baseline if backend not found at the active flow
+					// the baseline topology (or prod topology) flow ID and flow version are equal to the namespace these three should use same value
+					baselineFlowVersion := namespace
+					if !found {
+						target, found = findBackendRefService(pathOriginal.Backend.Service.Name, baselineFlowVersion, allServices)
+					}
+					if found {
+						path := *pathOriginal.DeepCopy()
+						idVersion := fmt.Sprintf("%s-%s", target.ServiceID, activeFlowID)
+						_, serviceAlreadyAdded := frontServices[idVersion]
+						if !serviceAlreadyAdded {
+							frontServices[idVersion] = getVersionedService(target, activeFlowID, namespace)
+							path.Backend.Service.Name = idVersion
+							newPaths = append(newPaths, path)
+
+							// Set Envoy FIlter for the service
+							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, namespace, hostnames)
+							inboundFilter := getInboundFilter(target.ServiceID, namespace, -1, &target.Version, &luaFilterFrontend)
+							logrus.Debugf("Adding inbound filter to setup routing table for flow '%s' on service '%s', version '%s'", activeFlowID, target.ServiceID, target.Version)
+							filters = append(filters, inboundFilter)
+						}
+					} else {
+						logrus.Errorf("Backend service %v for Ingress %v not found", pathOriginal.Backend.Service.Name, ingressDefinition.Name)
+					}
+				}
+				rule.HTTP.Paths = newPaths
+				newRules = append(newRules, *rule)
+			}
+		}
+
+		ingressDefinition.Spec.Rules = newRules
+
+		if ingressDefinition.Namespace == "" {
+			ingressDefinition.Namespace = namespace
+		}
+
+		ingressList = append(ingressList, *ingressDefinition)
 	}
-	inboundFilter := &istioclient.EnvoyFilter{
+
+	return ingressList, lo.Values(frontServices), filters
+}
+
+func getHTTPRoutes(
+	gatewayAndRoutes *resolved.GatewayAndRoutes,
+	allServices []*resolved.Service,
+	namespace string,
+) ([]gateway.HTTPRoute, []v1.Service, []istioclient.EnvoyFilter) {
+	routes := []gateway.HTTPRoute{}
+	frontServices := map[string]v1.Service{}
+	filters := []istioclient.EnvoyFilter{}
+
+	for _, activeFlowID := range gatewayAndRoutes.ActiveFlowIDs {
+		logrus.Infof("Setting gateway route for active flow ID: %v", activeFlowID)
+		for routeId, routeSpecOriginal := range gatewayAndRoutes.GatewayRoutes {
+			routeSpec := routeSpecOriginal.DeepCopy()
+
+			routeSpec.Hostnames = lo.Map(routeSpec.Hostnames, func(hostname gateway.Hostname, _ int) gateway.Hostname {
+				return gateway.Hostname(resolved.ReplaceOrAddSubdomain(string(hostname), activeFlowID))
+			})
+
+			for _, rule := range routeSpec.Rules {
+				for refIx, ref := range rule.BackendRefs {
+					target, found := findBackendRefService(string(ref.Name), activeFlowID, allServices)
+					// fallback to baseline if backend not found at the active flow
+					// the baseline topology (or prod topology) flow ID and flow version are equal to the namespace these three should use same value
+					baselineFlowVersion := namespace
+					if !found {
+						target, found = findBackendRefService(string(ref.Name), baselineFlowVersion, allServices)
+					}
+					if found {
+						idVersion := fmt.Sprintf("%s-%s", target.ServiceID, activeFlowID)
+						_, serviceAlreadyAdded := frontServices[idVersion]
+						if !serviceAlreadyAdded {
+							frontServices[idVersion] = getVersionedService(target, activeFlowID, namespace)
+							ref.Name = gateway.ObjectName(idVersion)
+							rule.BackendRefs[refIx] = ref
+
+							hostnames := lo.Map(routeSpec.Hostnames, func(item gateway.Hostname, _ int) string { return string(item) })
+							// Set Envoy FIlter for the service
+							luaFilterFrontend := generateDynamicLuaScript(allServices, activeFlowID, namespace, hostnames)
+							inboundFilter := getInboundFilter(target.ServiceID, namespace, -1, &target.Version, &luaFilterFrontend)
+							logrus.Debugf("Adding inbound filter to setup routing table for flow '%s' on service '%s', version '%s'", activeFlowID, target.ServiceID, target.Version)
+							filters = append(filters, inboundFilter)
+						}
+					} else {
+						logrus.Errorf(">> service not found %v", ref.Name)
+					}
+				}
+			}
+
+			for parentRefIx, parentRef := range routeSpec.ParentRefs {
+				if parentRef.Namespace == nil || string(*parentRef.Namespace) == "" {
+					defaultNS := gateway.Namespace("default")
+					parentRef.Namespace = &defaultNS
+				}
+				routeSpec.ParentRefs[parentRefIx] = parentRef
+			}
+
+			route := gateway.HTTPRoute{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "gateway.networking.k8s.io/v1",
+					Kind:       "HTTPRoute",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      fmt.Sprintf("http-route-%d-%s", routeId, activeFlowID),
+					Namespace: namespace,
+				},
+				Spec: *routeSpec,
+			}
+			routes = append(routes, route)
+		}
+	}
+
+	return routes, lo.Values(frontServices), filters
+}
+
+func getEnvoyFilters(
+	allServices []*resolved.Service,
+	namespace string,
+	targetServices []string,
+) []istioclient.EnvoyFilter {
+	filters := []istioclient.EnvoyFilter{}
+	traceIdEnforcerLuaScript := generateTraceIDEnforcerLuaScript()
+
+	// HttpRoute (workload) are applied at the serviceID level, not the serviceID-version level
+	groupedServices := lo.GroupBy(allServices, func(item *resolved.Service) string { return item.ServiceID })
+	for serviceID, services := range groupedServices {
+		if len(services) == 0 {
+			continue
+		}
+
+		anyNonHttp := lo.SomeBy(services, func(service *resolved.Service) bool {
+			return !service.IsHTTP()
+		})
+		if anyNonHttp {
+			logrus.Infof("Service '%s' is not an HTTP service, skipping filters", serviceID)
+			continue
+		}
+
+		isTargertService := slices.Contains(targetServices, fmt.Sprintf("%s/%s", namespace, serviceID))
+
+		// more inbound EnvoyFilters for routing routing traffic on frontend services are added by the getHTTPRoutes function
+		if isTargertService {
+			logrus.Debugf("Adding inbound filter to enforce trace IDs for service '%s'", serviceID)
+			inboundFilter := getInboundFilter(serviceID, namespace, 0, nil, &traceIdEnforcerLuaScript)
+			filters = append(filters, inboundFilter)
+		} else {
+			logrus.Debugf("Adding inbound filter for inner service '%s'", serviceID)
+			inboundFilter := getInboundFilter(serviceID, namespace, 0, nil, nil)
+			filters = append(filters, inboundFilter)
+		}
+
+		outboundFilter := getOutboundFilter(serviceID, namespace)
+		filters = append(filters, outboundFilter)
+	}
+
+	return filters
+}
+
+func getInboundFilter(serviceID, namespace string, priority int32, versionSelector, luaFilterFrontend *string) istioclient.EnvoyFilter {
+	labelSelector := map[string]string{
+		"app": serviceID,
+	}
+	if versionSelector != nil {
+		labelSelector["version"] = *versionSelector
+	}
+
+	var filterHashStr *string
+	luaFilter := inboundRequestTraceIDFilter
+	if luaFilterFrontend != nil {
+		luaFilter = *luaFilterFrontend
+
+		hash := fnv.New32a()
+		hash.Write([]byte(*luaFilterFrontend))
+		hashStr := fmt.Sprintf("%d", hash.Sum32())
+		filterHashStr = &hashStr
+
+	}
+
+	idStr := "inbound-router"
+	ids := []*string{&serviceID, &idStr, versionSelector, filterHashStr}
+	name := strings.Join(lo.FilterMap(ids, func(id *string, _ int) (string, bool) {
+		if id != nil {
+			return *id, true
+		} else {
+			return "", false
+		}
+	}), "-")
+
+	return istioclient.EnvoyFilter{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking.istio.io/v1alpha3",
 			Kind:       "EnvoyFilter",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-inbound-trace-id-check", service.ServiceID),
+			Name:      name,
 			Namespace: namespace,
 		},
 		Spec: v1alpha3.EnvoyFilter{
+			Priority: priority,
 			WorkloadSelector: &v1alpha3.WorkloadSelector{
-				Labels: map[string]string{
-					"app": service.ServiceID,
-				},
+				Labels: labelSelector,
 			},
 			ConfigPatches: []*v1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
 				{
@@ -438,7 +646,7 @@ func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.
 										StructValue: &structpb.Struct{
 											Fields: map[string]*structpb.Value{
 												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
-												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: inboundRequestTraceIDFilter}},
+												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: luaFilter}},
 											},
 										},
 									},
@@ -450,22 +658,24 @@ func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.
 			},
 		},
 	}
+}
 
+func getOutboundFilter(serviceID, namespace string) istioclient.EnvoyFilter {
 	// the baseline topology (or prod topology) flow ID and flow version and host are equal to the namespace these four should use same value
 	baselineHostName := namespace
-	outboundFilter := &istioclient.EnvoyFilter{
+	return istioclient.EnvoyFilter{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "networking.istio.io/v1alpha3",
 			Kind:       "EnvoyFilter",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%s-outbound-trace-router", service.ServiceID),
+			Name:      fmt.Sprintf("%s-outbound-router", serviceID),
 			Namespace: namespace,
 		},
 		Spec: v1alpha3.EnvoyFilter{
 			WorkloadSelector: &v1alpha3.WorkloadSelector{
 				Labels: map[string]string{
-					"app": service.ServiceID,
+					"app": serviceID,
 				},
 			},
 			ConfigPatches: []*v1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
@@ -505,8 +715,6 @@ func getEnvoyFilters(service *resolved.Service, namespace string) []istioclient.
 			},
 		},
 	}
-
-	return []istioclient.EnvoyFilter{*inboundFilter, *outboundFilter}
 }
 
 // getAuthorizationPolicy returns an authorization policy that denies requests with the missing header
@@ -541,117 +749,7 @@ func getAuthorizationPolicy(service *resolved.Service, namespace string) *securi
 	}
 }
 
-func getEnvoyFilterForGateway(servicesAgainstVersions map[string][]string, serviceAndVersionAgainstExtHost map[string]string, serviceAgainstBackupVersions map[string][]string, baselineHostName string) *istioclient.EnvoyFilter {
-	luaScript := generateDynamicLuaScript(servicesAgainstVersions, serviceAndVersionAgainstExtHost, serviceAgainstBackupVersions, baselineHostName)
-
-	return &istioclient.EnvoyFilter{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "networking.istio.io/v1alpha3",
-			Kind:       "EnvoyFilter",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "kardinal-gateway-tracing",
-			Namespace: "istio-system",
-		},
-		Spec: v1alpha3.EnvoyFilter{
-			WorkloadSelector: &v1alpha3.WorkloadSelector{
-				Labels: map[string]string{
-					"istio": "ingressgateway",
-				},
-			},
-			ConfigPatches: []*v1alpha3.EnvoyFilter_EnvoyConfigObjectPatch{
-				{
-					ApplyTo: v1alpha3.EnvoyFilter_HTTP_FILTER,
-					Match: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch{
-						Context: v1alpha3.EnvoyFilter_GATEWAY,
-						ObjectTypes: &v1alpha3.EnvoyFilter_EnvoyConfigObjectMatch_Listener{
-							Listener: &v1alpha3.EnvoyFilter_ListenerMatch{
-								FilterChain: &v1alpha3.EnvoyFilter_ListenerMatch_FilterChainMatch{
-									Filter: &v1alpha3.EnvoyFilter_ListenerMatch_FilterMatch{
-										Name: "envoy.filters.network.http_connection_manager",
-									},
-								},
-							},
-						},
-					},
-					Patch: &v1alpha3.EnvoyFilter_Patch{
-						Operation: v1alpha3.EnvoyFilter_Patch_INSERT_BEFORE,
-						Value: &structpb.Struct{
-							Fields: map[string]*structpb.Value{
-								"name": {Kind: &structpb.Value_StringValue{StringValue: "envoy.lua"}},
-								"typed_config": {
-									Kind: &structpb.Value_StructValue{
-										StructValue: &structpb.Struct{
-											Fields: map[string]*structpb.Value{
-												"@type":      {Kind: &structpb.Value_StringValue{StringValue: luaFilterType}},
-												"inlineCode": {Kind: &structpb.Value_StringValue{StringValue: luaScript}},
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func generateDynamicLuaScript(servicesAgainstVersions map[string][]string, versionAgainstExtHost map[string]string, serviceAgainstBackupVersions map[string][]string, baselineHostName string) string {
-	var setRouteCalls strings.Builder
-
-	// Helper function to add a setRoute call
-	addSetRouteCall := func(service, destination string) {
-		setRouteCalls.WriteString(fmt.Sprintf(`
-    request_handle:httpCall(
-      "outbound|8080||trace-router.default.svc.cluster.local",
-      {
-        [":method"] = "POST",
-        [":path"] = "/set-route?trace_id=" .. trace_id .. "&hostname=%s&destination=%s",
-        [":authority"] = "trace-router.default.svc.cluster.local",
-        ["Content-Type"] = "application/json"
-      },
-      "{}",
-      5000
-    )
-`, service, destination))
-	}
-
-	// For prod host all goes to prod
-	// For non prod host we add a non prod mapping for the non prod service and everything else falls back
-	for service, versions := range servicesAgainstVersions {
-		for _, version := range versions {
-			if version == constants.SharedVersionVersionString {
-				continue
-			}
-			setRouteCalls.WriteString(fmt.Sprintf(`
-    if hostname == "%s" then`, versionAgainstExtHost[version]))
-			destination := fmt.Sprintf("%s-%s", service, version)
-			addSetRouteCall(service, destination)
-			setRouteCalls.WriteString(`
-    end`)
-		}
-	}
-
-	// we handle shared versions separately by finding host markings for original version
-	for service, originalVersions := range serviceAgainstBackupVersions {
-		for _, originalVersion := range originalVersions {
-			setRouteCalls.WriteString(fmt.Sprintf(`
-    if hostname == "%s" then`, versionAgainstExtHost[originalVersion]))
-			destination := fmt.Sprintf("%s-%s", service, constants.SharedVersionVersionString)
-			addSetRouteCall(service, destination)
-			setRouteCalls.WriteString(`
-    end`)
-		}
-	}
-
-	// this gets consumed by the virtual source route for the gateway
-	for version, extHost := range versionAgainstExtHost {
-		destination := fmt.Sprintf("%s-%s", extHost, version)
-		addSetRouteCall(extHost, destination)
-	}
-
+func generateTraceIDEnforcerLuaScript() string {
 	return fmt.Sprintf(`
 %s
 
@@ -671,7 +769,7 @@ function envoy_on_request(request_handle)
   local trace_id = headers:get("x-kardinal-trace-id")
   local hostname = headers:get(":authority")
 
-  request_handle:logInfo("Processing request - Initial trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none")  .. ", Baseline: %s")
+  request_handle:logInfo("Enforcing trace ID header - Initial trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none"))
 
   if not trace_id then
     local found_trace_id, source_header = get_trace_id(headers)
@@ -700,32 +798,94 @@ function envoy_on_request(request_handle)
     end
 
     request_handle:headers():add("x-kardinal-trace-id", trace_id)
+  end
 
+end
+`, generateLuaTraceHeaderPriorities())
+}
+
+func generateDynamicLuaScript(allServices []*resolved.Service, flowId string, namespace string, hostnames []string) string {
+	// fallback to baseline if backend not found at the active flow
+	// the baseline topology (or prod topology) flow ID and flow version are equal to the namespace these three should use same value
+	baselineFlowVersion := namespace
+	var setRouteCalls strings.Builder
+
+	// Helper function to add a setRoute call
+	addSetRouteCall := func(service, destination string) {
+		setRouteCalls.WriteString(fmt.Sprintf(`
+    request_handle:httpCall(
+      "outbound|8080||trace-router.default.svc.cluster.local",
+      {
+        [":method"] = "POST",
+        [":path"] = "/set-route?trace_id=" .. trace_id .. "&hostname=%s&destination=%s",
+        [":authority"] = "trace-router.default.svc.cluster.local",
+        ["Content-Type"] = "application/json"
+      },
+      "{}",
+      5000
+    )
+`, service, destination))
+	}
+
+	groupedServices := lo.GroupBy(allServices, func(item *resolved.Service) string { return item.ServiceID })
+	for serviceID, services := range groupedServices {
+		if len(services) == 0 {
+			continue
+		}
+
+		var service, fallbackService *resolved.Service
+		for _, s := range services {
+			if s.Version == flowId {
+				service = s
+			}
+			if s.Version == baselineFlowVersion {
+				fallbackService = s
+			}
+		}
+
+		if service == nil {
+			service = fallbackService
+		}
+		if service == nil {
+			logrus.Errorf("No service found for '%s' for version '%s' or baseline '%s'. No routing can configured.", serviceID, flowId, &baselineFlowVersion)
+			continue
+		}
+
+		if service.IsShared {
+			setRouteCalls.WriteString(fmt.Sprintf(`
+    if hostname == "%s" then`, service.OriginalVersionIfShared))
+			destination := fmt.Sprintf("%s-%s", service.ServiceID, constants.SharedVersionVersionString)
+			addSetRouteCall(service.ServiceID, destination)
+			setRouteCalls.WriteString(`
+    end`)
+		} else {
+			for _, hostname := range hostnames {
+				setRouteCalls.WriteString(fmt.Sprintf(`
+    if hostname == "%s" then`, string(hostname)))
+				destination := fmt.Sprintf("%s-%s", service.ServiceID, service.Version)
+				addSetRouteCall(service.ServiceID, destination)
+				setRouteCalls.WriteString(`
+    end`)
+			}
+		}
+	}
+
+	return fmt.Sprintf(`
+%s
+
+function envoy_on_request(request_handle)
+  local headers = request_handle:headers()
+  local trace_id = headers:get("x-kardinal-trace-id")
+  local hostname = headers:get(":authority")
+
+  request_handle:logInfo("Setting routing table for flowId %s, trace ID: " .. (trace_id or "none") .. ", Hostname: " .. (hostname or "none"))
+
+  if not trace_id then
+    request_handle:logWarn("Missing trace ID from " .. source_header .. ", make sure traceId enforcer filter was apply before.")
+  else
     %s
   end
 
-  local determine_headers, determine_body = request_handle:httpCall(
-    "outbound|8080||trace-router.default.svc.cluster.local",
-    {
-      [":method"] = "GET",
-      [":path"] = "/route?trace_id=" .. trace_id .. "&hostname=" .. hostname .. "&baseline_prefix=%s",
-      [":authority"] = "trace-router.default.svc.cluster.local"
-    },
-    "",
-    5000
-  )
-
-  local destination
-  if determine_headers and determine_headers[":status"] == "200" then
-    destination = determine_body
-    request_handle:logInfo("Determined destination: " .. destination)
-  else
-    destination = hostname .. "-%s"
-    request_handle:logWarn("Failed to determine destination, using fallback: " .. destination)
-  end
-
-  request_handle:headers():add("x-kardinal-destination", destination)
-  request_handle:logInfo("Final headers - Trace ID: " .. trace_id .. ", Destination: " .. destination)
 end
-`, generateLuaTraceHeaderPriorities(), baselineHostName, setRouteCalls.String(), baselineHostName, baselineHostName)
+`, generateLuaTraceHeaderPriorities(), flowId, setRouteCalls.String())
 }

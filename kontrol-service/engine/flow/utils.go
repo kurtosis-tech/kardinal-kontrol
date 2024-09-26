@@ -54,6 +54,12 @@ func DeepCopyIngress(src *resolved.Ingress) *resolved.Ingress {
 	return dst
 }
 
+func DeepCopyGatewayAndRoutes(src *resolved.GatewayAndRoutes) *resolved.GatewayAndRoutes {
+	dst := &resolved.GatewayAndRoutes{}
+	unsafeDeepCopy(src, dst)
+	return dst
+}
+
 func SPrintJSONClusterTopology(clusterTopology *resolved.ClusterTopology) string {
 	bytes, err := json.MarshalIndent(clusterTopology, "", "  ")
 	if err != nil {

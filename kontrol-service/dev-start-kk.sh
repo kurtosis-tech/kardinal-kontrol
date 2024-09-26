@@ -1,1 +1,1 @@
-KUBECONFIG=/code/kurtosis-tech/kardinal/.minikube/config.json reflex -s -r '\.go$' -- go run main.go "$@"
+DB_HOSTNAME=localhost DB_USERNAME=postgres DB_NAME=kardinal DB_PORT=5432 DB_PASSWORD=postgres reflex -s -r '\.go$' -- go run main.go "$@"
