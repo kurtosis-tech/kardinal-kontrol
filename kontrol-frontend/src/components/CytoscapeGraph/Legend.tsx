@@ -77,17 +77,21 @@ const Legend = () => {
                   <Td>{flowId}</Td>
                   <Td textTransform={"capitalize"}>{isBaseline.toString()}</Td>
                   <Td whiteSpace={"nowrap"}>
-                    <Link
-                      href={`http://${flowUrls[0]}`}
-                      isExternal
-                      target="_blank"
-                      display={"flex"}
-                      alignItems={"center"}
-                      gap={2}
-                    >
-                      {flowUrls[0]?.hostname || "—"}
-                      <FiExternalLink size={12} />
-                    </Link>
+                    {flowUrls[0]?.hostname != null ? (
+                      <Link
+                        href={`http://${flowUrls[0]}`}
+                        isExternal
+                        target="_blank"
+                        display={"flex"}
+                        alignItems={"center"}
+                        gap={2}
+                      >
+                        {flowUrls[0].hostname}
+                        <FiExternalLink size={12} />
+                      </Link>
+                    ) : (
+                      "—"
+                    )}
                   </Td>
                   <Td textAlign={"right"}>
                     {flowVisibility[flowId] === true ? (
