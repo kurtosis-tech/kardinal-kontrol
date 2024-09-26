@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.2.0...0.2.1) (2024-09-26)
+
+
+### Bug Fixes
+
+* Get target frontend from ingresses ([#48](https://github.com/kurtosis-tech/kardinal-kontrol/issues/48)) ([b4ad5a3](https://github.com/kurtosis-tech/kardinal-kontrol/commit/b4ad5a30755fa66abd2b3457a74987440184852c))
+
 ## [0.2.0](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.31...0.2.0) (2024-09-26)
 
 
