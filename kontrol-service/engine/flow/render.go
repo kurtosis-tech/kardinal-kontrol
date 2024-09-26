@@ -56,13 +56,17 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 	targeIngressServices := lo.Uniq(
 		lo.FlatMap(clusterTopology.Ingress.Ingresses, func(ing net.Ingress, _ int) []string {
 			return lo.FlatMap(ing.Spec.Rules, func(rule net.IngressRule, _ int) []string {
-				return lo.Map(rule.HTTP.Paths, func(path net.HTTPIngressPath, _ int) string {
+				return lo.FilterMap(rule.HTTP.Paths, func(path net.HTTPIngressPath, _ int) (string, bool) {
 					// TODO: we are ignoring the namespace from the path, should we?
 					targetNS := namespace
 					if ing.Namespace != "" {
 						targetNS = string(ing.Namespace)
 					}
-					return fmt.Sprintf("%s/%s", targetNS, string(path.Backend.Resource.Name))
+					if path.Backend.Service == nil {
+						logrus.Errorf("Ingress %v has a nil backend service", ing.Name)
+						return "", false
+					}
+					return fmt.Sprintf("%s/%s", targetNS, string(path.Backend.Service.Name)), true
 				})
 			})
 		}))
