@@ -85,7 +85,7 @@ const Legend = () => {
                       alignItems={"center"}
                       gap={2}
                     >
-                      {flowUrls[0].hostname}
+                      {flowUrls[0]?.hostname || "—"}
                       <FiExternalLink size={12} />
                     </Link>
                   </Td>
