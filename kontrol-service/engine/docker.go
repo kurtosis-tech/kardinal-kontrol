@@ -191,12 +191,16 @@ func addAvailablePluginsFromServiceConfig(serviceConfig apitypes.ServiceConfig, 
 		var statefulPlugins []resolved.StatefulPlugin
 		err := yaml.Unmarshal([]byte(pluginAnnotation), &statefulPlugins)
 		if err != nil {
-			return nil, stacktrace.Propagate(err, "An error occurred parsing the plugins for service %s", service.GetObjectMeta().GetName())
+			return nil, stacktrace.Propagate(err, "an error occurred parsing the plugins for service %s", service.GetObjectMeta().GetName())
 		}
 
 		for index := range statefulPlugins {
 			plugin := statefulPlugins[index]
-			availablePlugins[plugin.Name] = &plugin
+			_, found := availablePlugins[plugin.ServiceName]
+			if found {
+				return nil, stacktrace.NewError("a plugin with service name '%s' already exists, the `plugin.servicename` value has to be unique", plugin.ServiceName)
+			}
+			availablePlugins[plugin.ServiceName] = &plugin
 		}
 	}
 
@@ -221,13 +225,13 @@ func newServicePluginsAndExternalServicesFromServiceConfig(
 	service := serviceConfig.Service
 	serviceAnnotations := service.GetObjectMeta().GetAnnotations()
 
-	sPluginsAnnotation, ok := serviceAnnotations["kardinal.dev.service/plugins"]
+	pluginsAnnotation, ok := serviceAnnotations["kardinal.dev.service/plugins"]
 	if ok {
-		svcPluginNames := strings.Split(sPluginsAnnotation, ",")
-		for _, svcPlugName := range svcPluginNames {
-			plugin, ok := availablePlugins[svcPlugName]
+		pluginsServiceName := strings.Split(pluginsAnnotation, ",")
+		for _, pluginSvcName := range pluginsServiceName {
+			plugin, ok := availablePlugins[pluginSvcName]
 			if !ok {
-				return nil, nil, nil, stacktrace.NewError("expected to find plugin with name %s but it is not available, make sure to add the resource for it in the manifest file", svcPlugName)
+				return nil, nil, nil, stacktrace.NewError("expected to find plugin with service name %s but it is not available, make sure to add the resource for it in the manifest file", pluginSvcName)
 			}
 			servicePlugins = append(servicePlugins, plugin)
 			// TODO: consider giving external service plugins their own type, instead of using StatefulPlugins
