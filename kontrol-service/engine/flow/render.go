@@ -53,6 +53,26 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 			})
 		}))
 
+	targeIngressServices := lo.Uniq(
+		lo.FlatMap(clusterTopology.Ingress.Ingresses, func(ing net.Ingress, _ int) []string {
+			return lo.FlatMap(ing.Spec.Rules, func(rule net.IngressRule, _ int) []string {
+				return lo.FilterMap(rule.HTTP.Paths, func(path net.HTTPIngressPath, _ int) (string, bool) {
+					// TODO: we are ignoring the namespace from the path, should we?
+					targetNS := namespace
+					if ing.Namespace != "" {
+						targetNS = string(ing.Namespace)
+					}
+					if path.Backend.Service == nil {
+						logrus.Errorf("Ingress %v has a nil backend service", ing.Name)
+						return "", false
+					}
+					return fmt.Sprintf("%s/%s", targetNS, string(path.Backend.Service.Name)), true
+				})
+			})
+		}))
+
+	targetServices := lo.Uniq(append(targetHttpRouteServices, targeIngressServices...))
+
 	groupedServices := lo.GroupBy(clusterTopology.Services, func(item *resolved.Service) string { return item.ServiceID })
 	for serviceID, services := range groupedServices {
 		logrus.Infof("Rendering service with id: '%v'.", serviceID)
@@ -79,7 +99,7 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 		}
 	}
 
-	envoyFiltersForService := getEnvoyFilters(clusterTopology.Services, namespace, targetHttpRouteServices)
+	envoyFiltersForService := getEnvoyFilters(clusterTopology.Services, namespace, targetServices)
 	envoyFilters = append(envoyFilters, envoyFiltersForService...)
 
 	routes, frontServices, inboundFrontFilters := getHTTPRoutes(clusterTopology.GatewayAndRoutes, clusterTopology.Services, namespace)
@@ -517,7 +537,7 @@ func getHTTPRoutes(
 func getEnvoyFilters(
 	allServices []*resolved.Service,
 	namespace string,
-	targetHttpRouteServices []string,
+	targetServices []string,
 ) []istioclient.EnvoyFilter {
 	filters := []istioclient.EnvoyFilter{}
 	traceIdEnforcerLuaScript := generateTraceIDEnforcerLuaScript()
@@ -537,7 +557,7 @@ func getEnvoyFilters(
 			continue
 		}
 
-		isTargertService := slices.Contains(targetHttpRouteServices, fmt.Sprintf("%s/%s", namespace, serviceID))
+		isTargertService := slices.Contains(targetServices, fmt.Sprintf("%s/%s", namespace, serviceID))
 
 		// more inbound EnvoyFilters for routing routing traffic on frontend services are added by the getHTTPRoutes function
 		if isTargertService {
