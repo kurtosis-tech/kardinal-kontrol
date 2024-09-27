@@ -710,8 +710,8 @@ func TestDevFlowImmutability(t *testing.T) {
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{
 			{
-				Service:        "checkoutservice",
-				DeploymentSpec: checkoutservice.DeploymentSpec,
+				Service: "checkoutservice",
+				Image:   checkoutservice.DeploymentSpec.Template.Spec.Containers[0].Image,
 			},
 		},
 	}
@@ -761,8 +761,8 @@ func TestFlowMerging(t *testing.T) {
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{
 			{
-				Service:        "checkoutservice",
-				DeploymentSpec: checkoutservice.DeploymentSpec,
+				Service: "checkoutservice",
+				Image:   checkoutservice.DeploymentSpec.Template.Spec.Containers[0].Image,
 			},
 		},
 	}
@@ -800,8 +800,8 @@ func TestExternalServicesFlowOnDependentService(t *testing.T) {
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{
 			{
-				Service:        "cartservice",
-				DeploymentSpec: cartservice.DeploymentSpec,
+				Service: "cartservice",
+				Image:   cartservice.DeploymentSpec.Template.Spec.Containers[0].Image,
 			},
 		},
 	}
@@ -833,8 +833,8 @@ func TestExternalServicesCreateDevFlowOnNotDependentService(t *testing.T) {
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{
 			{
-				Service:        "frontend",
-				DeploymentSpec: frontend.DeploymentSpec,
+				Service: "frontend",
+				Image:   frontend.DeploymentSpec.Template.Spec.Containers[0].Image,
 			},
 		},
 	}
