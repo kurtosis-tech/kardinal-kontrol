@@ -14,8 +14,6 @@ import (
 	"kardinal.kontrol-service/plugins"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
 	"kardinal.kontrol-service/types/flow_spec"
-
-	v1 "k8s.io/api/apps/v1"
 )
 
 // CreateDevFlow creates a dev flow from the given topologies
@@ -56,7 +54,7 @@ func CreateDevFlow(
 		if err != nil {
 			return nil, err
 		}
-		_, err = applyPatch(pluginRunner, topologyRef, clusterGraph, flowID, targetService, servicePatch.DeploymentSpec)
+		_, err = applyPatch(pluginRunner, topologyRef, clusterGraph, flowID, targetService, servicePatch.Image)
 		if err != nil {
 			return nil, err
 		}
@@ -147,7 +145,7 @@ func applyPatch(
 	clusterGraph graph.Graph[resolved.ServiceHash, *resolved.Service],
 	flowID string,
 	targetService *resolved.Service,
-	deploymentSpec *v1.DeploymentSpec,
+	newImage string,
 ) (*resolved.ClusterTopology, error) {
 	// Find downstream stateful services
 	statefulPaths := findAllDownstreamStatefulPaths(targetService, clusterGraph, topology)
@@ -167,7 +165,7 @@ func applyPatch(
 
 	externalPaths := findAllDownstreamExternalPaths(targetService, clusterGraph, topology)
 	externalServices := make([]*resolved.Service, 0)
-	alreadyHandledExternalServices := make([]string, 0)
+
 	for _, path := range externalPaths {
 		externalServiceHash, err := lo.Last(path)
 		if externalServiceHash == "" || err != nil {
@@ -206,7 +204,8 @@ func applyPatch(
 	}
 
 	modifiedTargetService := DeepCopyService(targetService)
-	modifiedTargetService.DeploymentSpec = deploymentSpec
+	// TODO: find a better way to update deploymentSpec, this assumes there is only container in the pod
+	modifiedTargetService.DeploymentSpec.Template.Spec.Containers[0].Image = newImage
 	modifiedTargetService.Version = flowID
 	err := topology.UpdateWithService(modifiedTargetService)
 	if err != nil {
@@ -266,7 +265,7 @@ func applyPatch(
 		}
 
 		// if the service is an external service of the target service, it was already handled above
-		if lo.Contains(externalServices, service) && !lo.Contains(alreadyHandledExternalServices, service.ServiceID) {
+		if lo.Contains(externalServices, service) {
 			// 	assume there's only one parent service for now but eventually we'll likely need to account for multiple parents to external service
 			parentServices := topology.FindImmediateParents(service)
 			if len(parentServices) == 0 {
