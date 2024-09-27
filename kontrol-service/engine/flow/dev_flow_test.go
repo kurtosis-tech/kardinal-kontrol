@@ -19,7 +19,13 @@ import (
 const dummyPluginName = "https://github.com/h4ck3rk3y/identity-plugin.git"
 
 func clusterTopologyExample() resolved.ClusterTopology {
-	dummySpec := &appsv1.DeploymentSpec{}
+	dummySpec := &appsv1.DeploymentSpec{
+		Template: v1.PodTemplateSpec{
+			Spec: v1.PodSpec{
+				Containers: []v1.Container{{Image: "dummy-image"}},
+			},
+		},
+	}
 	testPlugins := []*resolved.StatefulPlugin{
 		{
 			Name: dummyPluginName,
