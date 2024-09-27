@@ -181,6 +181,18 @@ func applyPatch(
 	}
 	externalServices = lo.Uniq(externalServices)
 
+	//pluginServices := map[*resolved.StatefulPlugin][]*resolved.Service{}
+	//for _, plugin := range targetService.StatefulPlugins {
+	//	servicesWithPlugin := []*resolved.Service{targetService}
+	//	alreadyServicesWithPlugin, ok := pluginServices[plugin]
+	//	if ok {
+	//		servicesWithPlugin = append(alreadyServicesWithPlugin, targetService)
+	//	}
+	//	pluginServices[plugin] = servicesWithPlugin
+	//}
+
+	// TODO SECTION 1 - Create external plugins and move the external K8s Service to a new version with the FlowID
+
 	// handle external service plugins on this service
 	logrus.Infof("Checking if this service has any external services...")
 	for pluginIdx, plugin := range targetService.StatefulPlugins {
@@ -205,6 +217,7 @@ func applyPatch(
 		}
 	}
 
+	// TODO SECTION 2 - Target service updates with new modifications
 	modifiedTargetService := DeepCopyService(targetService)
 	modifiedTargetService.DeploymentSpec = deploymentSpec
 	modifiedTargetService.Version = flowID
@@ -213,6 +226,7 @@ func applyPatch(
 		return nil, err
 	}
 
+	// TODO SECTION 3 - handle stateful services
 	for serviceIdx, service := range topology.Services {
 		if lo.Contains(statefulServices, service) {
 			logrus.Debugf("applying stateful plugins on service: %s", service.ServiceID)
@@ -221,7 +235,7 @@ func applyPatch(
 			modifiedService.Version = flowID
 
 			if !modifiedService.IsStateful {
-				panic(fmt.Sprintf("Service %s is not stateful but is in stateful paths", modifiedService.ServiceID))
+				return nil, fmt.Errorf("service %s is not stateful but is in stateful paths", modifiedService.ServiceID)
 			}
 
 			// Apply a chain of stateful plugins to the stateful service
