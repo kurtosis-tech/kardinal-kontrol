@@ -30,10 +30,6 @@ func getRandID() string {
 	return string(b)
 }
 
-func getRandFlowID() string {
-	return getRandID()
-}
-
 func getRandTemplateID() string {
 	return templatePrefix + getRandID()
 }
