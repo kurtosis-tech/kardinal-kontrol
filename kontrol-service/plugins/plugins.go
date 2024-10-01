@@ -19,6 +19,8 @@ import (
 const (
 	// <flow id>-<service id>-<plugin idx>
 	pluginIdFmtStr = "%s-%s-%d"
+	// <flow id>-<service1 id>,<service2 id>,<service3 id>
+	pluginIdFmtStr2 = "%s-%s"
 )
 
 type PluginRunner struct {
@@ -37,58 +39,60 @@ func NewPluginRunner(gitPluginProvider GitPluginProvider, tenantId string, db *d
 	}
 }
 
-func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceSpec, deploymentSpec appv1.DeploymentSpec, flowUuid string, arguments map[string]string) (appv1.DeploymentSpec, string, error) {
+func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpecs []corev1.ServiceSpec, deploymentSpecs []appv1.DeploymentSpec, flowUuid string, arguments map[string]string) ([]appv1.DeploymentSpec, string, error) {
 	repoPath, err := pr.getOrCloneRepo(pluginUrl)
 	if err != nil {
-		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to get or clone repository: %v", err)
+		return nil, "", fmt.Errorf("failed to get or clone repository: %v", err)
 	}
 
-	serviceSpecJSON, err := json.Marshal(serviceSpec)
+	serviceSpecsJSON, err := json.Marshal(serviceSpecs)
 	if err != nil {
-		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to marshal service spec: %v", err)
+		return nil, "", fmt.Errorf("failed to marshal service specs: %v", err)
 	}
+	serviceSpecsJSONStr := base64.StdEncoding.EncodeToString(serviceSpecsJSON)
 
-	deploymentSpecJSON, err := json.Marshal(deploymentSpec)
+	deploymentSpecsJSON, err := json.Marshal(deploymentSpecs)
 	if err != nil {
-		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to marshal deployment spec: %v", err)
+		return nil, "", fmt.Errorf("failed to marshal deployment specs: %v", err)
 	}
+	deploymentSpecsJSONStr := base64.StdEncoding.EncodeToString(deploymentSpecsJSON)
 
-	result, err := runPythonCreateFlow(repoPath, string(serviceSpecJSON), string(deploymentSpecJSON), flowUuid, arguments)
+	result, err := runPythonCreateFlow(repoPath, serviceSpecsJSONStr, deploymentSpecsJSONStr, flowUuid, arguments)
 	if err != nil {
-		return appv1.DeploymentSpec{}, "", err
+		return nil, "", err
 	}
 
 	var resultMap map[string]json.RawMessage
 	err = json.Unmarshal([]byte(result), &resultMap)
 	if err != nil {
-		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to parse result: %v", err)
+		return nil, "", fmt.Errorf("failed to parse result: %v", err)
 	}
 
-	var newDeploymentSpec appv1.DeploymentSpec
-	err = json.Unmarshal(resultMap["deployment_spec"], &newDeploymentSpec)
+	var newDeploymentSpecs []appv1.DeploymentSpec
+	err = json.Unmarshal(resultMap["deployment_specs"], &newDeploymentSpecs)
 	if err != nil {
-		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to unmarshal deployment spec: %v", err)
+		return nil, "", fmt.Errorf("failed to unmarshal deployment spec: %v", err)
 	}
 
 	configMapJSON := resultMap["config_map"]
 	var configMap map[string]interface{}
 	err = json.Unmarshal(configMapJSON, &configMap)
 	if err != nil {
-		return appv1.DeploymentSpec{}, "", fmt.Errorf("invalid config map: %v", err)
+		return nil, "", fmt.Errorf("invalid config map: %v", err)
 	}
 
 	configMapBytes, err := json.Marshal(configMap)
 	if err != nil {
-		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to re-marshal config map: %v", err)
+		return nil, "", fmt.Errorf("failed to re-marshal config map: %v", err)
 	}
 
 	logrus.Infof("Storing config map for plugin called with uuid '%v':\n %s\n...", flowUuid, string(configMapBytes))
 	_, err = pr.db.CreatePluginConfig(flowUuid, string(configMapBytes), pr.tenantId)
 	if err != nil {
-		return appv1.DeploymentSpec{}, "", fmt.Errorf("failed to store the config map: %v", err)
+		return nil, "", fmt.Errorf("failed to store the config map: %v", err)
 	}
 
-	return newDeploymentSpec, string(configMapBytes), nil
+	return newDeploymentSpecs, string(configMapBytes), nil
 }
 
 func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string, arguments map[string]string) error {
@@ -119,6 +123,11 @@ func GetPluginId(flowId, serviceId string, pluginIdx int) string {
 	return fmt.Sprintf(pluginIdFmtStr, flowId, serviceId, pluginIdx)
 }
 
+func GetPluginId2(flowId string, serviceIds []string) string {
+	serviceIdsStr := strings.Join(serviceIds, ",")
+	return fmt.Sprintf(pluginIdFmtStr2, flowId, serviceIdsStr)
+}
+
 func (pr *PluginRunner) getConfigForFlow(flowUuid string) (string, error) {
 	pluginConfig, err := pr.db.GetPluginConfigByFlowID(pr.tenantId, flowUuid)
 	if err != nil {
@@ -130,7 +139,7 @@ func (pr *PluginRunner) getConfigForFlow(flowUuid string) (string, error) {
 	return pluginConfig.Config, nil
 }
 
-func runPythonCreateFlow(repoPath, serviceSpecJSON, deploymentSpecJSON, flowUuid string, arguments map[string]string) (string, error) {
+func runPythonCreateFlow(repoPath, serviceSpecsJSONStr, deploymentSpecsJSONStr, flowUuid string, arguments map[string]string) (string, error) {
 	scriptPath := filepath.Join(repoPath, "main.py")
 
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
@@ -170,8 +179,10 @@ import base64
 sys.path.append("%s")
 import main
 
-service_spec = json.loads('''%s''')
-deployment_spec = json.loads('''%s''')
+service_specs_json = base64.b64decode('%s').decode('utf-8')
+service_specs = json.loads(service_specs_json)
+deployment_specs_json = base64.b64decode('%s').decode('utf-8')
+deployment_specs = json.loads(deployment_specs_json)
 flow_uuid = %q
 args_json = base64.b64decode('%s').decode('utf-8')
 args = json.loads(args_json)
@@ -182,10 +193,10 @@ sig = inspect.signature(main.create_flow)
 # Prepare kwargs based on the function signature
 kwargs = {}
 for param in sig.parameters.values():
-    if param.name == 'service_spec':
-        kwargs['service_spec'] = service_spec
-    elif param.name == 'deployment_spec':
-        kwargs['deployment_spec'] = deployment_spec
+    if param.name == 'service_specs':
+        kwargs['service_specs'] = service_specs
+    elif param.name == 'deployment_specs':
+        kwargs['deployment_specs'] = deployment_specs
     elif param.name == 'flow_uuid':
         kwargs['flow_uuid'] = flow_uuid
     elif param.name in args:
@@ -201,7 +212,7 @@ result = main.create_flow(**kwargs)
 # Write the result to a temporary file
 with open('%s', 'w') as f:
     json.dump(result, f)
-`, repoPath, serviceSpecJSON, deploymentSpecJSON, flowUuid, argJsonStr, tempResultFile.Name())
+`, repoPath, serviceSpecsJSONStr, deploymentSpecsJSONStr, flowUuid, argJsonStr, tempResultFile.Name())
 
 	if err := executePythonScript(venvPath, repoPath, tempScript); err != nil {
 		return "", err

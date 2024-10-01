@@ -12,42 +12,47 @@ import (
 )
 
 const (
-	simplePlugin   = "https://github.com/h4ck3rk3y/a-test-plugin.git"
-	complexPlugin  = "https://github.com/h4ck3rk3y/slightly-more-complex-plugin.git"
-	identityPlugin = "https://github.com/h4ck3rk3y/identity-plugin.git"
-	redisPlugin    = "https://github.com/h4ck3rk3y/redis-sidecar-plugin.git"
+	simplePlugin   = "https://github.com/fake-org/kardinal-simple-plugin-example.git"
+	complexPlugin  = "https://github.com/fake-org/kardinal-slightly-more-complex-plugin-example.git"
+	identityPlugin = "https://github.com/fake-org/kardinal-identity-plugin-example.git"
+	redisPlugin    = "https://github.com/fake-org/kardinal-redis-sidecar-plugin-example.git"
 	flowUuid       = "test-flow-uuid"
 )
 
-var serviceSpec = corev1.ServiceSpec{}
+// TODO Add a test for checking that different env vars values between deployment specs remains the same after the plugin execution
+// TODO this is for testing determinism
 
-var deploymentSpec = appv1.DeploymentSpec{
-	Selector: &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"app": "helloworld",
-		},
-	},
-	Replicas: int32Ptr(1),
-	Template: corev1.PodTemplateSpec{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
+var serviceSpecs = []corev1.ServiceSpec{}
+
+var deploymentSpecs = []appv1.DeploymentSpec{
+	{
+		Selector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{
 				"app": "helloworld",
 			},
 		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:  "helloworld",
-					Image: "karthequian/helloworld:latest",
-					Ports: []corev1.ContainerPort{
-						{
-							ContainerPort: 80,
+		Replicas: int32Ptr(1),
+		Template: corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"app": "helloworld",
+				},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:  "helloworld",
+						Image: "karthequian/helloworld:latest",
+						Ports: []corev1.ContainerPort{
+							{
+								ContainerPort: 80,
+							},
 						},
-					},
-					Env: []corev1.EnvVar{
-						{
-							Name:  "REDIS",
-							Value: "ip_addr",
+						Env: []corev1.EnvVar{
+							{
+								Name:  "REDIS",
+								Value: "ip_addr",
+							},
 						},
 					},
 				},
@@ -81,13 +86,15 @@ func TestSimplePlugin(t *testing.T) {
 		"text_to_replace": "helloworld",
 	}
 
-	updatedDeploymentSpec, configMap, err := runner.CreateFlow(simplePlugin, serviceSpec, deploymentSpec, flowUuid, arguments)
+	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(simplePlugin, serviceSpecs, deploymentSpecs, flowUuid, arguments)
 	require.NoError(t, err)
 
-	// Check if the deployment spec was updated correctly
-	require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Template.Labels["app"])
-	require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Selector.MatchLabels["app"])
-	require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Template.Spec.Containers[0].Name)
+	for _, updatedDeploymentSpec := range updatedDeploymentSpecs {
+		// Check if the deployment spec was updated correctly
+		require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Template.Labels["app"])
+		require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Selector.MatchLabels["app"])
+		require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Template.Spec.Containers[0].Name)
+	}
 
 	// Verify the config map
 	var configMapData map[string]interface{}
@@ -108,11 +115,11 @@ func TestIdentityPlugin(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
+	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpecs, deploymentSpecs, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
-	require.Equal(t, deploymentSpec, updatedServiceSpec)
+	require.Equal(t, deploymentSpecs, updatedServiceSpec)
 
 	// Verify the config map
 	var configMapData map[string]interface{}
@@ -133,12 +140,14 @@ func TestComplexPlugin(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(complexPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
+	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(complexPlugin, serviceSpecs, deploymentSpecs, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
-	// Check if the deployment spec was updated correctly
-	require.NotEqual(t, "ip_addr", updatedServiceSpec.Template.Spec.Containers[0].Env[0].Value)
-	require.Regexp(t, `\b(?:\d{1,3}\.){3}\d{1,3}\b`, updatedServiceSpec.Template.Spec.Containers[0].Env[0].Value)
+	for _, updatedDeploymentSpec := range updatedDeploymentSpecs {
+		// Check if the deployment spec was updated correctly
+		require.NotEqual(t, "ip_addr", updatedDeploymentSpec.Template.Spec.Containers[0].Env[0].Value)
+		require.Regexp(t, `\b(?:\d{1,3}\.){3}\d{1,3}\b`, updatedDeploymentSpec.Template.Spec.Containers[0].Env[0].Value)
+	}
 
 	// Verify the config map
 	var configMapData map[string]interface{}
@@ -159,11 +168,13 @@ func TestRedisPluginTest(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(redisPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
+	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(redisPlugin, serviceSpecs, deploymentSpecs, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
-	// Check if the deployment spec was updated correctly
-	require.Equal(t, "kurtosistech/redis-proxy-overlay:latest", updatedServiceSpec.Template.Spec.Containers[0].Image)
+	for _, updatedDeploymentSpec := range updatedDeploymentSpecs {
+		// Check if the deployment spec was updated correctly
+		require.Equal(t, "kurtosistech/redis-proxy-overlay:latest", updatedDeploymentSpec.Template.Spec.Containers[0].Image)
+	}
 
 	// Verify the config map
 	var configMapData map[string]interface{}
