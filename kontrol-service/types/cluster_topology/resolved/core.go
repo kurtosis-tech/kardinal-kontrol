@@ -25,15 +25,16 @@ type ClusterTopology struct {
 }
 
 type Service struct {
-	ServiceID               string                 `json:"serviceID"`
-	Version                 string                 `json:"version"`
-	ServiceSpec             *corev1.ServiceSpec    `json:"serviceSpec"`
-	DeploymentSpec          *appsv1.DeploymentSpec `json:"deploymentSpec"`
-	IsExternal              bool                   `json:"isExternal"`
-	IsStateful              bool                   `json:"isStateful"`
-	StatefulPlugins         []*StatefulPlugin      `json:"statefulPlugins"`
-	IsShared                bool                   `json:"isShared"`
-	OriginalVersionIfShared string                 `json:"originalVersionIfShared"`
+	ServiceID               string                  `json:"serviceID"`
+	Version                 string                  `json:"version"`
+	ServiceSpec             *corev1.ServiceSpec     `json:"serviceSpec"`
+	DeploymentSpec          *appsv1.DeploymentSpec  `json:"deploymentSpec"`
+	StatefulSetSpec         *appsv1.StatefulSetSpec `json:"statefulSetSpec"`
+	IsExternal              bool                    `json:"isExternal"`
+	IsStateful              bool                    `json:"isStateful"`
+	StatefulPlugins         []*StatefulPlugin       `json:"statefulPlugins"`
+	IsShared                bool                    `json:"isShared"`
+	OriginalVersionIfShared string                  `json:"originalVersionIfShared"`
 }
 
 type ServiceHash string

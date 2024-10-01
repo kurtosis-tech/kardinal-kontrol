@@ -2,15 +2,17 @@ package engine
 
 import (
 	"fmt"
+	"strings"
+
 	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	"github.com/kurtosis-tech/stacktrace"
+	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
 	corev1 "k8s.io/api/core/v1"
 	net "k8s.io/api/networking/v1"
 	gateway "sigs.k8s.io/gateway-api/apis/v1"
-	"strings"
 
 	"kardinal.kontrol-service/engine/flow"
 	"kardinal.kontrol-service/plugins"
@@ -21,12 +23,14 @@ import (
 func GenerateProdOnlyCluster(
 	flowID string,
 	serviceConfigs []apitypes.ServiceConfig,
+	deploymentConfigs []apitypes.DeploymentConfig,
+	statefulSetConfigs []apitypes.StatefulSetConfig,
 	ingressConfigs []apitypes.IngressConfig,
 	gatewayConfigs []apitypes.GatewayConfig,
 	routeConfigs []apitypes.RouteConfig,
 	namespace string,
 ) (*resolved.ClusterTopology, error) {
-	clusterTopology, err := generateClusterTopology(serviceConfigs, ingressConfigs, gatewayConfigs, routeConfigs, namespace, flowID)
+	clusterTopology, err := generateClusterTopology(serviceConfigs, deploymentConfigs, statefulSetConfigs, ingressConfigs, gatewayConfigs, routeConfigs, namespace, flowID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred generating the cluster topology from the service configs")
 	}
@@ -72,6 +76,8 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 
 func generateClusterTopology(
 	serviceConfigs []apitypes.ServiceConfig,
+	deploymentConfigs []apitypes.DeploymentConfig,
+	statefulSetConfig []apitypes.StatefulSetConfig,
 	ingressConfigs []apitypes.IngressConfig,
 	gatewayConfigs []apitypes.GatewayConfig,
 	routeConfigs []apitypes.RouteConfig,
@@ -80,7 +86,11 @@ func generateClusterTopology(
 ) (*resolved.ClusterTopology, error) {
 	clusterTopologyGatewayAndRoutes := processGatewayAndRouteConfigs(gatewayConfigs, routeConfigs, version)
 	clusterTopologyIngress := processIngressConfigs(ingressConfigs, version)
-	clusterTopologyServices, clusterTopologyServiceDependencies, err := processServiceConfigs(serviceConfigs, version)
+	clusterTopologyServices, clusterTopologyServiceDependencies, err := processServiceConfigs(
+		serviceConfigs,
+		deploymentConfigs,
+		statefulSetConfig,
+		version)
 	if err != nil {
 		return nil, stacktrace.NewError("an error occurred processing the service configs")
 	}
@@ -140,7 +150,60 @@ func processGatewayAndRouteConfigs(gatewayConfigs []apitypes.GatewayConfig, rout
 	return gatewayAndRoutes
 }
 
-func processServiceConfigs(serviceConfigs []apitypes.ServiceConfig, version string) ([]*resolved.Service, []resolved.ServiceDependency, error) {
+func getDeploymentForService(
+	serviceConfig apitypes.ServiceConfig,
+	workloadConfigs []apitypes.DeploymentConfig,
+) *apitypes.DeploymentConfig {
+	service := serviceConfig.Service
+	workload, foundworkload := lo.Find(workloadConfigs, func(workloadConfig apitypes.DeploymentConfig) bool {
+		deploymentLabels := workloadConfig.Deployment.GetLabels()
+		matchSelectors := true
+		for key, value := range service.Spec.Selector {
+			label, found := deploymentLabels[key]
+			if !found || value != label {
+				return false
+			}
+		}
+		return matchSelectors
+	})
+
+	if foundworkload {
+		return &workload
+	}
+
+	return nil
+}
+
+func getSatefulSetForService(
+	serviceConfig apitypes.ServiceConfig,
+	workloadConfigs []apitypes.StatefulSetConfig,
+) *apitypes.StatefulSetConfig {
+	service := serviceConfig.Service
+	workload, foundworkload := lo.Find(workloadConfigs, func(workloadConfig apitypes.StatefulSetConfig) bool {
+		workloadLabel := workloadConfig.StatefulSet.GetLabels()
+		matchSelectors := true
+		for key, value := range service.Spec.Selector {
+			label, found := workloadLabel[key]
+			if !found || value != label {
+				return false
+			}
+		}
+		return matchSelectors
+	})
+
+	if foundworkload {
+		return &workload
+	}
+
+	return nil
+}
+
+func processServiceConfigs(
+	serviceConfigs []apitypes.ServiceConfig,
+	deploymentConfigs []apitypes.DeploymentConfig,
+	statefulSetConfigs []apitypes.StatefulSetConfig,
+	version string,
+) ([]*resolved.Service, []resolved.ServiceDependency, error) {
 	clusterTopologyServices := []*resolved.Service{}
 	clusterTopologyServiceDependencies := []resolved.ServiceDependency{}
 	externalServicesDependencies := []resolved.ServiceDependency{}
@@ -157,7 +220,13 @@ func processServiceConfigs(serviceConfigs []apitypes.ServiceConfig, version stri
 
 		// 1- Service
 		logrus.Infof("Processing service: %v", service.GetObjectMeta().GetName())
-		clusterTopologyService := newClusterTopologyServiceFromServiceConfig(serviceConfig, version)
+
+		deploymentConfig := getDeploymentForService(serviceConfig, deploymentConfigs)
+		statefulSetConfig := getSatefulSetForService(serviceConfig, statefulSetConfigs)
+		clusterTopologyService, error := newClusterTopologyServiceFromServiceConfig(serviceConfig, deploymentConfig, statefulSetConfig, version)
+		if error != nil {
+			return nil, nil, stacktrace.Propagate(error, "An error occurred creating new cluster topology service from service config '%s'", service.Name)
+		}
 
 		// 2- Service plugins
 		serviceStatefulPlugins, externalServices, newExternalServicesDependencies, err := newStatefulPluginsAndExternalServicesFromServiceConfig(serviceConfig, version, &clusterTopologyService)
@@ -259,17 +328,42 @@ func newStatefulPluginsAndExternalServicesFromServiceConfig(serviceConfig apityp
 	return serviceStatefulPlugins, externalServices, externalServiceDependencies, nil
 }
 
-func newClusterTopologyServiceFromServiceConfig(serviceConfig apitypes.ServiceConfig, version string) resolved.Service {
+func newClusterTopologyServiceFromServiceConfig(
+	serviceConfig apitypes.ServiceConfig,
+	deploymentConfig *apitypes.DeploymentConfig,
+	statefulSetConfig *apitypes.StatefulSetConfig,
+	version string,
+) (resolved.Service, error) {
 	service := serviceConfig.Service
-	deployment := serviceConfig.Deployment
+	serviceName := service.GetObjectMeta().GetName()
+
+	if deploymentConfig == nil && statefulSetConfig == nil {
+		logrus.Warnf("Service %s has no workload", serviceName)
+	}
+
+	if deploymentConfig != nil && statefulSetConfig != nil {
+		workloads := []string{
+			deploymentConfig.Deployment.GetObjectMeta().GetName(),
+			statefulSetConfig.StatefulSet.GetObjectMeta().GetName(),
+		}
+		logrus.Error("Service %s is associated with more than one workload: %v", serviceName, workloads)
+	}
+
 	serviceAnnotations := service.GetObjectMeta().GetAnnotations()
 
 	clusterTopologyService := resolved.Service{
-		ServiceID:      service.GetObjectMeta().GetName(),
-		Version:        version,
-		ServiceSpec:    &service.Spec,
-		DeploymentSpec: &deployment.Spec,
+		ServiceID:   service.GetObjectMeta().GetName(),
+		Version:     version,
+		ServiceSpec: &service.Spec,
 	}
+
+	if deploymentConfig != nil {
+		clusterTopologyService.DeploymentSpec = &deploymentConfig.Deployment.Spec
+	}
+	if statefulSetConfig != nil {
+		clusterTopologyService.StatefulSetSpec = &statefulSetConfig.StatefulSet.Spec
+	}
+
 	isStateful, ok := serviceAnnotations["kardinal.dev.service/stateful"]
 	if ok && isStateful == "true" {
 		clusterTopologyService.IsStateful = true
@@ -283,7 +377,7 @@ func newClusterTopologyServiceFromServiceConfig(serviceConfig apitypes.ServiceCo
 	if ok && isShared == "true" {
 		clusterTopologyService.IsShared = true
 	}
-	return clusterTopologyService
+	return clusterTopologyService, nil
 }
 
 func getServiceAndPortFromClusterTopologyServices(serviceName string, servicePortName string, clusterTopologyServices []*resolved.Service) (*resolved.Service, *corev1.ServicePort, error) {

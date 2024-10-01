@@ -117,10 +117,20 @@ func RenderClusterResources(clusterTopology *resolved.ClusterTopology, namespace
 
 		Deployments: lo.FilterMap(clusterTopology.Services, func(service *resolved.Service, _ int) (appsv1.Deployment, bool) {
 			// Deployment spec is nil for external services, don't need to add anything to cluster
-			if service.DeploymentSpec == nil {
+			deployment := getDeployment(service, namespace)
+			if deployment == nil {
 				return appsv1.Deployment{}, false
 			}
-			return *getDeployment(service, namespace), true
+			return *deployment, true
+		}),
+
+		StatefulSets: lo.FilterMap(clusterTopology.Services, func(service *resolved.Service, _ int) (appsv1.StatefulSet, bool) {
+			// StatefulSet spec is nil for external services, don't need to add anything to cluster
+			statefulSet := getStatefulSet(service, namespace)
+			if statefulSet == nil {
+				return appsv1.StatefulSet{}, false
+			}
+			return *statefulSet, true
 		}),
 
 		Gateways: getGateways(clusterTopology.GatewayAndRoutes),
@@ -300,7 +310,56 @@ func getService(service *resolved.Service, namespace string) *v1.Service {
 	}
 }
 
+func getStatefulSet(service *resolved.Service, namespace string) *appsv1.StatefulSet {
+	if service.StatefulSetSpec == nil {
+		return nil
+	}
+
+	statefulSet := appsv1.StatefulSet{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "apps/v1",
+			Kind:       "statefulSet",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      fmt.Sprintf("%s-%s", service.ServiceID, service.Version),
+			Namespace: namespace,
+			Labels: map[string]string{
+				"app":     service.ServiceID,
+				"version": service.Version,
+			},
+		},
+		Spec: *service.StatefulSetSpec,
+	}
+
+	numReplicas := int32(1)
+	statefulSet.Spec.Replicas = int32Ptr(numReplicas)
+	statefulSet.Spec.Selector = &metav1.LabelSelector{
+		MatchLabels: map[string]string{
+			"app":     service.ServiceID,
+			"version": service.Version,
+		},
+	}
+	statefulSet.Spec.Template.ObjectMeta = metav1.ObjectMeta{
+		Annotations: map[string]string{
+			"sidecar.istio.io/inject": "true",
+			// TODO: make this a flag to help debugging
+			// One can view the logs with: kubeclt logs -f -l app=<serviceID> -n <namespace> -c istio-proxy
+			"sidecar.istio.io/componentLogLevel": "lua:info",
+		},
+		Labels: map[string]string{
+			"app":     service.ServiceID,
+			"version": service.Version,
+		},
+	}
+
+	return &statefulSet
+}
+
 func getDeployment(service *resolved.Service, namespace string) *appsv1.Deployment {
+	if service.DeploymentSpec == nil {
+		return nil
+	}
+
 	deployment := appsv1.Deployment{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "apps/v1",
