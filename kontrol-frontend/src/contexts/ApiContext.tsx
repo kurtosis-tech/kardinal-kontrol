@@ -31,7 +31,6 @@ export interface ApiContextType {
   getFlows: () => Promise<Flow[]>;
   getTemplates: () => Promise<void>;
   getTopology: () => Promise<components["schemas"]["ClusterTopology"]>;
-  loading: boolean;
   postFlowCreate: (
     b: RequestBody<"/tenant/{uuid}/flow/create", "post">,
   ) => Promise<Flow>;
@@ -43,20 +42,20 @@ export interface ApiContextType {
 
 const defaultContextValue: ApiContextType = {
   deleteFlow: async () => [],
-  deleteTemplate: async () => { },
+  deleteTemplate: async () => {},
   error: null,
   getFlows: async () => [],
-  getTemplates: async () => { },
+  getTemplates: async () => {},
   getTopology: async () => {
     return { nodes: [], edges: [] };
   },
-  loading: false,
   postFlowCreate: async () => ({
     "flow-id": "",
     "access-entry": [],
+    "flow-urls": [],
     isBaseline: false,
   }),
-  postTemplateCreate: async () => { },
+  postTemplateCreate: async () => {},
   templates: [],
 };
 
@@ -71,15 +70,13 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
   );
   const uuid = match?.params.uuid;
 
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
 
-  // boilerplate loading state, error handling for any API call
+  // boilerplate error handling for any API call
   const handleApiCall = useCallback(async function <T>(
     pendingRequest: Promise<{ data?: T }>, // Api fetch promise
   ): Promise<T> {
-    setLoading(true);
     try {
       const response = await pendingRequest;
       if (response.data == null) {
@@ -90,8 +87,6 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
       console.error("Failed to fetch route:", error);
       setError((error as Error).message);
       throw error;
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -197,7 +192,6 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
         getFlows,
         getTemplates,
         getTopology,
-        loading,
         postFlowCreate,
         postTemplateCreate,
         templates,

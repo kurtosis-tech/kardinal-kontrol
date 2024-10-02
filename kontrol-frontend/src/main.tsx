@@ -11,6 +11,7 @@ import FlowsCreate from "@/pages/FlowsCreate";
 import FlowsIndex from "@/pages/FlowsIndex";
 import MaturityGates from "@/pages/MaturityGates";
 import TrafficConfiguration from "@/pages/TrafficConfiguration";
+import Profile from "@/pages/Profile";
 import NotFound from "@/pages/NotFound";
 
 import { ErrorBoundary } from "react-error-boundary";
@@ -59,6 +60,10 @@ const router = createBrowserRouter([
       {
         path: "data-configuration",
         element: <DataConfiguration />,
+      },
+      {
+        path: "profile",
+        element: <Profile />,
       },
     ],
   },
