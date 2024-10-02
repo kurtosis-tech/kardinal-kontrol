@@ -245,10 +245,9 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 }
 
 func (sv *Server) checkOrCreateFlowID(tenantUuid apitypes.Uuid, requestFlowId *string) (string, bool, error) {
-
 	var flowIdAlreadyExist bool
 
-	clusterTopology, allFlows, _, _, _, _, _, err := getTenantTopologies(sv, tenantUuid)
+	clusterTopology, allFlows, _, _, _, _, _, _, _, err := getTenantTopologies(sv, tenantUuid)
 	if err != nil {
 		return "", flowIdAlreadyExist, err
 	}
@@ -590,7 +589,6 @@ func applyProdDevFlow(
 	patches []flow_spec.ServicePatchSpec,
 	templateSpec *apitypes.TemplateSpec,
 ) ([]resolved.IngressAccessEntry, error) {
-
 	logrus.Debugf("generating base cluster topology for tenant %s on flowID %s", tenantUuidStr, flowID)
 
 	baseTopology, _, tenantTemplates, serviceConfigs, deploymentConfigs, statefulSetConfigs, ingressConfigs, gatewayConfigs, routeConfigs, err := getTenantTopologies(sv, tenantUuidStr)
