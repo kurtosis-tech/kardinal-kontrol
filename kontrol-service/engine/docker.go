@@ -46,14 +46,9 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 			return nil, stacktrace.NewError("Service with UUID %s has no DeploymentSpec", devServiceName)
 		}
 
-		deploymentSpec := flow.DeepCopyDeploymentSpec(devService.DeploymentSpec)
-
-		// TODO: find a better way to update deploymentSpec, this assumes there is only container in the pod
-		deploymentSpec.Template.Spec.Containers[0].Image = item.Image
-
 		patches = append(patches, flow_spec.ServicePatch{
-			Service:        devServiceName,
-			DeploymentSpec: deploymentSpec,
+			Service: devServiceName,
+			Image:   item.Image,
 		})
 	}
 
