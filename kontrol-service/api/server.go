@@ -505,14 +505,14 @@ func applyProdOnlyFlow(
 		logrus.Errorf("an error occured while encoding the gateway configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
 		return nil, err
 	}
-	tenant.IngressConfigs = gatewayConfigsJson
+	tenant.GatewayConfigs = gatewayConfigsJson
 
 	routeConfigsJson, err := json.Marshal(routeConfigs)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the ingress configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
 		return nil, err
 	}
-	tenant.IngressConfigs = routeConfigsJson
+	tenant.RouteConfigs = routeConfigsJson
 
 	err = sv.db.SaveTenant(tenant)
 	if err != nil {

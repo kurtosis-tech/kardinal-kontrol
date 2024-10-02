@@ -261,14 +261,11 @@ func TestServiceConfigsToTopology(t *testing.T) {
 		if service == nil {
 			panic("Service is nil")
 		}
-		if service.DeploymentSpec == nil {
-			panic("DeploymentSpec is nil: " + service.ServiceID)
-		}
-		if len(service.DeploymentSpec.Template.Spec.Containers) == 0 {
+		if len(service.WorkloadSpec.GetTemplateSpec().Containers) == 0 {
 			panic("DeploymentSpec is empty: " + service.ServiceID)
 		}
-		image := service.DeploymentSpec.Template.Spec.Containers[0].Image
-		service.DeploymentSpec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s.a", image)
+		image := service.WorkloadSpec.GetTemplateSpec().Containers[0].Image
+		service.WorkloadSpec.GetTemplateSpec().Containers[0].Image = fmt.Sprintf("%s.a", image)
 	}
 
 	clusterTopologyFlowB := deepcopy.Copy(*clusterTopology).(resolved.ClusterTopology)
@@ -276,8 +273,8 @@ func TestServiceConfigsToTopology(t *testing.T) {
 	clusterTopologyFlowB.FlowID = flowID
 	for _, service := range clusterTopologyFlowB.Services {
 		service.Version = flowID
-		image := service.DeploymentSpec.Template.Spec.Containers[0].Image
-		service.DeploymentSpec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s.b", image)
+		image := service.WorkloadSpec.GetTemplateSpec().Containers[0].Image
+		service.WorkloadSpec.GetTemplateSpec().Containers[0].Image = fmt.Sprintf("%s.b", image)
 	}
 	allFlows := []resolved.ClusterTopology{}
 	allFlows = append(allFlows, clusterTopologyFlowA, clusterTopologyFlowB)

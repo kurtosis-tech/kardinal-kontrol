@@ -31,8 +31,9 @@ func ClusterTopology(clusterTopology *resolved.ClusterTopology, flowsClusterTopo
 		label := key
 		versions := lo.Map(services, func(service *resolved.Service, _ int) apiTypes.NodeVersion {
 			var imageTag *string
-			if service.DeploymentSpec != nil {
-				imageTag = &service.DeploymentSpec.Template.Spec.Containers[0].Image
+			containers := service.WorkloadSpec.GetTemplateSpec().Containers
+			if containers != nil && len(containers) > 0 {
+				imageTag = &containers[0].Image
 			}
 			isBaseline := service.Version == clusterTopology.Namespace
 			return apiTypes.NodeVersion{

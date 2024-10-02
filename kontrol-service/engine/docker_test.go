@@ -30,14 +30,14 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 	statefulPlugin := redisProdService.StatefulPlugins[0]
 	require.Equal(t, statefulPlugin.Name, "github.com/kardinaldev/redis-db-sidecar-plugin:36ed9a4")
 	require.Equal(t, *redisProdService.ServiceSpec, testServiceConfigs[0].Service.Spec)
-	require.Equal(t, *redisProdService.DeploymentSpec, testDeploymentConfigs[0].Deployment.Spec)
+	require.Equal(t, *redisProdService.WorkloadSpec.GetTemplateSpec(), testDeploymentConfigs[0].Deployment.Spec.Template.Spec)
 
 	votingAppUIService := cluster.Services[1]
 	require.Equal(t, votingAppUIService.ServiceID, "voting-app-ui")
 	require.Equal(t, votingAppUIService.IsExternal, false)
 	require.Equal(t, votingAppUIService.IsStateful, false)
 	require.Equal(t, *votingAppUIService.ServiceSpec, testServiceConfigs[1].Service.Spec)
-	require.Equal(t, *votingAppUIService.DeploymentSpec, testDeploymentConfigs[1].Deployment.Spec)
+	require.Equal(t, *votingAppUIService.WorkloadSpec.GetTemplateSpec(), testDeploymentConfigs[1].Deployment.Spec.Template.Spec)
 
 	dependency := cluster.ServiceDependencies[0]
 	require.Equal(t, dependency.Service, votingAppUIService)

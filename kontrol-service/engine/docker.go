@@ -18,6 +18,7 @@ import (
 	"kardinal.kontrol-service/plugins"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
 	"kardinal.kontrol-service/types/flow_spec"
+	kardinal "kardinal.kontrol-service/types/kardinal"
 )
 
 func GenerateProdOnlyCluster(
@@ -46,18 +47,16 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 		if err != nil {
 			return nil, stacktrace.Propagate(err, "Service with UUID %s not found", devServiceName)
 		}
-		if devService.DeploymentSpec == nil {
-			return nil, stacktrace.NewError("Service with UUID %s has no DeploymentSpec", devServiceName)
-		}
 
-		deploymentSpec := flow.DeepCopyDeploymentSpec(devService.DeploymentSpec)
+		workloadSpec := devService.WorkloadSpec
+		clonedWorkloadSpec := workloadSpec.DeepCopy()
 
 		// TODO: find a better way to update deploymentSpec, this assumes there is only container in the pod
-		deploymentSpec.Template.Spec.Containers[0].Image = item.Image
+		clonedWorkloadSpec.GetTemplateSpec().Containers[0].Image = item.Image
 
 		patches = append(patches, flow_spec.ServicePatch{
-			Service:        devServiceName,
-			DeploymentSpec: deploymentSpec,
+			Service:      devServiceName,
+			WorkloadSpec: &clonedWorkloadSpec,
 		})
 	}
 
@@ -303,11 +302,11 @@ func newStatefulPluginsAndExternalServicesFromServiceConfig(serviceConfig apityp
 					serviceName = fmt.Sprintf("%v:%v", serviceID, "external")
 				}
 				externalService := resolved.Service{
-					ServiceID:      serviceName,
-					Version:        version,
-					ServiceSpec:    nil, // leave empty for now
-					DeploymentSpec: nil, // leave empty for now
-					IsExternal:     true,
+					ServiceID:    serviceName,
+					Version:      version,
+					ServiceSpec:  nil, // leave empty for now
+					WorkloadSpec: nil, // leave empty for now
+					IsExternal:   true,
 					// external services can definitely be stateful but for now treat external and stateful services as mutually exclusive to make plugin logic easier to handle
 					IsStateful: false,
 				}
@@ -358,10 +357,16 @@ func newClusterTopologyServiceFromServiceConfig(
 	}
 
 	if deploymentConfig != nil {
-		clusterTopologyService.DeploymentSpec = &deploymentConfig.Deployment.Spec
+		workload := kardinal.NewDeploymentWorkloadSpec(deploymentConfig.Deployment.Spec)
+		clusterTopologyService.WorkloadSpec = &workload
 	}
 	if statefulSetConfig != nil {
-		clusterTopologyService.StatefulSetSpec = &statefulSetConfig.StatefulSet.Spec
+		workload := kardinal.NewStatefulSetWorkloadSpec(statefulSetConfig.StatefulSet.Spec)
+		clusterTopologyService.WorkloadSpec = &workload
+	}
+
+	if clusterTopologyService.WorkloadSpec == nil {
+		return clusterTopologyService, stacktrace.NewError("Service %s has no workload", serviceName)
 	}
 
 	isStateful, ok := serviceAnnotations["kardinal.dev.service/stateful"]

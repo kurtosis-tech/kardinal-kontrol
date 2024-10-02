@@ -9,9 +9,9 @@ import (
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/mohae/deepcopy"
 
-	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	net "k8s.io/api/networking/v1"
+	kardinal "kardinal.kontrol-service/types/kardinal"
 	gateway "sigs.k8s.io/gateway-api/apis/v1"
 )
 
@@ -25,16 +25,15 @@ type ClusterTopology struct {
 }
 
 type Service struct {
-	ServiceID               string                  `json:"serviceID"`
-	Version                 string                  `json:"version"`
-	ServiceSpec             *corev1.ServiceSpec     `json:"serviceSpec"`
-	DeploymentSpec          *appsv1.DeploymentSpec  `json:"deploymentSpec"`
-	StatefulSetSpec         *appsv1.StatefulSetSpec `json:"statefulSetSpec"`
-	IsExternal              bool                    `json:"isExternal"`
-	IsStateful              bool                    `json:"isStateful"`
-	StatefulPlugins         []*StatefulPlugin       `json:"statefulPlugins"`
-	IsShared                bool                    `json:"isShared"`
-	OriginalVersionIfShared string                  `json:"originalVersionIfShared"`
+	ServiceID               string                 `json:"serviceID"`
+	Version                 string                 `json:"version"`
+	ServiceSpec             *corev1.ServiceSpec    `json:"serviceSpec"`
+	WorkloadSpec            *kardinal.WorkloadSpec `json:"workloadSpec"`
+	IsExternal              bool                   `json:"isExternal"`
+	IsStateful              bool                   `json:"isStateful"`
+	StatefulPlugins         []*StatefulPlugin      `json:"statefulPlugins"`
+	IsShared                bool                   `json:"isShared"`
+	OriginalVersionIfShared string                 `json:"originalVersionIfShared"`
 }
 
 type ServiceHash string
@@ -236,10 +235,8 @@ func (service *Service) Hash() ServiceHash {
 		h.Write(serviceSpecJSON)
 	}
 
-	if service.DeploymentSpec != nil {
-		deploymentSpecJSON, _ := json.Marshal(service.DeploymentSpec)
-		h.Write(deploymentSpecJSON)
-	}
+	deploymentSpecJSON, _ := json.Marshal(service.WorkloadSpec)
+	h.Write(deploymentSpecJSON)
 
 	// Handle slice of StatefulPlugin
 	if service.StatefulPlugins != nil {

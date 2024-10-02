@@ -311,7 +311,7 @@ func getService(service *resolved.Service, namespace string) *v1.Service {
 }
 
 func getStatefulSet(service *resolved.Service, namespace string) *appsv1.StatefulSet {
-	if service.StatefulSetSpec == nil {
+	if !service.WorkloadSpec.IsStatefulSet() {
 		return nil
 	}
 
@@ -328,7 +328,7 @@ func getStatefulSet(service *resolved.Service, namespace string) *appsv1.Statefu
 				"version": service.Version,
 			},
 		},
-		Spec: *service.StatefulSetSpec,
+		Spec: *service.WorkloadSpec.GetStatefulSetSpec(),
 	}
 
 	numReplicas := int32(1)
@@ -356,7 +356,7 @@ func getStatefulSet(service *resolved.Service, namespace string) *appsv1.Statefu
 }
 
 func getDeployment(service *resolved.Service, namespace string) *appsv1.Deployment {
-	if service.DeploymentSpec == nil {
+	if !service.WorkloadSpec.IsDeployment() {
 		return nil
 	}
 
@@ -373,7 +373,7 @@ func getDeployment(service *resolved.Service, namespace string) *appsv1.Deployme
 				"version": service.Version,
 			},
 		},
-		Spec: *service.DeploymentSpec,
+		Spec: *service.WorkloadSpec.GetDeploymentSpec(),
 	}
 
 	numReplicas := int32(1)
