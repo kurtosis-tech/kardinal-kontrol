@@ -91,7 +91,7 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceS
 	return newDeploymentSpec, string(configMapBytes), nil
 }
 
-func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string, arguments map[string]string) error {
+func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string) error {
 	repoPath, err := pr.getOrCloneRepo(pluginUrl)
 	if err != nil {
 		return fmt.Errorf("failed to get or clone repository: %v", err)
@@ -102,7 +102,7 @@ func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string, arguments map[str
 		return err
 	}
 
-	_, err = runPythonDeleteFlow(repoPath, configMap, flowUuid, arguments)
+	_, err = runPythonDeleteFlow(repoPath, configMap, flowUuid)
 	if err != nil {
 		return err
 	}
@@ -216,7 +216,8 @@ with open('%s', 'w') as f:
 	return string(resultBytes), nil
 }
 
-func runPythonDeleteFlow(repoPath, configMap, flowUuid string, arguments map[string]string) (string, error) {
+func runPythonDeleteFlow(repoPath, configMap, flowUuid string) (string, error) {
+
 	scriptPath := filepath.Join(repoPath, "main.py")
 
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
@@ -235,11 +236,6 @@ func runPythonDeleteFlow(repoPath, configMap, flowUuid string, arguments map[str
 		}
 	}
 
-	argsJSON, err := json.Marshal(arguments)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal arguments: %v", err)
-	}
-
 	tempResultFile, err := os.CreateTemp("", "result_*.json")
 	if err != nil {
 		return "", fmt.Errorf("failed to create temporary result file: %v", err)
@@ -255,7 +251,6 @@ import main
 
 config_map = %s
 flow_uuid = %q
-args = json.loads('''%s''')
 sig = inspect.signature(main.delete_flow)
 
 kwargs = {}
@@ -264,8 +259,6 @@ for param in sig.parameters.values():
         kwargs['flow_uuid'] = flow_uuid
     elif param.name == 'config_map':
         kwargs['config_map'] = config_map
-    elif param.name in args:
-        kwargs[param.name] = args[param.name]
     elif param.default is not param.empty:
         kwargs[param.name] = param.default
     else:
@@ -277,7 +270,7 @@ result = main.delete_flow(**kwargs)
 # Write the result to a temporary file
 with open('%s', 'w') as f:
     json.dump(result, f)
-`, repoPath, configMap, flowUuid, argsJSON, tempResultFile.Name())
+`, repoPath, configMap, flowUuid, tempResultFile.Name())
 
 	if err := executePythonScript(venvPath, repoPath, tempScript); err != nil {
 		return "", err
