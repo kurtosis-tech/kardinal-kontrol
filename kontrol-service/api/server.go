@@ -549,6 +549,20 @@ func applyProdOnlyFlow(
 	}
 	tenant.ServiceConfigs = serviceConfigsJson
 
+	deploymentConfigsJson, err := json.Marshal(deploymentConfigs)
+	if err != nil {
+		logrus.Errorf("an error occured while encoding the deployment configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
+		return nil, err
+	}
+	tenant.DeploymentConfigs = deploymentConfigsJson
+
+	statefulSetConfigsJson, err := json.Marshal(statefulSetConfigs)
+	if err != nil {
+		logrus.Errorf("an error occured while encoding the stateful set configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
+		return nil, err
+	}
+	tenant.StatefulSetConfigs = statefulSetConfigsJson
+
 	ingressConfigsJson, err := json.Marshal(ingressConfigs)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the ingress configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
@@ -774,6 +788,8 @@ func deleteTenantTopologies(sv *Server, tenantUuidStr string) error {
 
 	tenant.BaseClusterTopology = nil
 	tenant.ServiceConfigs = nil
+	tenant.DeploymentConfigs = nil
+	tenant.StatefulSetConfigs = nil
 	tenant.IngressConfigs = nil
 
 	err = sv.db.SaveTenant(tenant)
