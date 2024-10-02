@@ -141,7 +141,8 @@ func applyPatch(
 ) error {
 
 	// TODO could create a custom type for it with a Add method and a Get Method, in order to centralize the addition if someone else want o use it later in another part in the code
-	pluginServices := map[*resolved.StatefulPlugin][]*resolved.Service{}
+	pluginServices := map[string][]*resolved.Service{}
+	pluginServicesMap := map[string]*resolved.StatefulPlugin{}
 
 	for _, servicePatch := range servicePatches {
 		serviceID := servicePatch.Service
@@ -189,12 +190,13 @@ func applyPatch(
 		for _, plugin := range targetService.StatefulPlugins {
 
 			// TODO this is adding both kind of plugins stateful and external
-			alreadyServicesWithPlugin, ok := pluginServices[plugin]
+			alreadyServicesWithPlugin, ok := pluginServices[plugin.ServiceName]
 			if ok {
-				pluginServices[plugin] = append(alreadyServicesWithPlugin, targetService)
+				pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, targetService)
 			} else {
-				pluginServices[plugin] = []*resolved.Service{targetService}
+				pluginServices[plugin.ServiceName] = []*resolved.Service{targetService}
 			}
+			pluginServicesMap[plugin.ServiceName] = plugin
 
 			// Edit the external service k8s.Service resource setting it the flow ID
 			if plugin.Type == "external" {
@@ -305,12 +307,13 @@ func applyPatch(
 					// assume there's only one plugin on the parent service for this external service
 
 					// TODO this is adding both kind of plugins stateful and external
-					alreadyServicesWithPlugin, ok := pluginServices[plugin]
+					alreadyServicesWithPlugin, ok := pluginServices[plugin.ServiceName]
 					if ok {
-						pluginServices[plugin] = append(alreadyServicesWithPlugin, parentService)
+						pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, targetService)
 					} else {
-						pluginServices[plugin] = []*resolved.Service{parentService}
+						pluginServices[plugin.ServiceName] = []*resolved.Service{targetService}
 					}
+					pluginServicesMap[plugin.ServiceName] = plugin
 
 					//if plugin.ServiceName == service.ServiceID {
 					//err := applyExternalServicePlugin(pluginRunner, parentService, service, plugin, pluginIdx, flowID)
@@ -336,10 +339,15 @@ func applyPatch(
 	}
 
 	// Execute plugins and update the services deployment specs with the plugin's modifications
-	for plugin, services := range pluginServices {
+	for pluginServiceName, services := range pluginServices {
 		var servicesIds []string
 		var servicesServiceSpecs []corev1.ServiceSpec
 		var servicesDeploymentSpecs []appv1.DeploymentSpec
+
+		plugin, ok := pluginServicesMap[pluginServiceName]
+		if !ok {
+			return stacktrace.NewError("expected to find plugin with service name '%s' in the plugins service map, this is a bug in Kardinal", pluginServiceName)
+		}
 
 		for _, service := range services {
 			servicesIds = append(servicesIds, service.ServiceID)
