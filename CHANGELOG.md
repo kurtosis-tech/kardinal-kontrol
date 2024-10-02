@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.2.3](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.2.2...0.2.3) (2024-10-02)
+
+
+### Features
+
+* improve user profile placeholder in nav ([#55](https://github.com/kurtosis-tech/kardinal-kontrol/issues/55)) ([a48e1ab](https://github.com/kurtosis-tech/kardinal-kontrol/commit/a48e1abd0ebdf32b285befc149b9859ccadc0b57))
+
+
+### Bug Fixes
+
+* fix frontend handling undefined flow url ([#52](https://github.com/kurtosis-tech/kardinal-kontrol/issues/52)) ([73a835f](https://github.com/kurtosis-tech/kardinal-kontrol/commit/73a835f43a26deab9081333005ad52cb5330a6a0))
+* fix gradual memory leak / perf issue with cytoscape ([#56](https://github.com/kurtosis-tech/kardinal-kontrol/issues/56)) ([703417d](https://github.com/kurtosis-tech/kardinal-kontrol/commit/703417dfe31a4298cb1c4062acb5ff7f581a3c5a))
+
 ## [0.2.2](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.2.1...0.2.2) (2024-09-26)
 
 
