@@ -369,10 +369,18 @@ func newClusterTopologyServiceFromServiceConfig(
 		return clusterTopologyService, stacktrace.NewError("Service %s has no workload", serviceName)
 	}
 
+	// Set default for IsStateful to true if the workload is a StatefulSet, otherwise false
+	clusterTopologyService.IsExternal = clusterTopologyService.WorkloadSpec.IsStatefulSet()
+
+	// Override the IsStateful value by manual annotations
 	isStateful, ok := serviceAnnotations["kardinal.dev.service/stateful"]
 	if ok && isStateful == "true" {
 		clusterTopologyService.IsStateful = true
 	}
+	if ok && isStateful == "false" {
+		clusterTopologyService.IsStateful = false
+	}
+
 	isExternal, ok := serviceAnnotations["kardinal.dev.service/external"]
 	if ok && isExternal == "true" {
 		clusterTopologyService.IsExternal = true
