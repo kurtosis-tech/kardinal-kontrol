@@ -10,12 +10,14 @@ import DataConfiguration from "@/pages/DataConfiguration";
 import FlowsCreate from "@/pages/FlowsCreate";
 import FlowsIndex from "@/pages/FlowsIndex";
 import MaturityGates from "@/pages/MaturityGates";
-import Page from "@/pages/TrafficConfiguration";
+import TrafficConfiguration from "@/pages/TrafficConfiguration";
+import Profile from "@/pages/Profile";
 import NotFound from "@/pages/NotFound";
 
 import { ErrorBoundary } from "react-error-boundary";
 import { NavigationContextProvider } from "@/contexts/NavigationContext";
 import { ApiContextProvider } from "@/contexts/ApiContext";
+import { FlowsContextProvider } from "@/contexts/FlowsContext";
 
 const router = createBrowserRouter([
   {
@@ -53,11 +55,15 @@ const router = createBrowserRouter([
       },
       {
         path: "traffic-configuration",
-        element: <Page />,
+        element: <TrafficConfiguration />,
       },
       {
         path: "data-configuration",
         element: <DataConfiguration />,
+      },
+      {
+        path: "profile",
+        element: <Profile />,
       },
     ],
   },
@@ -72,7 +78,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <ChakraProvider theme={theme} resetCSS>
       <ApiContextProvider>
         <NavigationContextProvider>
-          <RouterProvider router={router} />
+          <FlowsContextProvider>
+            <RouterProvider router={router} />
+          </FlowsContextProvider>
         </NavigationContextProvider>
       </ApiContextProvider>
     </ChakraProvider>

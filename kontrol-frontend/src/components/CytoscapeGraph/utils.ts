@@ -2,13 +2,13 @@ import CytoscapeComponent from "react-cytoscapejs";
 import type { ClusterTopology, ExtendedNode, Node } from "@/types";
 
 export const extendNodeData = (node: Node): ExtendedNode => {
-  const versions = node.versions ?? ["UNKNOWN"];
+  const versions = node.versions ?? [];
   return {
     data: {
       ...node,
       versions,
     },
-    classes: versions.length >= 2 ? "dev ghost" : "prod",
+    classes: [versions.length >= 2 ? "dev ghost" : "prod", node.type].join(" "),
   };
 };
 

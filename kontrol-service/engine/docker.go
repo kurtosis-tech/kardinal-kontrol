@@ -2,16 +2,15 @@ package engine
 
 import (
 	"fmt"
-	"strings"
-
+	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
 	"github.com/kurtosis-tech/stacktrace"
-	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
-	apitypes "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/types"
-	v1 "k8s.io/api/core/v1"
+	corev1 "k8s.io/api/core/v1"
 	net "k8s.io/api/networking/v1"
+	gateway "sigs.k8s.io/gateway-api/apis/v1"
+	"strings"
 
 	"kardinal.kontrol-service/engine/flow"
 	"kardinal.kontrol-service/plugins"
@@ -19,9 +18,15 @@ import (
 	"kardinal.kontrol-service/types/flow_spec"
 )
 
-// GenerateProdOnlyCluster create the baseline cluster which can be also called prod cluster which was the first name used
-func GenerateProdOnlyCluster(flowID string, serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace string) (*resolved.ClusterTopology, error) {
-	clusterTopology, err := generateClusterTopology(serviceConfigs, ingressConfigs, namespace, flowID)
+func GenerateProdOnlyCluster(
+	flowID string,
+	serviceConfigs []apitypes.ServiceConfig,
+	ingressConfigs []apitypes.IngressConfig,
+	gatewayConfigs []apitypes.GatewayConfig,
+	routeConfigs []apitypes.RouteConfig,
+	namespace string,
+) (*resolved.ClusterTopology, error) {
+	clusterTopology, err := generateClusterTopology(serviceConfigs, ingressConfigs, gatewayConfigs, routeConfigs, namespace, flowID)
 	if err != nil {
 		return nil, stacktrace.Propagate(err, "An error occurred generating the cluster topology from the service configs")
 	}
@@ -65,15 +70,241 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 	return clusterTopology, nil
 }
 
-func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, ingressConfigs []apitypes.IngressConfig, namespace, version string) (*resolved.ClusterTopology, error) {
+func generateClusterTopology(
+	serviceConfigs []apitypes.ServiceConfig,
+	ingressConfigs []apitypes.IngressConfig,
+	gatewayConfigs []apitypes.GatewayConfig,
+	routeConfigs []apitypes.RouteConfig,
+	namespace string,
+	version string,
+) (*resolved.ClusterTopology, error) {
+	clusterTopologyGatewayAndRoutes := processGatewayAndRouteConfigs(gatewayConfigs, routeConfigs, version)
+	clusterTopologyIngress := processIngressConfigs(ingressConfigs, version)
+	clusterTopologyServices, clusterTopologyServiceDependencies, err := processServiceConfigs(serviceConfigs, version)
+	if err != nil {
+		return nil, stacktrace.NewError("an error occurred processing the service configs")
+	}
+
+	// some validations
+	if len(clusterTopologyIngress.Ingresses) == 0 && len(clusterTopologyGatewayAndRoutes.Gateways) == 0 && len(clusterTopologyGatewayAndRoutes.GatewayRoutes) == 0 {
+		logrus.Warnf("No ingress or gateway found in the service configs")
+	}
+	if len(clusterTopologyServices) == 0 {
+		return nil, stacktrace.NewError("At least one service is required in addition to the ingress service(s)")
+	}
+
 	clusterTopology := resolved.ClusterTopology{}
-
-	clusterTopologyServices := []*resolved.Service{}
-	clusterTopologyIngress := []*resolved.Ingress{}
-	clusterTopologyServiceDependencies := []resolved.ServiceDependency{}
 	clusterTopology.Namespace = namespace
+	clusterTopology.Ingress = clusterTopologyIngress
+	clusterTopology.GatewayAndRoutes = clusterTopologyGatewayAndRoutes
+	clusterTopology.Services = clusterTopologyServices
+	clusterTopology.ServiceDependencies = clusterTopologyServiceDependencies
 
-	alreadyFoundIngress := false
+	return &clusterTopology, nil
+}
+
+func processGatewayAndRouteConfigs(gatewayConfigs []apitypes.GatewayConfig, routeConfigs []apitypes.RouteConfig, version string) *resolved.GatewayAndRoutes {
+	gatewayAndRoutes := &resolved.GatewayAndRoutes{
+		ActiveFlowIDs: []string{version},
+		Gateways:      []*gateway.Gateway{},
+		GatewayRoutes: []*gateway.HTTPRouteSpec{},
+	}
+	for _, gatewayConfig := range gatewayConfigs {
+		gateway := gatewayConfig.Gateway
+		gatewayAnnotations := gateway.GetObjectMeta().GetAnnotations()
+		isGateway, ok := gatewayAnnotations["kardinal.dev.service/gateway"]
+		if ok && isGateway == "true" {
+			if gateway.Spec.Listeners == nil {
+				logrus.Warnf("Gateway %v is missing listeners", gateway.Name)
+			} else {
+				for _, listener := range gateway.Spec.Listeners {
+					if listener.Hostname != nil && !strings.HasPrefix(string(*listener.Hostname), "*.") {
+						logrus.Warnf("Gateway %v listener %v is missing a wildcard, creating flow entry points will not work properly.", gateway.Name, listener.Hostname)
+					}
+				}
+			}
+			logrus.Infof("Managing gateway: %v", gateway.Name)
+			gatewayAndRoutes.Gateways = append(gatewayAndRoutes.Gateways, &gateway)
+		} else {
+			logrus.Infof("Gateway %v is not a Kardinal gateway", gateway.Name)
+		}
+	}
+	for _, routeConfig := range routeConfigs {
+		route := routeConfig.HttpRoute
+		routeAnnotations := route.GetObjectMeta().GetAnnotations()
+		isRoute, ok := routeAnnotations["kardinal.dev.service/route"]
+		if ok && isRoute == "true" {
+			gatewayAndRoutes.GatewayRoutes = append(gatewayAndRoutes.GatewayRoutes, &route.Spec)
+		}
+	}
+	return gatewayAndRoutes
+}
+
+func processServiceConfigs(serviceConfigs []apitypes.ServiceConfig, version string) ([]*resolved.Service, []resolved.ServiceDependency, error) {
+	clusterTopologyServices := []*resolved.Service{}
+	clusterTopologyServiceDependencies := []resolved.ServiceDependency{}
+	externalServicesDependencies := []resolved.ServiceDependency{}
+
+	type serviceWithDependenciesAnnotation struct {
+		service                *resolved.Service
+		dependenciesAnnotation string
+	}
+	serviceWithDependencies := []*serviceWithDependenciesAnnotation{}
+
+	for _, serviceConfig := range serviceConfigs {
+		service := serviceConfig.Service
+		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
+
+		// 1- Service
+		logrus.Infof("Processing service: %v", service.GetObjectMeta().GetName())
+		clusterTopologyService := newClusterTopologyServiceFromServiceConfig(serviceConfig, version)
+
+		// 2- Service plugins
+		serviceStatefulPlugins, externalServices, newExternalServicesDependencies, err := newStatefulPluginsAndExternalServicesFromServiceConfig(serviceConfig, version, &clusterTopologyService)
+		if err != nil {
+			return nil, nil, stacktrace.Propagate(err, "An error occurred creating new stateful plugins and external services from service config '%s'", service.Name)
+		}
+		clusterTopologyService.StatefulPlugins = serviceStatefulPlugins
+		clusterTopologyServices = append(clusterTopologyServices, externalServices...)
+		externalServicesDependencies = append(externalServicesDependencies, newExternalServicesDependencies...)
+
+		// 3- Service dependencies (creates a list of services with dependencies)
+		dependencies, ok := serviceAnnotations["kardinal.dev.service/dependencies"]
+		if ok {
+			newServiceWithDependenciesAnnotation := &serviceWithDependenciesAnnotation{&clusterTopologyService, dependencies}
+			serviceWithDependencies = append(serviceWithDependencies, newServiceWithDependenciesAnnotation)
+		}
+		clusterTopologyServices = append(clusterTopologyServices, &clusterTopologyService)
+	}
+
+	// Set the service dependencies in the clusterTopologyService
+	// first iterate on the service with dependencies list
+	for _, svcWithDependenciesAnnotation := range serviceWithDependencies {
+
+		serviceAndPorts := strings.Split(svcWithDependenciesAnnotation.dependenciesAnnotation, ",")
+		for _, serviceAndPort := range serviceAndPorts {
+			serviceAndPortParts := strings.Split(serviceAndPort, ":")
+			depService, depServicePort, err := getServiceAndPortFromClusterTopologyServices(serviceAndPortParts[0], serviceAndPortParts[1], clusterTopologyServices)
+			if err != nil {
+				return nil, nil, stacktrace.Propagate(err, "An error occurred finding the service dependency for service %s and port %s", serviceAndPortParts[0], serviceAndPortParts[1])
+			}
+
+			serviceDependency := resolved.ServiceDependency{
+				Service:          svcWithDependenciesAnnotation.service,
+				DependsOnService: depService,
+				DependencyPort:   depServicePort,
+			}
+
+			clusterTopologyServiceDependencies = append(clusterTopologyServiceDependencies, serviceDependency)
+		}
+	}
+	// then add the external services dependencies
+	clusterTopologyServiceDependencies = append(clusterTopologyServiceDependencies, externalServicesDependencies...)
+
+	return clusterTopologyServices, clusterTopologyServiceDependencies, nil
+}
+
+func newStatefulPluginsAndExternalServicesFromServiceConfig(serviceConfig apitypes.ServiceConfig, version string, clusterTopologyService *resolved.Service) ([]*resolved.StatefulPlugin, []*resolved.Service, []resolved.ServiceDependency, error) {
+	var serviceStatefulPlugins []*resolved.StatefulPlugin
+	externalServices := []*resolved.Service{}
+	externalServiceDependencies := []resolved.ServiceDependency{}
+
+	service := serviceConfig.Service
+	serviceAnnotations := service.GetObjectMeta().GetAnnotations()
+
+	sPluginsAnnotation, ok := serviceAnnotations["kardinal.dev.service/plugins"]
+	if ok {
+		var statefulPlugins []resolved.StatefulPlugin
+		err := yaml.Unmarshal([]byte(sPluginsAnnotation), &statefulPlugins)
+		if err != nil {
+			return nil, nil, nil, stacktrace.Propagate(err, "An error occurred parsing the plugins for service %s", service.GetObjectMeta().GetName())
+		}
+		serviceStatefulPlugins = make([]*resolved.StatefulPlugin, len(statefulPlugins))
+
+		for index := range statefulPlugins {
+			// TODO: consider giving external service plugins their own type, instead of using StatefulPlugins
+			// if this is an external service plugin, represent that service as a service in the cluster topology
+			plugin := statefulPlugins[index]
+			if plugin.Type == "external" {
+				logrus.Infof("Adding external service to topology..")
+				serviceName := plugin.ServiceName
+				logrus.Infof("plugin service name: %v", plugin.ServiceName)
+				if serviceName == "" {
+					serviceID := service.GetObjectMeta().GetName()
+					serviceName = fmt.Sprintf("%v:%v", serviceID, "external")
+				}
+				externalService := resolved.Service{
+					ServiceID:      serviceName,
+					Version:        version,
+					ServiceSpec:    nil, // leave empty for now
+					DeploymentSpec: nil, // leave empty for now
+					IsExternal:     true,
+					// external services can definitely be stateful but for now treat external and stateful services as mutually exclusive to make plugin logic easier to handle
+					IsStateful: false,
+				}
+
+				externalServices = append(externalServices, &externalService)
+
+				externalServiceDependency := resolved.ServiceDependency{
+					Service:          clusterTopologyService,
+					DependsOnService: &externalService,
+					DependencyPort:   nil,
+				}
+				externalServiceDependencies = append(externalServiceDependencies, externalServiceDependency)
+			}
+			serviceStatefulPlugins[index] = &plugin
+		}
+	}
+
+	return serviceStatefulPlugins, externalServices, externalServiceDependencies, nil
+}
+
+func newClusterTopologyServiceFromServiceConfig(serviceConfig apitypes.ServiceConfig, version string) resolved.Service {
+	service := serviceConfig.Service
+	deployment := serviceConfig.Deployment
+	serviceAnnotations := service.GetObjectMeta().GetAnnotations()
+
+	clusterTopologyService := resolved.Service{
+		ServiceID:      service.GetObjectMeta().GetName(),
+		Version:        version,
+		ServiceSpec:    &service.Spec,
+		DeploymentSpec: &deployment.Spec,
+	}
+	isStateful, ok := serviceAnnotations["kardinal.dev.service/stateful"]
+	if ok && isStateful == "true" {
+		clusterTopologyService.IsStateful = true
+	}
+	isExternal, ok := serviceAnnotations["kardinal.dev.service/external"]
+	if ok && isExternal == "true" {
+		clusterTopologyService.IsExternal = true
+	}
+
+	isShared, ok := serviceAnnotations["kardinal.dev.service/shared"]
+	if ok && isShared == "true" {
+		clusterTopologyService.IsShared = true
+	}
+	return clusterTopologyService
+}
+
+func getServiceAndPortFromClusterTopologyServices(serviceName string, servicePortName string, clusterTopologyServices []*resolved.Service) (*resolved.Service, *corev1.ServicePort, error) {
+	for _, service := range clusterTopologyServices {
+		if service.ServiceID == serviceName {
+			for _, port := range service.ServiceSpec.Ports {
+				if port.Name == servicePortName {
+					return service, &port, nil
+				}
+			}
+		}
+	}
+
+	return nil, nil, stacktrace.NewError("Service %s and Port %s not found in the list of services", serviceName, servicePortName)
+}
+
+func processIngressConfigs(ingressConfigs []apitypes.IngressConfig, version string) *resolved.Ingress {
+	clusterTopologyIngress := &resolved.Ingress{
+		ActiveFlowIDs: []string{version},
+		Ingresses:     []net.Ingress{},
+	}
 	for _, ingressConfig := range ingressConfigs {
 		ingress := ingressConfig.Ingress
 		ingressAnnotations := ingress.GetObjectMeta().GetAnnotations()
@@ -81,179 +312,8 @@ func generateClusterTopology(serviceConfigs []apitypes.ServiceConfig, ingressCon
 		// Ingress?
 		isIngress, ok := ingressAnnotations["kardinal.dev.service/ingress"]
 		if ok && isIngress == "true" {
-			ingressObj := resolved.Ingress{
-				ActiveFlowIDs: []string{version},
-				IngressID:     ingress.ObjectMeta.Name,
-				IngressSpec:   &ingress.Spec,
-			}
-			_, ok := ingressAnnotations["kardinal.dev.service/host"]
-			if ok {
-				logrus.Debugf("Found hostname Kardinal annotation on Ingress '%v' but using Ingress Rules provided by k8s Ingress object instead.", ingress.Name)
-			}
-
-			// A k8s ingress object should specify the Ingress rules so use those instead of creating one manually
-			for _, ingressRule := range ingress.Spec.Rules {
-				ingressObj.IngressRules = append(ingressObj.IngressRules, &ingressRule)
-			}
-
-			clusterTopologyIngress = append(clusterTopologyIngress, &ingressObj)
-			alreadyFoundIngress = true
+			clusterTopologyIngress.Ingresses = append(clusterTopologyIngress.Ingresses, ingress)
 		}
 	}
-
-	for _, serviceConfig := range serviceConfigs {
-		service := serviceConfig.Service
-		deployment := serviceConfig.Deployment
-		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
-
-		// Ingress?
-		isIngress, ok := serviceAnnotations["kardinal.dev.service/ingress"]
-		if ok && isIngress == "true" {
-			if !alreadyFoundIngress {
-				ingress := resolved.Ingress{
-					ActiveFlowIDs: []string{version},
-					IngressID:     service.ObjectMeta.Name,
-					ServiceSpec:   &service.Spec,
-				}
-				host, ok := serviceAnnotations["kardinal.dev.service/host"]
-				if ok {
-					ingress.IngressRules = []*net.IngressRule{
-						{
-							Host: host,
-						},
-					}
-				}
-				clusterTopologyIngress = append(clusterTopologyIngress, &ingress)
-			}
-			// TODO: why this need to be a separated service?
-			// Don't add ingress services to the list of resolved services
-			continue
-		}
-
-		// Service
-		logrus.Infof("Processing service: %v", service.GetObjectMeta().GetName())
-		clusterTopologyService := resolved.Service{
-			ServiceID:      service.GetObjectMeta().GetName(),
-			Version:        version,
-			ServiceSpec:    &service.Spec,
-			DeploymentSpec: &deployment.Spec,
-		}
-		isStateful, ok := serviceAnnotations["kardinal.dev.service/stateful"]
-		if ok && isStateful == "true" {
-			clusterTopologyService.IsStateful = true
-		}
-		isExternal, ok := serviceAnnotations["kardinal.dev.service/external"]
-		if ok && isExternal == "true" {
-			clusterTopologyService.IsExternal = true
-		}
-
-		isShared, ok := serviceAnnotations["kardinal.dev.service/shared"]
-		if ok && isShared == "true" {
-			clusterTopologyService.IsShared = true
-		}
-
-		// Service plugin?
-		sPlugins, ok := serviceAnnotations["kardinal.dev.service/plugins"]
-		if ok {
-			var statefulPlugins []resolved.StatefulPlugin
-			err := yaml.Unmarshal([]byte(sPlugins), &statefulPlugins)
-			if err != nil {
-				return nil, stacktrace.Propagate(err, "An error occurred parsing the plugins for service %s", service.GetObjectMeta().GetName())
-			}
-			serviceStatefulPlugins := make([]*resolved.StatefulPlugin, len(statefulPlugins))
-			for index := range statefulPlugins {
-				logrus.Infof("Voting App UI Plugin: %v", statefulPlugins[index].Name)
-				// TODO: consider giving external service plugins their own type, instead of using StatefulPlugins
-				// if this is an external service plugin, represent that service as a service in the cluster topology
-				plugin := statefulPlugins[index]
-				if plugin.Type == "external" {
-					logrus.Infof("Adding external service to topology..")
-					serviceName := plugin.ServiceName
-					logrus.Infof("plugin service name: %v", plugin.ServiceName)
-					if serviceName == "" {
-						serviceName = fmt.Sprintf("%v:%v", clusterTopologyService.ServiceID, "external")
-					}
-					externalService := resolved.Service{
-						ServiceID:      serviceName,
-						Version:        version,
-						ServiceSpec:    nil, // leave empty for now
-						DeploymentSpec: nil, // leave empty for now
-						IsExternal:     true,
-						// external services can definitely be stateful but for now treat external and stateful services as mutually exclusive to make plugin logic easier to handle
-						IsStateful: false,
-					}
-
-					clusterTopologyServices = append(clusterTopologyServices, &externalService)
-
-					externalServiceDependency := resolved.ServiceDependency{
-						Service:          &clusterTopologyService,
-						DependsOnService: &externalService,
-						DependencyPort:   nil,
-					}
-					clusterTopologyServiceDependencies = append(clusterTopologyServiceDependencies, externalServiceDependency)
-				}
-				serviceStatefulPlugins[index] = &plugin
-			}
-			clusterTopologyService.StatefulPlugins = serviceStatefulPlugins
-		}
-
-		clusterTopologyServices = append(clusterTopologyServices, &clusterTopologyService)
-	}
-
-	if len(clusterTopologyIngress) == 0 {
-		return nil, stacktrace.NewError("At least one service needs to be annotated as an ingress service")
-	}
-	clusterTopology.Ingresses = clusterTopologyIngress
-
-	if len(clusterTopologyServices) == 0 {
-		return nil, stacktrace.NewError("At least one service is required in addition to the ingress service(s)")
-	}
-	clusterTopology.Services = clusterTopologyServices
-
-	for _, serviceConfig := range serviceConfigs {
-		service := serviceConfig.Service
-		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
-
-		if isServiceIngress(&clusterTopology, service) || alreadyFoundIngress {
-			logrus.Infof("Service %s is an ingress service, skipping dependency resolution", service.GetObjectMeta().GetName())
-			continue
-		}
-
-		clusterTopologyService, err := clusterTopology.GetService(service.GetObjectMeta().GetName())
-		if err != nil {
-			logrus.Fatalf("An error occurred finding service %s in the list of services", service.GetObjectMeta().GetName())
-			return nil, stacktrace.Propagate(err, "An error occurred finding service %s in the list of services", service.GetObjectMeta().GetName())
-		}
-
-		// Service dependencies?
-		deps, ok := serviceAnnotations["kardinal.dev.service/dependencies"]
-		if ok {
-			serviceAndPorts := strings.Split(deps, ",")
-			for _, serviceAndPort := range serviceAndPorts {
-				serviceAndPortParts := strings.Split(serviceAndPort, ":")
-				depService, depServicePort, err := clusterTopology.GetServiceAndPort(serviceAndPortParts[0], serviceAndPortParts[1])
-				if err != nil {
-					return nil, stacktrace.Propagate(err, "An error occurred finding the service dependency for service %s and port %s", serviceAndPortParts[0], serviceAndPortParts[1])
-				}
-
-				serviceDependency := resolved.ServiceDependency{
-					Service:          clusterTopologyService,
-					DependsOnService: depService,
-					DependencyPort:   depServicePort,
-				}
-
-				clusterTopologyServiceDependencies = append(clusterTopologyServiceDependencies, serviceDependency)
-			}
-		}
-	}
-
-	clusterTopology.ServiceDependencies = clusterTopologyServiceDependencies
-
-	return &clusterTopology, nil
-}
-
-func isServiceIngress(clusterTopology *resolved.ClusterTopology, service v1.Service) bool {
-	return lo.SomeBy(clusterTopology.Ingresses, func(item *resolved.Ingress) bool {
-		return item.IngressID == service.GetObjectMeta().GetName()
-	})
+	return clusterTopologyIngress
 }

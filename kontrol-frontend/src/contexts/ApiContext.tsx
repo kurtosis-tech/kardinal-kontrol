@@ -11,7 +11,6 @@ import {
   useContext,
   useState,
   useCallback,
-  // useEffect,
   PropsWithChildren,
 } from "react";
 
@@ -26,17 +25,15 @@ export type RequestBody<
   : never;
 
 export interface ApiContextType {
-  deleteFlow: (flowId: string) => Promise<void>;
+  deleteFlow: (flowId: string) => Promise<Flow[]>;
   deleteTemplate: (templateName: string) => Promise<void>;
   error: string | null;
-  flows: Flow[];
-  getFlows: () => Promise<void>;
+  getFlows: () => Promise<Flow[]>;
   getTemplates: () => Promise<void>;
   getTopology: () => Promise<components["schemas"]["ClusterTopology"]>;
-  loading: boolean;
   postFlowCreate: (
     b: RequestBody<"/tenant/{uuid}/flow/create", "post">,
-  ) => Promise<void>;
+  ) => Promise<Flow>;
   postTemplateCreate: (
     b: RequestBody<"/tenant/{uuid}/templates/create", "post">,
   ) => Promise<void>;
@@ -44,17 +41,20 @@ export interface ApiContextType {
 }
 
 const defaultContextValue: ApiContextType = {
-  deleteFlow: async () => {},
+  deleteFlow: async () => [],
   deleteTemplate: async () => {},
   error: null,
-  flows: [],
-  getFlows: async () => {},
+  getFlows: async () => [],
   getTemplates: async () => {},
   getTopology: async () => {
     return { nodes: [], edges: [] };
   },
-  loading: false,
-  postFlowCreate: async () => {},
+  postFlowCreate: async () => ({
+    "flow-id": "",
+    "access-entry": [],
+    "flow-urls": [],
+    isBaseline: false,
+  }),
   postTemplateCreate: async () => {},
   templates: [],
 };
@@ -70,16 +70,13 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
   );
   const uuid = match?.params.uuid;
 
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [flows, setFlows] = useState<Flow[]>([]);
 
-  // boilerplate loading state, error handling for any API call
+  // boilerplate error handling for any API call
   const handleApiCall = useCallback(async function <T>(
     pendingRequest: Promise<{ data?: T }>, // Api fetch promise
   ): Promise<T> {
-    setLoading(true);
     try {
       const response = await pendingRequest;
       if (response.data == null) {
@@ -90,8 +87,6 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
       console.error("Failed to fetch route:", error);
       setError((error as Error).message);
       throw error;
-    } finally {
-      setLoading(false);
     }
   }, []);
 
@@ -105,7 +100,7 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
           body,
         }),
       );
-      setFlows((state) => [...state, flow]);
+      return flow;
     },
     [uuid, handleApiCall],
   );
@@ -118,7 +113,7 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
         params: { path: { uuid } },
       }),
     );
-    setFlows(flows);
+    return flows;
   }, [uuid, handleApiCall]);
 
   // DELETE "/tenant/{uuid}/flow/{flow-id}"
@@ -130,7 +125,7 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
           params: { path: { uuid, "flow-id": flowId } },
         }),
       );
-      setFlows(flows);
+      return flows;
     },
     [uuid, handleApiCall],
   );
@@ -194,11 +189,9 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
         deleteFlow,
         deleteTemplate,
         error,
-        flows,
         getFlows,
         getTemplates,
         getTopology,
-        loading,
         postFlowCreate,
         postTemplateCreate,
         templates,
@@ -209,6 +202,7 @@ export const ApiContextProvider = ({ children }: PropsWithChildren) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 export const useApi = (): ApiContextType => {
   const context = useContext(ApiContext);
   if (!context) {

@@ -1,5 +1,66 @@
 # Changelog
 
+## [0.2.2](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.2.1...0.2.2) (2024-09-26)
+
+
+### Bug Fixes
+
+* remove unused annotation ([#50](https://github.com/kurtosis-tech/kardinal-kontrol/issues/50)) ([2dd5306](https://github.com/kurtosis-tech/kardinal-kontrol/commit/2dd53063cd5ca1936d2d02deb55d265ea07c7d5d))
+* stable filter name ([#53](https://github.com/kurtosis-tech/kardinal-kontrol/issues/53)) ([fade8af](https://github.com/kurtosis-tech/kardinal-kontrol/commit/fade8af7f1b66f344912d598acd7a55d8caa52c9))
+
+## [0.2.1](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.2.0...0.2.1) (2024-09-26)
+
+
+### Bug Fixes
+
+* Get target frontend from ingresses ([#48](https://github.com/kurtosis-tech/kardinal-kontrol/issues/48)) ([b4ad5a3](https://github.com/kurtosis-tech/kardinal-kontrol/commit/b4ad5a30755fa66abd2b3457a74987440184852c))
+
+## [0.2.0](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.31...0.2.0) (2024-09-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* new gateway management ([#41](https://github.com/kurtosis-tech/kardinal-kontrol/issues/41))
+
+### Features
+
+* Add ability to toggle flow visibility in topology graph ([#44](https://github.com/kurtosis-tech/kardinal-kontrol/issues/44)) ([a428b37](https://github.com/kurtosis-tech/kardinal-kontrol/commit/a428b375283aac34175cfc86a9028da22393f832))
+* new gateway management ([#41](https://github.com/kurtosis-tech/kardinal-kontrol/issues/41)) ([e7df3b0](https://github.com/kurtosis-tech/kardinal-kontrol/commit/e7df3b07c623a084eddbf12d593388463affdf6a))
+
+## [0.1.31](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.30...0.1.31) (2024-09-24)
+
+
+### Features
+
+* implement UI improvements for graph legend and tooltips ([#36](https://github.com/kurtosis-tech/kardinal-kontrol/issues/36)) ([5b6dfc4](https://github.com/kurtosis-tech/kardinal-kontrol/commit/5b6dfc46295ebe90bf8467418ca30b095c83b0d3))
+
+
+### Bug Fixes
+
+* add service hash func to use in topologyToGraph hash func ([#42](https://github.com/kurtosis-tech/kardinal-kontrol/issues/42)) ([c7c4b25](https://github.com/kurtosis-tech/kardinal-kontrol/commit/c7c4b256699f97ed420f9c249c0f03600e380f53))
+
+## [0.1.30](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.29...0.1.30) (2024-09-20)
+
+
+### Features
+
+* Add more details about API compatibility ([#38](https://github.com/kurtosis-tech/kardinal-kontrol/issues/38)) ([1220d31](https://github.com/kurtosis-tech/kardinal-kontrol/commit/1220d3152752455b4bda86a54c8b92117784ef51))
+
+## [0.1.29](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.28...0.1.29) (2024-09-19)
+
+
+### Features
+
+* frontend uses relative API path ([#34](https://github.com/kurtosis-tech/kardinal-kontrol/issues/34)) ([65ce046](https://github.com/kurtosis-tech/kardinal-kontrol/commit/65ce046c8e43814d392f235fc7fc30050a63fbd7))
+
+## [0.1.28](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.27...0.1.28) (2024-09-19)
+
+
+### Features
+
+* Topology graph legend ([#27](https://github.com/kurtosis-tech/kardinal-kontrol/issues/27)) ([1106218](https://github.com/kurtosis-tech/kardinal-kontrol/commit/1106218779233d3c7647f068e382c5e0338627e3))
+* Topology node list of versions containing flow id, image tag and baseline flag ([#28](https://github.com/kurtosis-tech/kardinal-kontrol/issues/28)) ([923b2b6](https://github.com/kurtosis-tech/kardinal-kontrol/commit/923b2b641868e00a376ff76ccf80d21e0594a02c))
+
 ## [0.1.27](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.1.26...0.1.27) (2024-09-16)
 
 

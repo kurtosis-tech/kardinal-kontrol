@@ -102,5 +102,5 @@ jobs:
 
       - name: Deploy to cluster
         run: |
-          kubectl rollout restart deployment/kontrol-frontend-prod -n kardinal-kontrol
-          kubectl rollout restart deployment/kontrol-service-server-prod -n kardinal-kontrol
+          kubectl rollout restart deployment/kontrol-frontend -n kardinal-kontrol
+          kubectl rollout restart deployment/kontrol-service-server -n kardinal-kontrol

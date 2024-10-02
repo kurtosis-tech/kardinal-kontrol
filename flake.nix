@@ -5,7 +5,7 @@
     gomod2nix.url = "github:nix-community/gomod2nix";
     gomod2nix.inputs.nixpkgs.follows = "nixpkgs";
     gomod2nix.inputs.flake-utils.follows = "flake-utils";
-    kardinal.url = "github:kurtosis-tech/kardinal/75f64efda4b9cce0e0f9c2a1268baddb8131304a";
+    kardinal.url = "github:kurtosis-tech/kardinal/b5a991623aeb";
   };
   outputs = {
     self,
