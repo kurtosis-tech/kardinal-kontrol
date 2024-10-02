@@ -278,8 +278,8 @@ schema = 3
     version = "v0.2.0"
     hash = "sha256-fadcWxZOORv44oak3jTxm6YcITcFxdGt4bpn869HxUE="
   [mod."github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api"]
-    version = "v0.0.0-20240926004715-b5a991623aeb"
-    hash = "sha256-0IFdSzfoxYnA+0Dm1cVnlnx4eGXmCJwDVK67nd4Eipw="
+    version = "v0.0.0-20240930151959-22270454aa6b"
+    hash = "sha256-Mm7+UU6tK65VA4BY8UxpjTay8DpYjAmbwz8Szj5X2aY="
   [mod."github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api"]
     version = "v0.0.0-20240926004715-b5a991623aeb"
     hash = "sha256-u6fSYBRONpUBP/Mb9hWgzzlbcM0NQ6hROygvDn2tbBM="
