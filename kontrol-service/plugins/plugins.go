@@ -119,10 +119,12 @@ func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string, arguments map[str
 	return nil
 }
 
+// TODO remove this after the DeleteDevFlow refactor
 func GetPluginId(flowId, serviceId string, pluginIdx int) string {
 	return fmt.Sprintf(pluginIdFmtStr, flowId, serviceId, pluginIdx)
 }
 
+// TODO rename it to the original name
 func GetPluginId2(flowId string, serviceIds []string) string {
 	serviceIdsStr := strings.Join(serviceIds, ",")
 	return fmt.Sprintf(pluginIdFmtStr2, flowId, serviceIdsStr)

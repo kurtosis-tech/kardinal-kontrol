@@ -2,6 +2,8 @@ package flow
 
 import (
 	"fmt"
+	appv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 
 	"kardinal.kontrol-service/constants"
 
@@ -14,8 +16,6 @@ import (
 	"kardinal.kontrol-service/plugins"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
 	"kardinal.kontrol-service/types/flow_spec"
-
-	v1 "k8s.io/api/apps/v1"
 )
 
 // CreateDevFlow creates a dev flow from the given topologies
@@ -49,17 +49,8 @@ func CreateDevFlow(
 	topologyRef := &topology
 
 	clusterGraph := topologyToGraph(topologyRef)
-	for _, servicePatch := range flowPatch.ServicePatches {
-		serviceID := servicePatch.Service
-		logrus.Infof("calculating new flow for service %s", serviceID)
-		targetService, err := topologyRef.GetService(serviceID)
-		if err != nil {
-			return nil, err
-		}
-		_, err = applyPatch(pluginRunner, topologyRef, clusterGraph, flowID, targetService, servicePatch.DeploymentSpec)
-		if err != nil {
-			return nil, err
-		}
+	if err := applyPatch(pluginRunner, topologyRef, clusterGraph, flowID, flowPatch.ServicePatches); err != nil {
+		return nil, err
 	}
 
 	// the baseline topology flow ID and flow version are equal to the namespace these three should use same value
@@ -143,209 +134,267 @@ func markParentsAsShared(topology *resolved.ClusterTopology, service *resolved.S
 
 func applyPatch(
 	pluginRunner *plugins.PluginRunner,
-	topology *resolved.ClusterTopology,
+	topologyRef *resolved.ClusterTopology,
 	clusterGraph graph.Graph[resolved.ServiceHash, *resolved.Service],
 	flowID string,
-	targetService *resolved.Service,
-	deploymentSpec *v1.DeploymentSpec,
-) (*resolved.ClusterTopology, error) {
-	// Find downstream stateful services
-	statefulPaths := findAllDownstreamStatefulPaths(targetService, clusterGraph, topology)
-	statefulServices := make([]*resolved.Service, 0)
-	for _, path := range statefulPaths {
-		statefulServiceHash, err := lo.Last(path)
-		if statefulServiceHash == "" || err != nil {
-			logrus.Infof("Error finding last stateful service hash in path %v: %v", path, err)
-		}
-		statefulService, err := clusterGraph.Vertex(statefulServiceHash)
+	servicePatches []flow_spec.ServicePatch,
+) error {
+
+	// TODO could create a custom type for it with a Add method and a Get Method, in order to centralize the addition if someone else want o use it later in another part in the code
+	pluginServices := map[*resolved.StatefulPlugin][]*resolved.Service{}
+
+	for _, servicePatch := range servicePatches {
+		serviceID := servicePatch.Service
+		logrus.Infof("calculating new flow for service %s", serviceID)
+		targetService, err := topologyRef.GetService(serviceID)
 		if err != nil {
-			return nil, fmt.Errorf("an error occurred getting stateful service vertex from graph: %s", err)
+			return err
 		}
-		statefulServices = append(statefulServices, statefulService)
-	}
-	statefulServices = lo.Uniq(statefulServices)
 
-	externalPaths := findAllDownstreamExternalPaths(targetService, clusterGraph, topology)
-	externalServices := make([]*resolved.Service, 0)
-	alreadyHandledExternalServices := make([]string, 0)
-	for _, path := range externalPaths {
-		externalServiceHash, err := lo.Last(path)
-		if externalServiceHash == "" || err != nil {
-			logrus.Infof("Error finding last external service hash in path %v: %v", path, err)
-		}
-		externalService, err := clusterGraph.Vertex(externalServiceHash)
-		if err != nil {
-			return nil, fmt.Errorf("an error occurred getting external service vertex from graph: %s", err)
-		}
-		externalServices = append(externalServices, externalService)
-	}
-	externalServices = lo.Uniq(externalServices)
-
-	//pluginServices := map[*resolved.StatefulPlugin][]*resolved.Service{}
-	//for _, plugin := range targetService.StatefulPlugins {
-	//	servicesWithPlugin := []*resolved.Service{targetService}
-	//	alreadyServicesWithPlugin, ok := pluginServices[plugin]
-	//	if ok {
-	//		servicesWithPlugin = append(alreadyServicesWithPlugin, targetService)
-	//	}
-	//	pluginServices[plugin] = servicesWithPlugin
-	//}
-
-	// TODO SECTION 1 - Create external plugins and move the external K8s Service to a new version with the FlowID
-
-	// handle external service plugins on this service
-	logrus.Infof("Checking if this service has any external services...")
-	for pluginIdx, plugin := range targetService.StatefulPlugins {
-		if plugin.Type == "external" {
-			logrus.Infof("service %s contains an external dependency plugin: %v", targetService.ServiceID, plugin.Name)
-
-			// find the existing external service and update it in the topology to get a new version
-			externalService, err := topology.GetService(plugin.ServiceName)
+		// Find downstream stateful services
+		statefulPaths := findAllDownstreamStatefulPaths(targetService, clusterGraph, topologyRef)
+		statefulServices := make([]*resolved.Service, 0)
+		for _, path := range statefulPaths {
+			statefulServiceHash, err := lo.Last(path)
+			if statefulServiceHash == "" || err != nil {
+				logrus.Infof("Error finding last stateful service hash in path %v: %v", path, err)
+			}
+			statefulService, err := clusterGraph.Vertex(statefulServiceHash)
 			if err != nil {
-				return nil, fmt.Errorf("external service specified by plugin '%v' was not found in base topology", plugin.ServiceName)
+				return fmt.Errorf("an error occurred getting stateful service vertex from graph: %s", err)
 			}
-
-			err = applyExternalServicePlugin(pluginRunner, targetService, externalService, plugin, pluginIdx, flowID)
-			if err != nil {
-				return nil, stacktrace.Propagate(err, "An error occurred creating external servie plugin for external service '%v' depended on by '%v'", externalService.ServiceID, targetService.ServiceID)
-			}
-
-			err = topology.MoveServiceToVersion(externalService, flowID)
-			if err != nil {
-				return nil, err
-			}
+			statefulServices = append(statefulServices, statefulService)
 		}
-	}
+		statefulServices = lo.Uniq(statefulServices)
 
-	// TODO SECTION 2 - Target service updates with new modifications
-	modifiedTargetService := DeepCopyService(targetService)
-	modifiedTargetService.DeploymentSpec = deploymentSpec
-	modifiedTargetService.Version = flowID
-	err := topology.UpdateWithService(modifiedTargetService)
-	if err != nil {
-		return nil, err
-	}
+		externalPaths := findAllDownstreamExternalPaths(targetService, clusterGraph, topologyRef)
+		externalServices := make([]*resolved.Service, 0)
+		alreadyHandledExternalServices := make([]string, 0)
+		for _, path := range externalPaths {
+			externalServiceHash, err := lo.Last(path)
+			if externalServiceHash == "" || err != nil {
+				logrus.Infof("Error finding last external service hash in path %v: %v", path, err)
+			}
+			externalService, err := clusterGraph.Vertex(externalServiceHash)
+			if err != nil {
+				return fmt.Errorf("an error occurred getting external service vertex from graph: %s", err)
+			}
+			externalServices = append(externalServices, externalService)
+		}
+		externalServices = lo.Uniq(externalServices)
 
-	// TODO SECTION 3 - handle stateful services
-	for serviceIdx, service := range topology.Services {
-		if lo.Contains(statefulServices, service) {
-			logrus.Debugf("applying stateful plugins on service: %s", service.ServiceID)
-			// Don't modify the original service
-			modifiedService := DeepCopyService(service)
-			modifiedService.Version = flowID
+		// TODO SECTION 1 - Create external plugins and move the external K8s Service to a new version with the FlowID
+		// handle external service plugins on this service
+		logrus.Infof("Checking if this service has any external services...")
+		for _, plugin := range targetService.StatefulPlugins {
 
-			if !modifiedService.IsStateful {
-				return nil, fmt.Errorf("service %s is not stateful but is in stateful paths", modifiedService.ServiceID)
+			// TODO this is adding both kind of plugins stateful and external
+			alreadyServicesWithPlugin, ok := pluginServices[plugin]
+			if ok {
+				pluginServices[plugin] = append(alreadyServicesWithPlugin, targetService)
+			} else {
+				pluginServices[plugin] = []*resolved.Service{targetService}
 			}
 
-			// Apply a chain of stateful plugins to the stateful service
-			resultSpec := DeepCopyDeploymentSpec(modifiedService.DeploymentSpec)
-			for pluginIdx, plugin := range modifiedService.StatefulPlugins {
-				if plugin.Type == "external" {
-					// we handle external plugins above
-					// might need to handle this if stateful services can have external dependencies
-					continue
-				}
-				logrus.Infof("Applying plugin %s for service %s with flow id %s", plugin.Name, modifiedService.ServiceID, flowID)
-				pluginId := plugins.GetPluginId(flowID, modifiedService.ServiceID, pluginIdx)
-				spec, _, err := pluginRunner.CreateFlow(plugin.Name, *modifiedService.ServiceSpec, *resultSpec, pluginId, plugin.Args)
+			// Edit the external service k8s.Service resource setting it the flow ID
+			if plugin.Type == "external" {
+				logrus.Infof("service %s contains an external dependency plugin: %v", targetService.ServiceID, plugin.Name)
+
+				// find the existing external service and update it in the topology to get a new version
+				externalService, err := topologyRef.GetService(plugin.ServiceName)
 				if err != nil {
-					return nil, fmt.Errorf("error creating flow for service %s: %v", modifiedService.ServiceID, err)
+					return fmt.Errorf("external service specified by plugin '%v' was not found in base topology", plugin.ServiceName)
 				}
-				resultSpec = &spec
-			}
 
-			// Update service with final deployment spec
-			modifiedService.DeploymentSpec = resultSpec
+				//err = applyExternalServicePlugin(pluginRunner, targetService, externalService, plugin, pluginIdx, flowID)
+				//if err != nil {
+				//	return stacktrace.Propagate(err, "An error occurred creating external servie plugin for external service '%v' depended on by '%v'", externalService.ServiceID, targetService.ServiceID)
+				//}
 
-			topology.Services[serviceIdx] = modifiedService
-			topology.UpdateDependencies(service, modifiedService)
-
-			// create versioned parents for non http stateful services
-			// TODO - this should be done for all non http services and not just the stateful ones
-			// 	every child should be copied; immediate parent duplicated
-			// 	if children of non http services support http then our routing will have to be modified
-			//  we should treat those http services as non http; a hack could be to remove the appProtocol HTTP marking
-			if !modifiedService.IsHTTP() {
-				logrus.Infof("Stateful service %s is non http; its parents shall be duplicated", modifiedService.ServiceID)
-				parents := topology.FindImmediateParents(service)
-				for _, parent := range parents {
-					logrus.Infof("Duplicating parent %s", parent.ServiceID)
-					err = topology.MoveServiceToVersion(parent, flowID)
-					if err != nil {
-						return nil, err
-					}
+				err = topologyRef.MoveServiceToVersion(externalService, flowID)
+				if err != nil {
+					return err
 				}
 			}
 		}
 
-		// if the service is an external service of the target service, it was already handled above
-		if lo.Contains(externalServices, service) && !lo.Contains(alreadyHandledExternalServices, service.ServiceID) {
-			// 	assume there's only one parent service for now but eventually we'll likely need to account for multiple parents to external service
-			parentServices := topology.FindImmediateParents(service)
-			if len(parentServices) == 0 {
-				return nil, stacktrace.NewError("Expected to find a parent service to the external service '%v' but did not find one. All external services should have a parent so this is a bug in Kardinal.", service.ServiceID)
-			}
-			parentService := parentServices[0]
-			modifiedParentService := DeepCopyService(parentService)
+		// TODO SECTION 2 - Target service updates with new modifications
+		modifiedTargetService := DeepCopyService(targetService)
+		modifiedTargetService.DeploymentSpec = servicePatch.DeploymentSpec
+		modifiedTargetService.Version = flowID
+		err = topologyRef.UpdateWithService(modifiedTargetService)
+		if err != nil {
+			return err
+		}
 
-			_, found := lo.Find(parentService.StatefulPlugins, func(plugin *resolved.StatefulPlugin) bool {
-				return plugin.ServiceName == service.ServiceID
-			})
-			if !found {
-				return nil, stacktrace.NewError("Did not find plugin on parent service '%v' for the corresponding external service '%v'.This is a bug in Kardinal.", parentService.ServiceID, service.ServiceID)
-			}
+		// TODO SECTION 3 - handle stateful services
+		for serviceIdx, service := range topologyRef.Services {
+			if lo.Contains(statefulServices, service) {
+				logrus.Debugf("applying stateful plugins on service: %s", service.ServiceID)
+				// Don't modify the original service
+				modifiedService := DeepCopyService(service)
+				modifiedService.Version = flowID
 
-			for pluginIdx, plugin := range parentService.StatefulPlugins {
-				// assume there's only one plugin on the parent service for this external service
-				if plugin.ServiceName == service.ServiceID {
-					err := applyExternalServicePlugin(pluginRunner, parentService, service, plugin, pluginIdx, flowID)
-					if err != nil {
-						return nil, stacktrace.Propagate(err, "error creating flow for external service '%s'", service.ServiceID)
+				if !modifiedService.IsStateful {
+					return fmt.Errorf("service %s is not stateful but is in stateful paths", modifiedService.ServiceID)
+				}
+
+				// Apply a chain of stateful plugins to the stateful service
+				resultSpec := DeepCopyDeploymentSpec(modifiedService.DeploymentSpec)
+
+				// TODO I Think we can remove this part because this plugin was already added above
+				//for _, plugin := range modifiedService.StatefulPlugins {
+				//if plugin.Type == "external" {
+				// we handle external plugins above
+				// might need to handle this if stateful services can have external dependencies
+				//continue
+				//}
+
+				//logrus.Infof("Applying plugin %s for service %s with flow id %s", plugin.Name, modifiedService.ServiceID, flowID)
+				//pluginId := plugins.GetPluginId(flowID, modifiedService.ServiceID, pluginIdx)
+				//spec, _, err := pluginRunner.CreateFlow(plugin.Name, *modifiedService.ServiceSpec, *resultSpec, pluginId, plugin.Args)
+				//if err != nil {
+				//	return fmt.Errorf("error creating flow for service %s: %v", modifiedService.ServiceID, err)
+				//}
+				//resultSpec = &spec
+				//}
+
+				// Update service with final deployment spec
+				modifiedService.DeploymentSpec = resultSpec
+
+				topologyRef.Services[serviceIdx] = modifiedService
+				topologyRef.UpdateDependencies(service, modifiedService)
+
+				// create versioned parents for non http stateful services
+				// TODO - this should be done for all non http services and not just the stateful ones
+				// 	every child should be copied; immediate parent duplicated
+				// 	if children of non http services support http then our routing will have to be modified
+				//  we should treat those http services as non http; a hack could be to remove the appProtocol HTTP marking
+				if !modifiedService.IsHTTP() {
+					logrus.Infof("Stateful service %s is non http; its parents shall be duplicated", modifiedService.ServiceID)
+					parents := topologyRef.FindImmediateParents(service)
+					for _, parent := range parents {
+						logrus.Infof("Duplicating parent %s", parent.ServiceID)
+						err = topologyRef.MoveServiceToVersion(parent, flowID)
+						if err != nil {
+							return err
+						}
 					}
 				}
 			}
 
-			// add a flow version of the external service to the plugin
-			err := topology.MoveServiceToVersion(service, flowID)
-			if err != nil {
-				return nil, err
-			}
+			// TODO SECTION 3 - handle external services that are not target service dependencies
+			// if the service is an external service of the target service, it was already handled above
+			if lo.Contains(externalServices, service) && !lo.Contains(alreadyHandledExternalServices, service.ServiceID) {
+				// 	assume there's only one parent service for now but eventually we'll likely need to account for multiple parents to external service
+				parentServices := topologyRef.FindImmediateParents(service)
+				if len(parentServices) == 0 {
+					return stacktrace.NewError("Expected to find a parent service to the external service '%v' but did not find one. All external services should have a parent so this is a bug in Kardinal.", service.ServiceID)
+				}
+				parentService := parentServices[0]
+				modifiedParentService := DeepCopyService(parentService)
 
-			// add the parent to the topology replacing the deployment spec with the spec returned from the flow
-			err = topology.MoveServiceToVersion(modifiedParentService, flowID)
-			if err != nil {
-				return nil, err
+				_, found := lo.Find(parentService.StatefulPlugins, func(plugin *resolved.StatefulPlugin) bool {
+					return plugin.ServiceName == service.ServiceID
+				})
+				if !found {
+					return stacktrace.NewError("Did not find plugin on parent service '%v' for the corresponding external service '%v'.This is a bug in Kardinal.", parentService.ServiceID, service.ServiceID)
+				}
+
+				for _, plugin := range parentService.StatefulPlugins {
+					// assume there's only one plugin on the parent service for this external service
+
+					// TODO this is adding both kind of plugins stateful and external
+					alreadyServicesWithPlugin, ok := pluginServices[plugin]
+					if ok {
+						pluginServices[plugin] = append(alreadyServicesWithPlugin, parentService)
+					} else {
+						pluginServices[plugin] = []*resolved.Service{parentService}
+					}
+
+					//if plugin.ServiceName == service.ServiceID {
+					//err := applyExternalServicePlugin(pluginRunner, parentService, service, plugin, pluginIdx, flowID)
+					//if err != nil {
+					//return stacktrace.Propagate(err, "error creating flow for external service '%s'", service.ServiceID)
+					//}
+					//}
+				}
+
+				// add a flow version of the external service to the plugin
+				err := topologyRef.MoveServiceToVersion(service, flowID)
+				if err != nil {
+					return err
+				}
+
+				// add the parent to the topology replacing the deployment spec with the spec returned from the flow
+				err = topologyRef.MoveServiceToVersion(modifiedParentService, flowID)
+				if err != nil {
+					return err
+				}
 			}
 		}
 	}
 
-	return topology, nil
+	// Execute plugins and update the services deployment specs with the plugin's modifications
+	for plugin, services := range pluginServices {
+		var servicesIds []string
+		var servicesServiceSpecs []corev1.ServiceSpec
+		var servicesDeploymentSpecs []appv1.DeploymentSpec
+
+		for _, service := range services {
+			servicesIds = append(servicesIds, service.ServiceID)
+			servicesServiceSpecs = append(servicesServiceSpecs, *service.ServiceSpec)
+			servicesDeploymentSpecs = append(servicesDeploymentSpecs, *service.DeploymentSpec)
+		}
+
+		pluginId := plugins.GetPluginId2(flowID, servicesIds)
+		logrus.Infof("Calling plugin '%v'...", pluginId)
+
+		servicesModifiedDeploymentSpecs, _, err := pluginRunner.CreateFlow(plugin.Name, servicesServiceSpecs, servicesDeploymentSpecs, pluginId, plugin.Args)
+		if err != nil {
+			return stacktrace.Propagate(err, "error when creating plugin flow for plugin '%s'", pluginId)
+		}
+
+		if len(services) != len(servicesModifiedDeploymentSpecs) {
+			return fmt.Errorf("an error occurred executing plugin '%s', the number of deployment specs returned by the plugin.CreateFlow function are not equal to the number of service depending on it, please check the plugin code or report a bug in the Kardinal repository", plugin.ServiceName)
+		}
+
+		// updating the service.deployment_spec after the plugin execution
+		for serviceIndex, serviceToUpdate := range services {
+			modifiedDeploymentSpec := servicesModifiedDeploymentSpecs[serviceIndex]
+			serviceToUpdate.DeploymentSpec = &modifiedDeploymentSpec
+			if err := topologyRef.UpdateWithService(serviceToUpdate); err != nil {
+				return fmt.Errorf("an error occurred updating service '%s'", serviceToUpdate.ServiceID)
+			}
+		}
+	}
+
+	return nil
 }
 
 // TODO: have this handle stateful service plugins
-func applyExternalServicePlugin(
-	pluginRunner *plugins.PluginRunner,
-	dependentService *resolved.Service,
-	externalService *resolved.Service,
-	externalServicePlugin *resolved.StatefulPlugin,
-	pluginIdx int,
-	flowId string,
-) error {
-	if externalServicePlugin.Type != "external" {
-		return nil
-	}
+//func applyExternalServicePlugin(
+//pluginRunner *plugins.PluginRunner,
+//dependentService *resolved.Service,
+//externalService *resolved.Service,
+//externalServicePlugin *resolved.StatefulPlugin,
+//pluginIdx int,
+//flowId string,
+//) error {
+//if externalServicePlugin.Type != "external" {
+//return nil
+//}
 
-	logrus.Infof("Calling external service '%v' plugin with parent service '%v'...", externalService.ServiceID, dependentService.ServiceID)
-	pluginId := plugins.GetPluginId(flowId, dependentService.ServiceID, pluginIdx)
-	spec, _, err := pluginRunner.CreateFlow(externalServicePlugin.Name, *dependentService.ServiceSpec, *dependentService.DeploymentSpec, pluginId, externalServicePlugin.Args)
-	if err != nil {
-		return stacktrace.Propagate(err, "error creating flow for external service '%s'", externalService.ServiceID)
-	}
+//logrus.Infof("Calling external service '%v' plugin with parent service '%v'...", externalService.ServiceID, dependentService.ServiceID)
+//pluginId := plugins.GetPluginId(flowId, dependentService.ServiceID, pluginIdx)
+//spec, _, err := pluginRunner.CreateFlow(externalServicePlugin.Name, *dependentService.ServiceSpec, *dependentService.DeploymentSpec, pluginId, externalServicePlugin.Args)
+//if err != nil {
+//return stacktrace.Propagate(err, "error creating flow for external service '%s'", externalService.ServiceID)
+//}
 
-	dependentService.DeploymentSpec = &spec
-	return nil
-}
+//dependentService.DeploymentSpec = &spec
+//return nil
+//}
 
 func DeleteFlow(pluginRunner *plugins.PluginRunner, topology resolved.ClusterTopology, flowId string) error {
 	for _, service := range topology.Services {
