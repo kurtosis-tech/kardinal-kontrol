@@ -207,17 +207,74 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 		patches = append(patches, patch)
 	}
 
-	flowId, entries, err := applyProdDevFlow(sv, request.Uuid, patches, templateSpec)
+	requestTenantUuid := request.Uuid
+	requestFlowId := request.Body.FlowId
+
+	flowId, flowIdAlreadyExist, err := sv.checkOrCreateFlowID(requestTenantUuid, requestFlowId)
+	if err != nil {
+		var apiErrResponse api.PostTenantUuidFlowCreateResponseObject
+		errMsg := fmt.Sprintf("An error occurred checking or creating flow ID %s", *request.Body.FlowId)
+		if flowIdAlreadyExist {
+			errResp := api.RequestErrorJSONResponse{
+				Error: err.Error(),
+				Msg:   &errMsg,
+			}
+			apiErrResponse = api.PostTenantUuidFlowCreate400JSONResponse{RequestErrorJSONResponse: errResp}
+		} else {
+			errResp := api.ErrorJSONResponse{
+				Error: err.Error(),
+				Msg:   &errMsg,
+			}
+			apiErrResponse = api.PostTenantUuidFlowCreate500JSONResponse{ErrorJSONResponse: errResp}
+		}
+
+		return apiErrResponse, nil
+	}
+
+	entries, err := applyProdDevFlow(flowId, sv, request.Uuid, patches, templateSpec)
 	if err != nil {
 		errMsg := "An error occurred creating flow"
 		errResp := api.ErrorJSONResponse{
 			Error: err.Error(),
 			Msg:   &errMsg,
 		}
-		return api.PostTenantUuidFlowCreate500JSONResponse{errResp}, nil
+		return api.PostTenantUuidFlowCreate500JSONResponse{ErrorJSONResponse: errResp}, nil
 	}
-	resp := apitypes.Flow{FlowId: *flowId, AccessEntry: toApiIngressAccessEntries(entries)}
+	resp := apitypes.Flow{FlowId: flowId, AccessEntry: toApiIngressAccessEntries(entries)}
 	return api.PostTenantUuidFlowCreate200JSONResponse(resp), nil
+}
+
+func (sv *Server) checkOrCreateFlowID(tenantUuid apitypes.Uuid, requestFlowId *string) (string, bool, error) {
+
+	var flowIdAlreadyExist bool
+
+	clusterTopology, allFlows, _, _, _, _, _, err := getTenantTopologies(sv, tenantUuid)
+	if err != nil {
+		return "", flowIdAlreadyExist, err
+	}
+
+	// Create the flow ID if it was not provided
+	if requestFlowId == nil || *requestFlowId == "" {
+
+		// The baseline flow ID is not stored, it's inferred from the namespace name, currently these are the same
+		baselineFlowId := clusterTopology.Namespace
+
+		randId := getRandID()
+
+		newFlowId := fmt.Sprintf("%s-%s", baselineFlowId, randId)
+		return newFlowId, flowIdAlreadyExist, nil
+	}
+
+	// check received flowID from the request
+	_, found := lo.FindKeyBy(allFlows, func(key string, value resolved.ClusterTopology) bool {
+		return key == *requestFlowId
+	})
+	if found {
+		flowIdAlreadyExist = true
+		return "", flowIdAlreadyExist, stacktrace.NewError("flow id '%s' already exists", *requestFlowId)
+	}
+
+	return *requestFlowId, flowIdAlreadyExist, nil
 }
 
 func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenantUuidTopologyRequestObject) (api.GetTenantUuidTopologyResponseObject, error) {
@@ -527,19 +584,18 @@ func applyProdOnlyFlow(
 
 // ============================================================================================================
 func applyProdDevFlow(
+	flowID string,
 	sv *Server,
 	tenantUuidStr string,
 	patches []flow_spec.ServicePatchSpec,
 	templateSpec *apitypes.TemplateSpec,
-) (*string, []resolved.IngressAccessEntry, error) {
-	randId := getRandFlowID()
-	flowID := fmt.Sprintf("dev-%s", randId)
+) ([]resolved.IngressAccessEntry, error) {
 
 	logrus.Debugf("generating base cluster topology for tenant %s on flowID %s", tenantUuidStr, flowID)
 
 	baseTopology, _, tenantTemplates, serviceConfigs, deploymentConfigs, statefulSetConfigs, ingressConfigs, gatewayConfigs, routeConfigs, err := getTenantTopologies(sv, tenantUuidStr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("no base cluster topology found for tenant %s, did you deploy the cluster?", tenantUuidStr)
+		return nil, fmt.Errorf("no base cluster topology found for tenant %s, did you deploy the cluster?", tenantUuidStr)
 	}
 
 	baseClusterTopologyMaybeWithTemplateOverrides := *baseTopology
@@ -548,7 +604,7 @@ func applyProdDevFlow(
 
 		template, found := tenantTemplates[templateSpec.TemplateName]
 		if !found {
-			return nil, nil, fmt.Errorf("template with name '%v' doesn't exist for tenant uuid '%v'", templateSpec.TemplateName, tenantUuidStr)
+			return nil, fmt.Errorf("template with name '%v' doesn't exist for tenant uuid '%v'", templateSpec.TemplateName, tenantUuidStr)
 		}
 		serviceConfigs = template.ApplyTemplateOverrides(serviceConfigs, templateSpec)
 
@@ -557,7 +613,7 @@ func applyProdDevFlow(
 
 		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(baselineFlowID, serviceConfigs, deploymentConfigs, statefulSetConfigs, ingressConfigs, gatewayConfigs, routeConfigs, baseTopology.Namespace)
 		if err != nil {
-			return nil, nil, fmt.Errorf("an error occurred while creating base cluster topology from templates:\n %s", err)
+			return nil, fmt.Errorf("an error occurred while creating base cluster topology from templates:\n %s", err)
 		}
 		baseClusterTopologyMaybeWithTemplateOverrides = *baseClusterTopologyWithTemplateOverridesPtr
 	}
@@ -572,24 +628,24 @@ func applyProdDevFlow(
 	pluginRunner := plugins.NewPluginRunner(plugins.NewGitPluginProviderImpl(), tenantUuidStr, sv.db)
 	devClusterTopology, err := engine.GenerateProdDevCluster(&baseClusterTopologyMaybeWithTemplateOverrides, baseTopology, pluginRunner, flowSpec)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	devClusterTopologyJson, err := json.Marshal(devClusterTopology)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the cluster topology for tenant %s and flow %s, error was \n: '%v'", tenantUuidStr, flowID, err.Error())
-		return nil, nil, err
+		return nil, err
 	}
 
 	_, err = sv.db.CreateFlow(tenantUuidStr, flowID, devClusterTopologyJson)
 	if err != nil {
 		logrus.Errorf("an error occured while creating flow %s. error was \n: '%v'", flowID, err.Error())
-		return nil, nil, err
+		return nil, err
 	}
 
 	flowHostMapping := devClusterTopology.GetFlowHostMapping()
 
-	return &flowID, flowHostMapping[flowID], nil
+	return flowHostMapping[flowID], nil
 }
 
 // Returns the following given a tenant ID:

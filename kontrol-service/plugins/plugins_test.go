@@ -96,7 +96,7 @@ func TestSimplePlugin(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "helloworld", configMapData["original_text"])
 
-	err = runner.DeleteFlow(simplePlugin, flowUuid, map[string]string{})
+	err = runner.DeleteFlow(simplePlugin, flowUuid)
 	require.NoError(t, err)
 
 	// Verify that the flow UUID was removed from memory
@@ -121,7 +121,7 @@ func TestIdentityPlugin(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, map[string]interface{}{}, configMapData)
 
-	err = runner.DeleteFlow(identityPlugin, flowUuid, map[string]string{})
+	err = runner.DeleteFlow(identityPlugin, flowUuid)
 	require.NoError(t, err)
 
 	// Verify that the flow UUID was removed from memory
@@ -147,7 +147,7 @@ func TestComplexPlugin(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "ip_addr", configMapData["original_value"])
 
-	err = runner.DeleteFlow(complexPlugin, flowUuid, map[string]string{})
+	err = runner.DeleteFlow(complexPlugin, flowUuid)
 	require.NoError(t, err)
 
 	// Verify that the flow UUID was removed from memory
@@ -172,7 +172,7 @@ func TestRedisPluginTest(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, configMapData)
 
-	err = runner.DeleteFlow(complexPlugin, flowUuid, map[string]string{})
+	err = runner.DeleteFlow(complexPlugin, flowUuid)
 	require.NoError(t, err)
 
 	// Verify that the flow UUID was removed from memory

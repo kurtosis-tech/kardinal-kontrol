@@ -941,7 +941,7 @@ func generateDynamicLuaScript(allServices []*resolved.Service, flowId string, na
 			service = fallbackService
 		}
 		if service == nil {
-			logrus.Errorf("No service found for '%s' for version '%s' or baseline '%s'. No routing can configured.", serviceID, flowId, &baselineFlowVersion)
+			logrus.Errorf("No service found for '%s' for version '%s' or baseline '%s'. No routing can configured.", serviceID, flowId, baselineFlowVersion)
 			continue
 		}
 
