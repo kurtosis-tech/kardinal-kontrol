@@ -19,8 +19,12 @@ import (
 const (
 	// <flow id>-<service id>-<plugin idx>
 	pluginIdFmtStr = "%s-%s-%d"
-	// <flow id>-<service1 id>,<service2 id>,<service3 id>
-	pluginIdFmtStr2 = "%s-%s"
+	// TODO use this last one and remove the previous one
+	// <plugin.service_name>-<flow id>-<service1 id>,<service2 id>,<service3 id>
+	pluginIdFmtStr2 = "%s-%s-%s"
+	// TODO use this last one and remove the previous one
+	// <plugin.service_name>-<flow id>
+	pluginIdFmtStr3 = "%s-%s"
 )
 
 type PluginRunner struct {
@@ -125,9 +129,14 @@ func GetPluginId(flowId, serviceId string, pluginIdx int) string {
 }
 
 // TODO rename it to the original name
-func GetPluginId2(flowId string, serviceIds []string) string {
+func GetPluginId2(pluginServiceName string, flowId string, serviceIds []string) string {
 	serviceIdsStr := strings.Join(serviceIds, ",")
-	return fmt.Sprintf(pluginIdFmtStr2, flowId, serviceIdsStr)
+	return fmt.Sprintf(pluginIdFmtStr2, pluginServiceName, flowId, serviceIdsStr)
+}
+
+// TODO rename it to the original name
+func GetPluginId3(pluginServiceName string, flowId string) string {
+	return fmt.Sprintf(pluginIdFmtStr3, pluginServiceName, flowId)
 }
 
 func (pr *PluginRunner) getConfigForFlow(flowUuid string) (string, error) {

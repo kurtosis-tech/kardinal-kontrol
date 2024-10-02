@@ -165,6 +165,13 @@ func processServiceConfigs(serviceConfigs []apitypes.ServiceConfig, version stri
 	// Second, iterate the services to create the clusterTopology service with partial data (no dependencies set here)
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
+
+		// A plugin services (k8s services with the kardinal.dev.service/plugin-definition) are used to define a plugin Type and not a k8s service
+		isPlugin, _ := isPluginService(service)
+		if isPlugin {
+			continue
+		}
+
 		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
 
 		// 1- Service
@@ -219,10 +226,8 @@ func processServiceConfigs(serviceConfigs []apitypes.ServiceConfig, version stri
 
 func addAvailablePluginsFromServiceConfig(serviceConfig apitypes.ServiceConfig, availablePlugins map[string]*resolved.StatefulPlugin) (map[string]*resolved.StatefulPlugin, error) {
 	service := serviceConfig.Service
-	serviceAnnotations := service.GetObjectMeta().GetAnnotations()
-
-	pluginAnnotation, ok := serviceAnnotations["kardinal.dev.service/plugin-definition"]
-	if ok {
+	isPlugin, pluginAnnotation := isPluginService(service)
+	if isPlugin {
 		var statefulPlugins []resolved.StatefulPlugin
 		err := yaml.Unmarshal([]byte(pluginAnnotation), &statefulPlugins)
 		if err != nil {
@@ -240,6 +245,14 @@ func addAvailablePluginsFromServiceConfig(serviceConfig apitypes.ServiceConfig, 
 	}
 
 	return availablePlugins, nil
+}
+
+func isPluginService(service corev1.Service) (bool, string) {
+	serviceAnnotations := service.GetObjectMeta().GetAnnotations()
+
+	pluginAnnotation, ok := serviceAnnotations["kardinal.dev.service/plugin-definition"]
+
+	return ok, pluginAnnotation
 }
 
 func newServicePluginsAndExternalServicesFromServiceConfig(

@@ -244,22 +244,30 @@ func applyPatch(
 				// Apply a chain of stateful plugins to the stateful service
 				resultSpec := DeepCopyDeploymentSpec(modifiedService.DeploymentSpec)
 
-				// TODO I Think we can remove this part because this plugin was already added above
-				//for _, plugin := range modifiedService.StatefulPlugins {
-				//if plugin.Type == "external" {
-				// we handle external plugins above
-				// might need to handle this if stateful services can have external dependencies
-				//continue
-				//}
+				for _, plugin := range modifiedService.StatefulPlugins {
+					if plugin.Type == "external" {
+						//we handle external plugins above
+						//might need to handle this if stateful services can have external dependencies
+						continue
+					}
 
-				//logrus.Infof("Applying plugin %s for service %s with flow id %s", plugin.Name, modifiedService.ServiceID, flowID)
-				//pluginId := plugins.GetPluginId(flowID, modifiedService.ServiceID, pluginIdx)
-				//spec, _, err := pluginRunner.CreateFlow(plugin.Name, *modifiedService.ServiceSpec, *resultSpec, pluginId, plugin.Args)
-				//if err != nil {
-				//	return fmt.Errorf("error creating flow for service %s: %v", modifiedService.ServiceID, err)
-				//}
-				//resultSpec = &spec
-				//}
+					// TODO this is adding both kind of plugins stateful and external
+					alreadyServicesWithPlugin, ok := pluginServices[plugin.ServiceName]
+					if ok {
+						pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, targetService)
+					} else {
+						pluginServices[plugin.ServiceName] = []*resolved.Service{targetService}
+					}
+					pluginServicesMap[plugin.ServiceName] = plugin
+
+					//logrus.Infof("Applying plugin %s for service %s with flow id %s", plugin.Name, modifiedService.ServiceID, flowID)
+					//pluginId := plugins.GetPluginId(flowID, modifiedService.ServiceID, pluginIdx)
+					//spec, _, err := pluginRunner.CreateFlow(plugin.Name, *modifiedService.ServiceSpec, *resultSpec, pluginId, plugin.Args)
+					//if err != nil {
+					//	return fmt.Errorf("error creating flow for service %s: %v", modifiedService.ServiceID, err)
+					//}
+					//resultSpec = &spec
+				}
 
 				// Update service with final deployment spec
 				modifiedService.DeploymentSpec = resultSpec
@@ -340,7 +348,7 @@ func applyPatch(
 
 	// Execute plugins and update the services deployment specs with the plugin's modifications
 	for pluginServiceName, services := range pluginServices {
-		var servicesIds []string
+		//var servicesIds []string
 		var servicesServiceSpecs []corev1.ServiceSpec
 		var servicesDeploymentSpecs []appv1.DeploymentSpec
 
@@ -350,12 +358,12 @@ func applyPatch(
 		}
 
 		for _, service := range services {
-			servicesIds = append(servicesIds, service.ServiceID)
+			//servicesIds = append(servicesIds, service.ServiceID)
 			servicesServiceSpecs = append(servicesServiceSpecs, *service.ServiceSpec)
 			servicesDeploymentSpecs = append(servicesDeploymentSpecs, *service.DeploymentSpec)
 		}
 
-		pluginId := plugins.GetPluginId2(flowID, servicesIds)
+		pluginId := plugins.GetPluginId3(plugin.ServiceName, flowID)
 		logrus.Infof("Calling plugin '%v'...", pluginId)
 
 		servicesModifiedDeploymentSpecs, _, err := pluginRunner.CreateFlow(plugin.Name, servicesServiceSpecs, servicesDeploymentSpecs, pluginId, plugin.Args)
@@ -419,9 +427,9 @@ func DeleteFlow(pluginRunner *plugins.PluginRunner, topology resolved.ClusterTop
 }
 
 func DeleteDevFlow(pluginRunner *plugins.PluginRunner, flowId string, service *resolved.Service) error {
-	for pluginIdx, plugin := range service.StatefulPlugins {
+	for _, plugin := range service.StatefulPlugins {
 		logrus.Infof("Attempting to delete flow for plugin '%v' on flow '%v'", plugin.Name, flowId)
-		pluginId := plugins.GetPluginId(flowId, service.ServiceID, pluginIdx)
+		pluginId := plugins.GetPluginId3(plugin.ServiceName, flowId)
 		err := pluginRunner.DeleteFlow(plugin.Name, pluginId)
 		if err != nil {
 			logrus.Errorf("Error deleting flow: %v.", err)
