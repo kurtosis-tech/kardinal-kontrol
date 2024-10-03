@@ -18,7 +18,7 @@ func (w *Workload) IsDeployment() bool {
 	return w.Deployment != nil
 }
 
-func (w *Workload) GetDeployments() *appsv1.Deployment {
+func (w *Workload) GetDeployment() *appsv1.Deployment {
 	return w.Deployment
 }
 
@@ -38,16 +38,28 @@ func NewStatefulSetWorkload(statefulSet *appsv1.StatefulSet) Workload {
 	}
 }
 
-func (w *Workload) DeepCopy() Workload {
-	if w.IsDeployment() {
-		return NewDeploymentWorkload(w.GetDeployments().DeepCopy())
+func (w *Workload) DeepCopy() *Workload {
+	if w == nil {
+		return nil
 	}
-	return NewStatefulSetWorkload(w.GetStatefulSet().DeepCopy())
+
+	if w.IsDeployment() {
+		workload := NewDeploymentWorkload(w.GetDeployment().DeepCopy())
+		return &workload
+	} else if w.IsStatefulSet() {
+		workload := NewStatefulSetWorkload(w.GetStatefulSet().DeepCopy())
+		return &workload
+	} else {
+		panic("Invalid Workload")
+	}
 }
 
 func (w *Workload) GetTemplateSpec() v1.PodSpec {
 	if w.IsDeployment() {
-		return w.GetDeployments().Spec.Template.Spec
+		return w.GetDeployment().Spec.Template.Spec
+	} else if w.IsStatefulSet() {
+		return w.GetStatefulSet().Spec.Template.Spec
+	} else {
+		panic("Invalid Workload")
 	}
-	return w.GetStatefulSet().Spec.Template.Spec
 }

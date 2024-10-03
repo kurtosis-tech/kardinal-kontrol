@@ -37,7 +37,7 @@ func NewPluginRunner(gitPluginProvider GitPluginProvider, tenantId string, db *d
 	}
 }
 
-func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceSpec, originalWorkloadSpec kardinal.WorkloadSpec, flowUuid string, arguments map[string]string) (kardinal.WorkloadSpec, string, error) {
+func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceSpec, originalWorkloadSpec *kardinal.WorkloadSpec, flowUuid string, arguments map[string]string) (*kardinal.WorkloadSpec, string, error) {
 	workloadSpec := originalWorkloadSpec.DeepCopy()
 
 	repoPath, err := pr.getOrCloneRepo(pluginUrl)
@@ -225,7 +225,6 @@ with open('%s', 'w') as f:
 }
 
 func runPythonDeleteFlow(repoPath, configMap, flowUuid string) (string, error) {
-
 	scriptPath := filepath.Join(repoPath, "main.py")
 
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {

@@ -240,7 +240,7 @@ func applyPatch(
 			}
 
 			// Update service with final deployment spec
-			modifiedService.WorkloadSpec = &resultSpec
+			modifiedService.WorkloadSpec = resultSpec
 
 			topology.Services[serviceIdx] = modifiedService
 			topology.UpdateDependencies(service, modifiedService)
@@ -330,12 +330,12 @@ func applyExternalServicePlugin(
 
 	logrus.Infof("Calling external service '%v' plugin with parent service '%v'...", externalService.ServiceID, dependentService.ServiceID)
 	pluginId := plugins.GetPluginId(flowId, dependentService.ServiceID, pluginIdx)
-	spec, _, err := pluginRunner.CreateFlow(externalServicePlugin.Name, *dependentService.ServiceSpec, *dependentService.WorkloadSpec, pluginId, externalServicePlugin.Args)
+	spec, _, err := pluginRunner.CreateFlow(externalServicePlugin.Name, *dependentService.ServiceSpec, dependentService.WorkloadSpec, pluginId, externalServicePlugin.Args)
 	if err != nil {
 		return stacktrace.Propagate(err, "error creating flow for external service '%s'", externalService.ServiceID)
 	}
 
-	dependentService.WorkloadSpec = &spec
+	dependentService.WorkloadSpec = spec
 	return nil
 }
 

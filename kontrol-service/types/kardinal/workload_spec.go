@@ -38,24 +38,36 @@ func NewStatefulSetWorkloadSpec(spec appsv1.StatefulSetSpec) WorkloadSpec {
 	}
 }
 
-func (w *Workload) WorkloadSpec() WorkloadSpec {
-	if w.IsDeployment() {
-		return NewDeploymentWorkloadSpec(w.GetDeployments().Spec)
-	} else if w.IsStatefulSet() {
-		return NewStatefulSetWorkloadSpec(w.GetStatefulSet().Spec)
+func (w *Workload) WorkloadSpec() *WorkloadSpec {
+	if w == nil {
+		return nil
 	}
 
-	return WorkloadSpec{}
+	if w.IsDeployment() {
+		spec := NewDeploymentWorkloadSpec(w.GetDeployment().Spec)
+		return &spec
+	} else if w.IsStatefulSet() {
+		spec := NewStatefulSetWorkloadSpec(w.GetStatefulSet().Spec)
+		return &spec
+	} else {
+		panic("Invalid workload")
+	}
 }
 
-func (w *WorkloadSpec) DeepCopy() WorkloadSpec {
-	if w.IsDeployment() {
-		return NewDeploymentWorkloadSpec(*w.GetDeploymentSpec().DeepCopy())
-	} else if w.IsStatefulSet() {
-		return NewStatefulSetWorkloadSpec(*w.GetStatefulSetSpec().DeepCopy())
+func (w *WorkloadSpec) DeepCopy() *WorkloadSpec {
+	if w == nil {
+		return nil
 	}
 
-	return WorkloadSpec{}
+	if w.IsDeployment() {
+		spec := NewDeploymentWorkloadSpec(*w.GetDeploymentSpec().DeepCopy())
+		return &spec
+	} else if w.IsStatefulSet() {
+		spec := NewStatefulSetWorkloadSpec(*w.GetStatefulSetSpec().DeepCopy())
+		return &spec
+	} else {
+		panic("Invalid WorkloadSpec")
+	}
 }
 
 func (w *WorkloadSpec) GetTemplateSpec() *v1.PodSpec {

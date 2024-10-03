@@ -84,7 +84,7 @@ func TestSimplePlugin(t *testing.T) {
 		"text_to_replace": "helloworld",
 	}
 
-	updatedDeploymentSpec, configMap, err := runner.CreateFlow(simplePlugin, serviceSpec, workloadSpec, flowUuid, arguments)
+	updatedDeploymentSpec, configMap, err := runner.CreateFlow(simplePlugin, serviceSpec, &workloadSpec, flowUuid, arguments)
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
@@ -109,7 +109,7 @@ func TestIdentityPlugin(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpec, workloadSpec, flowUuid, map[string]string{})
+	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpec, &workloadSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
@@ -134,7 +134,7 @@ func TestComplexPlugin(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(complexPlugin, serviceSpec, workloadSpec, flowUuid, map[string]string{})
+	updatedServiceSpec, configMap, err := runner.CreateFlow(complexPlugin, serviceSpec, &workloadSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
@@ -160,7 +160,7 @@ func TestRedisPluginTest(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(redisPlugin, serviceSpec, workloadSpec, flowUuid, map[string]string{})
+	updatedServiceSpec, configMap, err := runner.CreateFlow(redisPlugin, serviceSpec, &workloadSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly

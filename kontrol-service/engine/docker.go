@@ -56,7 +56,7 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 
 		patches = append(patches, flow_spec.ServicePatch{
 			Service:      devServiceName,
-			WorkloadSpec: &clonedWorkloadSpec,
+			WorkloadSpec: clonedWorkloadSpec,
 		})
 	}
 
