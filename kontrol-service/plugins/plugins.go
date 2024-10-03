@@ -42,38 +42,38 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceS
 
 	repoPath, err := pr.getOrCloneRepo(pluginUrl)
 	if err != nil {
-		return workloadSpec, "", fmt.Errorf("failed to get or clone repository: %v", err)
+		return nil, "", fmt.Errorf("failed to get or clone repository: %v", err)
 	}
 
 	serviceSpecJSON, err := json.Marshal(serviceSpec)
 	if err != nil {
-		return workloadSpec, "", fmt.Errorf("failed to marshal service spec: %v", err)
+		return nil, "", fmt.Errorf("failed to marshal service spec: %v", err)
 	}
 
 	deploymentSpecJSON, err := json.Marshal(workloadSpec.GetTemplateSpec())
 	if err != nil {
-		return workloadSpec, "", fmt.Errorf("failed to marshal deployment spec: %v", err)
+		return nil, "", fmt.Errorf("failed to marshal deployment spec: %v", err)
 	}
 
 	result, err := runPythonCreateFlow(repoPath, string(serviceSpecJSON), string(deploymentSpecJSON), flowUuid, arguments)
 	if err != nil {
-		return workloadSpec, "", err
+		return nil, "", err
 	}
 
 	var resultMap map[string]json.RawMessage
 	err = json.Unmarshal([]byte(result), &resultMap)
 	if err != nil {
-		return workloadSpec, "", fmt.Errorf("failed to parse result: %v", err)
+		return nil, "", fmt.Errorf("failed to parse result: %v", err)
 	}
 
 	if resultMap["pod_spec"] == nil {
-		logrus.Warnf("No pod_spec found in plugin result")
+		return nil, "", fmt.Errorf("no pod_spec found in plugin result")
 	} else {
 		var newDeploymentSpec v1.PodSpec
 		err = json.Unmarshal(resultMap["pod_spec"], &newDeploymentSpec)
 		if err != nil {
 			logrus.Errorf("Failed to unmarshal pod spec: %v", string(resultMap["pod_spec"]))
-			return workloadSpec, "", fmt.Errorf("failed to unmarshal deployment spec: %v", err)
+			return nil, "", fmt.Errorf("failed to unmarshal deployment spec: %v", err)
 		}
 		workloadSpec.UpdateTemplateSpec(newDeploymentSpec)
 	}
@@ -82,18 +82,18 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceS
 	var configMap map[string]interface{}
 	err = json.Unmarshal(configMapJSON, &configMap)
 	if err != nil {
-		return workloadSpec, "", fmt.Errorf("invalid config map: %v", err)
+		return nil, "", fmt.Errorf("invalid config map: %v", err)
 	}
 
 	configMapBytes, err := json.Marshal(configMap)
 	if err != nil {
-		return workloadSpec, "", fmt.Errorf("failed to re-marshal config map: %v", err)
+		return nil, "", fmt.Errorf("failed to re-marshal config map: %v", err)
 	}
 
 	logrus.Infof("Storing config map for plugin called with uuid '%v':\n %s\n...", flowUuid, string(configMapBytes))
 	_, err = pr.db.CreatePluginConfig(flowUuid, string(configMapBytes), pr.tenantId)
 	if err != nil {
-		return workloadSpec, "", fmt.Errorf("failed to store the config map: %v", err)
+		return nil, "", fmt.Errorf("failed to store the config map: %v", err)
 	}
 
 	return workloadSpec, string(configMapBytes), nil
