@@ -113,7 +113,7 @@ func TestIdentityPlugin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
-	require.Equal(t, workloadSpec, updatedServiceSpec)
+	require.Equal(t, workloadSpec, *updatedServiceSpec)
 
 	// Verify the config map
 	var configMapData map[string]interface{}
