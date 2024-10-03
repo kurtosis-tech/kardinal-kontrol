@@ -20,6 +20,7 @@ const (
 type ClusterResources struct {
 	Services              []corev1.Service                      `json:"services"`
 	Deployments           []appsv1.Deployment                   `json:"deployments"`
+	StatefulSets          []appsv1.StatefulSet                  `json:"stateful_sets"`
 	VirtualServices       []v1alpha3.VirtualService             `json:"virtualServices"`
 	DestinationRules      []v1alpha3.DestinationRule            `json:"destinationRules"`
 	EnvoyFilters          []v1alpha3.EnvoyFilter                `json:"envoy_filters"`

@@ -1,16 +1,20 @@
 package resolved
 
 import (
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
-	"testing"
+	kardinal "kardinal.kontrol-service/types/kardinal"
 )
 
 const dummyPluginName = "https://github.com/h4ck3rk3y/identity-plugin.git"
 
-var httpProtocol = "HTTP"
-var dummySpec = &appsv1.DeploymentSpec{}
+var (
+	httpProtocol = "HTTP"
+	dummySpec    = &appsv1.DeploymentSpec{}
+)
 
 func TestHashFunc(t *testing.T) {
 	feSer1 := createService()
@@ -20,7 +24,7 @@ func TestHashFunc(t *testing.T) {
 }
 
 func createService() *Service {
-
+	workloadSpec := kardinal.NewDeploymentWorkloadSpec(appsv1.DeploymentSpec{})
 	return &Service{
 		ServiceID: "frontend",
 		ServiceSpec: &corev1.ServiceSpec{
@@ -35,9 +39,9 @@ func createService() *Service {
 				"app": "frontend",
 			},
 		},
-		DeploymentSpec: dummySpec,
-		IsExternal:     false,
-		IsStateful:     false,
+		WorkloadSpec: &workloadSpec,
+		IsExternal:   false,
+		IsStateful:   false,
 		StatefulPlugins: []*StatefulPlugin{
 			{
 				Name:        dummyPluginName,

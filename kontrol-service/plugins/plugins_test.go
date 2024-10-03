@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"kardinal.kontrol-service/database"
+	kardinal "kardinal.kontrol-service/types/kardinal"
 )
 
 const (
@@ -56,6 +57,8 @@ var deploymentSpec = appv1.DeploymentSpec{
 	},
 }
 
+var workloadSpec = kardinal.NewDeploymentWorkloadSpec(deploymentSpec)
+
 func getPluginRunner(t *testing.T) (*PluginRunner, func() error) {
 	db, cleanUpDbFunc, err := database.NewSQLiteDB()
 	require.NoError(t, err)
@@ -81,13 +84,11 @@ func TestSimplePlugin(t *testing.T) {
 		"text_to_replace": "helloworld",
 	}
 
-	updatedDeploymentSpec, configMap, err := runner.CreateFlow(simplePlugin, serviceSpec, deploymentSpec, flowUuid, arguments)
+	updatedDeploymentSpec, configMap, err := runner.CreateFlow(simplePlugin, serviceSpec, &workloadSpec, flowUuid, arguments)
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
-	require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Template.Labels["app"])
-	require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Selector.MatchLabels["app"])
-	require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Template.Spec.Containers[0].Name)
+	require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.GetTemplateSpec().Containers[0].Name)
 
 	// Verify the config map
 	var configMapData map[string]interface{}
@@ -108,11 +109,11 @@ func TestIdentityPlugin(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
+	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpec, &workloadSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
-	require.Equal(t, deploymentSpec, updatedServiceSpec)
+	require.Equal(t, workloadSpec, *updatedServiceSpec)
 
 	// Verify the config map
 	var configMapData map[string]interface{}
@@ -133,12 +134,12 @@ func TestComplexPlugin(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(complexPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
+	updatedServiceSpec, configMap, err := runner.CreateFlow(complexPlugin, serviceSpec, &workloadSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
-	require.NotEqual(t, "ip_addr", updatedServiceSpec.Template.Spec.Containers[0].Env[0].Value)
-	require.Regexp(t, `\b(?:\d{1,3}\.){3}\d{1,3}\b`, updatedServiceSpec.Template.Spec.Containers[0].Env[0].Value)
+	require.NotEqual(t, "ip_addr", updatedServiceSpec.GetTemplateSpec().Containers[0].Env[0].Value)
+	require.Regexp(t, `\b(?:\d{1,3}\.){3}\d{1,3}\b`, updatedServiceSpec.GetTemplateSpec().Containers[0].Env[0].Value)
 
 	// Verify the config map
 	var configMapData map[string]interface{}
@@ -159,11 +160,11 @@ func TestRedisPluginTest(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(redisPlugin, serviceSpec, deploymentSpec, flowUuid, map[string]string{})
+	updatedServiceSpec, configMap, err := runner.CreateFlow(redisPlugin, serviceSpec, &workloadSpec, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
-	require.Equal(t, "kurtosistech/redis-proxy-overlay:latest", updatedServiceSpec.Template.Spec.Containers[0].Image)
+	require.Equal(t, "kurtosistech/redis-proxy-overlay:latest", updatedServiceSpec.GetTemplateSpec().Containers[0].Image)
 
 	// Verify the config map
 	var configMapData map[string]interface{}

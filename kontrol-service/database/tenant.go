@@ -11,6 +11,8 @@ type Tenant struct {
 	TenantId            string `gorm:"uniqueIndex"`
 	BaseClusterTopology datatypes.JSON
 	ServiceConfigs      datatypes.JSON
+	DeploymentConfigs   datatypes.JSON
+	StatefulSetConfigs  datatypes.JSON
 	IngressConfigs      datatypes.JSON
 	GatewayConfigs      datatypes.JSON
 	RouteConfigs        datatypes.JSON

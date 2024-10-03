@@ -39,8 +39,9 @@ func GetIngressConfigs() []apitypes.IngressConfig {
 	}
 }
 
-func GetServiceConfigs() []apitypes.ServiceConfig {
+func GetServiceConfigs() ([]apitypes.ServiceConfig, []apitypes.DeploymentConfig) {
 	serviceConfigs := []apitypes.ServiceConfig{}
+	deploymentConfigs := []apitypes.DeploymentConfig{}
 
 	// Redis prod service
 	allowEmpty := "yes"
@@ -87,6 +88,9 @@ func GetServiceConfigs() []apitypes.ServiceConfig {
 				},
 			},
 		},
+	})
+
+	deploymentConfigs = append(deploymentConfigs, apitypes.DeploymentConfig{
 		Deployment: apps.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "v1",
@@ -121,17 +125,17 @@ func GetServiceConfigs() []apitypes.ServiceConfig {
 								Image:           containerImage,
 								ImagePullPolicy: "IfNotPresent",
 								Env: []v1.EnvVar{
-									v1.EnvVar{
+									{
 										Name:  "ALLOW_EMPTY_PASSWORD",
 										Value: allowEmpty,
 									},
-									v1.EnvVar{
+									{
 										Name:  "REDIS_PORT_NUMBER",
 										Value: portStr,
 									},
 								},
 								Ports: []v1.ContainerPort{
-									v1.ContainerPort{
+									{
 										Name:          fmt.Sprintf("tcp-%d", port),
 										ContainerPort: port,
 										Protocol:      v1.ProtocolTCP,
@@ -182,6 +186,9 @@ func GetServiceConfigs() []apitypes.ServiceConfig {
 				},
 			},
 		},
+	})
+
+	deploymentConfigs = append(deploymentConfigs, apitypes.DeploymentConfig{
 		Deployment: apps.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "v1",
@@ -216,7 +223,7 @@ func GetServiceConfigs() []apitypes.ServiceConfig {
 								Image:           containerImage,
 								ImagePullPolicy: "IfNotPresent",
 								Ports: []v1.ContainerPort{
-									v1.ContainerPort{
+									{
 										Name:          fmt.Sprintf("tcp-%d", port),
 										ContainerPort: port,
 										Protocol:      v1.ProtocolTCP,
@@ -266,5 +273,5 @@ func GetServiceConfigs() []apitypes.ServiceConfig {
 		},
 	})
 
-	return serviceConfigs
+	return serviceConfigs, deploymentConfigs
 }
