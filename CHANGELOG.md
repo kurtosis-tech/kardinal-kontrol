@@ -1,5 +1,16 @@
 # Changelog
 
+## [0.3.0](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.2.3...0.3.0) (2024-10-03)
+
+
+### ⚠ BREAKING CHANGES
+
+* add support to StatefulSet ([#59](https://github.com/kurtosis-tech/kardinal-kontrol/issues/59))
+
+### Features
+
+* add support to StatefulSet ([#59](https://github.com/kurtosis-tech/kardinal-kontrol/issues/59)) ([470c157](https://github.com/kurtosis-tech/kardinal-kontrol/commit/470c157df1be9e4576913326543fbdd859003f6a))
+
 ## [0.2.3](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.2.2...0.2.3) (2024-10-02)
 
 
