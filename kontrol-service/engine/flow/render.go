@@ -318,7 +318,7 @@ func getStatefulSet(service *resolved.Service, namespace string) *appsv1.Statefu
 	statefulSet := appsv1.StatefulSet{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "apps/v1",
-			Kind:       "statefulSet",
+			Kind:       "StatefulSet",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      fmt.Sprintf("%s-%s", service.ServiceID, service.Version),

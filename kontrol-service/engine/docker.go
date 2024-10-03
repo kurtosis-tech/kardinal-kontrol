@@ -151,19 +151,18 @@ func processGatewayAndRouteConfigs(gatewayConfigs []apitypes.GatewayConfig, rout
 
 func getDeploymentForService(
 	serviceConfig apitypes.ServiceConfig,
-	workloadConfigs []apitypes.DeploymentConfig,
+	deploymentConfigs []apitypes.DeploymentConfig,
 ) *apitypes.DeploymentConfig {
 	service := serviceConfig.Service
-	workload, foundworkload := lo.Find(workloadConfigs, func(workloadConfig apitypes.DeploymentConfig) bool {
+	workload, foundworkload := lo.Find(deploymentConfigs, func(workloadConfig apitypes.DeploymentConfig) bool {
 		deploymentLabels := workloadConfig.Deployment.GetLabels()
-		matchSelectors := true
 		for key, value := range service.Spec.Selector {
 			label, found := deploymentLabels[key]
 			if !found || value != label {
 				return false
 			}
 		}
-		return matchSelectors
+		return true
 	})
 
 	if foundworkload {
@@ -175,19 +174,18 @@ func getDeploymentForService(
 
 func getSatefulSetForService(
 	serviceConfig apitypes.ServiceConfig,
-	workloadConfigs []apitypes.StatefulSetConfig,
+	statefulSetConfigs []apitypes.StatefulSetConfig,
 ) *apitypes.StatefulSetConfig {
 	service := serviceConfig.Service
-	workload, foundworkload := lo.Find(workloadConfigs, func(workloadConfig apitypes.StatefulSetConfig) bool {
+	workload, foundworkload := lo.Find(statefulSetConfigs, func(workloadConfig apitypes.StatefulSetConfig) bool {
 		workloadLabel := workloadConfig.StatefulSet.GetLabels()
-		matchSelectors := true
 		for key, value := range service.Spec.Selector {
 			label, found := workloadLabel[key]
 			if !found || value != label {
 				return false
 			}
 		}
-		return matchSelectors
+		return true
 	})
 
 	if foundworkload {
@@ -222,7 +220,7 @@ func processServiceConfigs(
 
 		deploymentConfig := getDeploymentForService(serviceConfig, deploymentConfigs)
 		statefulSetConfig := getSatefulSetForService(serviceConfig, statefulSetConfigs)
-		clusterTopologyService, error := newClusterTopologyServiceFromServiceConfig(serviceConfig, deploymentConfig, statefulSetConfig, version)
+		clusterTopologyService, error := newClusterTopologyServiceFromConfigs(serviceConfig, deploymentConfig, statefulSetConfig, version)
 		if error != nil {
 			return nil, nil, stacktrace.Propagate(error, "An error occurred creating new cluster topology service from service config '%s'", service.Name)
 		}
@@ -327,7 +325,7 @@ func newStatefulPluginsAndExternalServicesFromServiceConfig(serviceConfig apityp
 	return serviceStatefulPlugins, externalServices, externalServiceDependencies, nil
 }
 
-func newClusterTopologyServiceFromServiceConfig(
+func newClusterTopologyServiceFromConfigs(
 	serviceConfig apitypes.ServiceConfig,
 	deploymentConfig *apitypes.DeploymentConfig,
 	statefulSetConfig *apitypes.StatefulSetConfig,
@@ -335,19 +333,6 @@ func newClusterTopologyServiceFromServiceConfig(
 ) (resolved.Service, error) {
 	service := serviceConfig.Service
 	serviceName := service.GetObjectMeta().GetName()
-
-	if deploymentConfig == nil && statefulSetConfig == nil {
-		logrus.Warnf("Service %s has no workload", serviceName)
-	}
-
-	if deploymentConfig != nil && statefulSetConfig != nil {
-		workloads := []string{
-			deploymentConfig.Deployment.GetObjectMeta().GetName(),
-			statefulSetConfig.StatefulSet.GetObjectMeta().GetName(),
-		}
-		logrus.Error("Service %s is associated with more than one workload: %v", serviceName, workloads)
-	}
-
 	serviceAnnotations := service.GetObjectMeta().GetAnnotations()
 
 	clusterTopologyService := resolved.Service{
@@ -356,6 +341,16 @@ func newClusterTopologyServiceFromServiceConfig(
 		ServiceSpec: &service.Spec,
 	}
 
+	if deploymentConfig == nil && statefulSetConfig == nil {
+		logrus.Warnf("Service %s has no workload", serviceName)
+	}
+	if deploymentConfig != nil && statefulSetConfig != nil {
+		workloads := []string{
+			deploymentConfig.Deployment.GetObjectMeta().GetName(),
+			statefulSetConfig.StatefulSet.GetObjectMeta().GetName(),
+		}
+		logrus.Error("Service %s is associated with more than one workload: %v", serviceName, workloads)
+	}
 	if deploymentConfig != nil {
 		workload := kardinal.NewDeploymentWorkloadSpec(deploymentConfig.Deployment.Spec)
 		clusterTopologyService.WorkloadSpec = &workload
@@ -365,12 +360,8 @@ func newClusterTopologyServiceFromServiceConfig(
 		clusterTopologyService.WorkloadSpec = &workload
 	}
 
-	if clusterTopologyService.WorkloadSpec == nil {
-		return clusterTopologyService, stacktrace.NewError("Service %s has no workload", serviceName)
-	}
-
 	// Set default for IsStateful to true if the workload is a StatefulSet, otherwise false
-	clusterTopologyService.IsExternal = clusterTopologyService.WorkloadSpec.IsStatefulSet()
+	clusterTopologyService.IsStateful = clusterTopologyService.WorkloadSpec.IsStatefulSet()
 
 	// Override the IsStateful value by manual annotations
 	isStateful, ok := serviceAnnotations["kardinal.dev.service/stateful"]
