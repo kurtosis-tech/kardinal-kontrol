@@ -9,6 +9,7 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
+	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
@@ -19,7 +20,13 @@ import (
 const dummyPluginName = "https://github.com/h4ck3rk3y/identity-plugin.git"
 
 func clusterTopologyExample() resolved.ClusterTopology {
-	dummySpec := &kardinal.WorkloadSpec{}
+	dummySpec := &kardinal.WorkloadSpec{
+		DeploymentSpec: &apps.DeploymentSpec{
+			Template: v1.PodTemplateSpec{
+				Spec: v1.PodSpec{},
+			},
+		},
+	}
 	testPlugins := []*resolved.StatefulPlugin{
 		{
 			Name: dummyPluginName,
@@ -377,7 +384,13 @@ func clusterTopologyExample() resolved.ClusterTopology {
 }
 
 func getNewOBDClusterTopologyExample() resolved.ClusterTopology {
-	dummySpec := &kardinal.WorkloadSpec{}
+	dummySpec := &kardinal.WorkloadSpec{
+		DeploymentSpec: &apps.DeploymentSpec{
+			Template: v1.PodTemplateSpec{
+				Spec: v1.PodSpec{},
+			},
+		},
+	}
 	httpProtocol := "HTTP"
 
 	// Create services
