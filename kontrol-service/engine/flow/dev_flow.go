@@ -2,8 +2,8 @@ package flow
 
 import (
 	"fmt"
-	appv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	kardinal "kardinal.kontrol-service/types/kardinal"
 
 	"kardinal.kontrol-service/constants"
 
@@ -56,7 +56,6 @@ func CreateDevFlow(
 	baselineFlowVersion := baseTopology.Namespace
 	// Replace "baseline" version services with baseTopology versions
 	for i, service := range topologyRef.Services {
-
 		if service.Version == baselineFlowVersion {
 			prodService, err := baseTopology.GetService(service.ServiceID)
 			if err != nil {
@@ -151,6 +150,13 @@ func applyPatch(
 		if err != nil {
 			return err
 		}
+		if targetService.ServiceSpec == nil {
+			return stacktrace.NewError("service '%v' does not have a service spec", targetService.ServiceID)
+		}
+
+		if targetService.WorkloadSpec == nil {
+			return stacktrace.NewError("service '%v' does not have a workload spec", targetService.ServiceID)
+		}
 
 		// Find downstream stateful services
 		statefulPaths := findAllDownstreamStatefulPaths(targetService, clusterGraph, topologyRef)
@@ -222,7 +228,7 @@ func applyPatch(
 
 		// TODO SECTION 2 - Target service updates with new modifications
 		modifiedTargetService := DeepCopyService(targetService)
-		modifiedTargetService.DeploymentSpec = servicePatch.DeploymentSpec
+		modifiedTargetService.WorkloadSpec = servicePatch.WorkloadSpec
 		err = topologyRef.MoveServiceToVersion(modifiedTargetService, flowID)
 		if err != nil {
 			return err
@@ -241,7 +247,7 @@ func applyPatch(
 				}
 
 				// Apply a chain of stateful plugins to the stateful service
-				resultSpec := DeepCopyDeploymentSpec(modifiedService.DeploymentSpec)
+				resultSpec := modifiedService.WorkloadSpec.DeepCopy()
 
 				for _, plugin := range modifiedService.StatefulPlugins {
 					if plugin.Type == "external" {
@@ -269,7 +275,7 @@ func applyPatch(
 				}
 
 				// Update service with final deployment spec
-				modifiedService.DeploymentSpec = resultSpec
+				modifiedService.WorkloadSpec = resultSpec
 
 				topologyRef.Services[serviceIdx] = modifiedService
 				topologyRef.UpdateDependencies(service, modifiedService)
@@ -312,6 +318,13 @@ func applyPatch(
 
 				for _, plugin := range parentService.StatefulPlugins {
 					// assume there's only one plugin on the parent service for this external service
+					if parentService.ServiceSpec == nil {
+						return stacktrace.NewError("parent service '%v' does not have a service spec", parentService.ServiceID)
+					}
+
+					if parentService.WorkloadSpec == nil {
+						return stacktrace.NewError("parent service '%v' does not have a workload spec", targetService.ServiceID)
+					}
 
 					// TODO this is adding both kind of plugins stateful and external
 					alreadyServicesWithPlugin, ok := pluginServices[plugin.ServiceName]
@@ -347,9 +360,8 @@ func applyPatch(
 
 	// Execute plugins and update the services deployment specs with the plugin's modifications
 	for pluginServiceName, services := range pluginServices {
-		//var servicesIds []string
 		var servicesServiceSpecs []corev1.ServiceSpec
-		var servicesDeploymentSpecs []appv1.DeploymentSpec
+		var servicesWorkloadSpecs []*kardinal.WorkloadSpec
 
 		plugin, ok := pluginServicesMap[pluginServiceName]
 		if !ok {
@@ -357,31 +369,31 @@ func applyPatch(
 		}
 
 		for _, service := range services {
-			//servicesIds = append(servicesIds, service.ServiceID)
 			servicesServiceSpecs = append(servicesServiceSpecs, *service.ServiceSpec)
-			servicesDeploymentSpecs = append(servicesDeploymentSpecs, *service.DeploymentSpec)
+			servicesWorkloadSpecs = append(servicesWorkloadSpecs, service.WorkloadSpec)
 		}
 
 		pluginId := plugins.GetPluginId3(plugin.ServiceName, flowID)
 		logrus.Infof("Calling plugin '%v'...", pluginId)
 
-		servicesModifiedDeploymentSpecs, _, err := pluginRunner.CreateFlow(plugin.Name, servicesServiceSpecs, servicesDeploymentSpecs, pluginId, plugin.Args)
+		servicesModifiedWorkloadSpecs, _, err := pluginRunner.CreateFlow(plugin.Name, servicesServiceSpecs, servicesWorkloadSpecs, pluginId, plugin.Args)
 		if err != nil {
 			return stacktrace.Propagate(err, "error when creating plugin flow for plugin '%s'", pluginId)
 		}
 
-		if len(services) != len(servicesModifiedDeploymentSpecs) {
-			return fmt.Errorf("an error occurred executing plugin '%s', the number of deployment specs returned by the plugin.CreateFlow function are not equal to the number of service depending on it, please check the plugin code or report a bug in the Kardinal repository", plugin.ServiceName)
+		if len(services) != len(servicesModifiedWorkloadSpecs) {
+			return fmt.Errorf("an error occurred executing plugin '%s', the number of workload specs returned by the plugin.CreateFlow function are not equal to the number of service depending on it, please check the plugin code or report a bug in the Kardinal repository", plugin.ServiceName)
 		}
 
-		// updating the service.deployment_spec after the plugin execution
+		// updating the service.workload_spec after the plugin execution
 		for serviceIndex, serviceToUpdate := range services {
-			modifiedDeploymentSpec := servicesModifiedDeploymentSpecs[serviceIndex]
-			serviceToUpdate.DeploymentSpec = &modifiedDeploymentSpec
+			modifiedWorkloadSpec := servicesModifiedWorkloadSpecs[serviceIndex]
+			serviceToUpdate.WorkloadSpec = modifiedWorkloadSpec
 			if err := topologyRef.MoveServiceToVersion(serviceToUpdate, flowID); err != nil {
 				return fmt.Errorf("an error occurred updating service '%s'", serviceToUpdate.ServiceID)
 			}
 		}
+
 	}
 
 	return nil

@@ -9,17 +9,24 @@ import (
 
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/require"
-	appsv1 "k8s.io/api/apps/v1"
+	apps "k8s.io/api/apps/v1"
 	v1 "k8s.io/api/core/v1"
 	netv1 "k8s.io/api/networking/v1"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
 	"kardinal.kontrol-service/types/flow_spec"
+	kardinal "kardinal.kontrol-service/types/kardinal"
 )
 
 const dummyPluginName = "https://github.com/h4ck3rk3y/identity-plugin.git"
 
 func clusterTopologyExample() resolved.ClusterTopology {
-	dummySpec := &appsv1.DeploymentSpec{}
+	dummySpec := &kardinal.WorkloadSpec{
+		DeploymentSpec: &apps.DeploymentSpec{
+			Template: v1.PodTemplateSpec{
+				Spec: v1.PodSpec{},
+			},
+		},
+	}
 	testPlugins := []*resolved.StatefulPlugin{
 		{
 			Name: dummyPluginName,
@@ -42,9 +49,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 				"app": "frontend",
 			},
 		},
-		DeploymentSpec: dummySpec,
-		IsExternal:     false,
-		IsStateful:     false,
+		WorkloadSpec: dummySpec,
+		IsExternal:   false,
+		IsStateful:   false,
 		StatefulPlugins: []*resolved.StatefulPlugin{
 			{
 				Name:        dummyPluginName,
@@ -69,9 +76,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 				"app": "cartservice",
 			},
 		},
-		DeploymentSpec: dummySpec,
-		IsExternal:     false,
-		IsStateful:     false,
+		WorkloadSpec: dummySpec,
+		IsExternal:   false,
+		IsStateful:   false,
 		StatefulPlugins: []*resolved.StatefulPlugin{
 			{
 				Name:        dummyPluginName,
@@ -96,9 +103,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 				"app": "productcatalogservice",
 			},
 		},
-		DeploymentSpec: dummySpec,
-		IsExternal:     false,
-		IsStateful:     false,
+		WorkloadSpec: dummySpec,
+		IsExternal:   false,
+		IsStateful:   false,
 	}
 
 	paymentService := resolved.Service{
@@ -115,7 +122,7 @@ func clusterTopologyExample() resolved.ClusterTopology {
 				"app": "paymentservice",
 			},
 		},
-		DeploymentSpec:  dummySpec,
+		WorkloadSpec:    dummySpec,
 		IsExternal:      false,
 		IsStateful:      true,
 		StatefulPlugins: testPlugins,
@@ -135,7 +142,7 @@ func clusterTopologyExample() resolved.ClusterTopology {
 				"app": "shippingservice",
 			},
 		},
-		DeploymentSpec:  dummySpec,
+		WorkloadSpec:    dummySpec,
 		IsExternal:      false,
 		IsStateful:      true,
 		StatefulPlugins: testPlugins,
@@ -155,9 +162,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 				"app": "checkoutservice",
 			},
 		},
-		DeploymentSpec: dummySpec,
-		IsExternal:     false,
-		IsStateful:     false,
+		WorkloadSpec: dummySpec,
+		IsExternal:   false,
+		IsStateful:   false,
 	}
 
 	recommendationService := resolved.Service{
@@ -174,9 +181,9 @@ func clusterTopologyExample() resolved.ClusterTopology {
 				"app": "recommendationservice",
 			},
 		},
-		DeploymentSpec: dummySpec,
-		IsExternal:     false,
-		IsStateful:     false,
+		WorkloadSpec: dummySpec,
+		IsExternal:   false,
+		IsStateful:   false,
 	}
 
 	redisService := resolved.Service{
@@ -192,7 +199,7 @@ func clusterTopologyExample() resolved.ClusterTopology {
 				"app": "redis",
 			},
 		},
-		DeploymentSpec:  dummySpec,
+		WorkloadSpec:    dummySpec,
 		IsExternal:      false,
 		IsStateful:      true,
 		StatefulPlugins: testPlugins,
@@ -202,7 +209,7 @@ func clusterTopologyExample() resolved.ClusterTopology {
 	neonService := resolved.Service{
 		ServiceID:       "neon-postgres-db",
 		ServiceSpec:     nil,
-		DeploymentSpec:  nil,
+		WorkloadSpec:    nil,
 		IsExternal:      true,
 		IsStateful:      false, // neon is technically stateful but right now IsExternal and IsStateful are mutually exclusive
 		StatefulPlugins: nil,
@@ -211,7 +218,7 @@ func clusterTopologyExample() resolved.ClusterTopology {
 	freeCurrencyApiService := resolved.Service{
 		ServiceID:       "free-currency-api",
 		ServiceSpec:     nil,
-		DeploymentSpec:  nil,
+		WorkloadSpec:    nil,
 		IsExternal:      true,
 		IsStateful:      false,
 		StatefulPlugins: nil,
@@ -377,7 +384,13 @@ func clusterTopologyExample() resolved.ClusterTopology {
 }
 
 func getNewOBDClusterTopologyExample() resolved.ClusterTopology {
-	dummySpec := &appsv1.DeploymentSpec{}
+	dummySpec := &kardinal.WorkloadSpec{
+		DeploymentSpec: &apps.DeploymentSpec{
+			Template: v1.PodTemplateSpec{
+				Spec: v1.PodSpec{},
+			},
+		},
+	}
 	httpProtocol := "HTTP"
 
 	// Create services
@@ -395,9 +408,9 @@ func getNewOBDClusterTopologyExample() resolved.ClusterTopology {
 				"app": "frontend",
 			},
 		},
-		DeploymentSpec: dummySpec,
-		IsExternal:     false,
-		IsStateful:     false,
+		WorkloadSpec: dummySpec,
+		IsExternal:   false,
+		IsStateful:   false,
 		StatefulPlugins: []*resolved.StatefulPlugin{
 			{
 				Name:        dummyPluginName,
@@ -422,9 +435,9 @@ func getNewOBDClusterTopologyExample() resolved.ClusterTopology {
 				"app": "cartservice",
 			},
 		},
-		DeploymentSpec: dummySpec,
-		IsExternal:     false,
-		IsStateful:     false,
+		WorkloadSpec: dummySpec,
+		IsExternal:   false,
+		IsStateful:   false,
 		StatefulPlugins: []*resolved.StatefulPlugin{
 			{
 				Name:        dummyPluginName,
@@ -449,9 +462,9 @@ func getNewOBDClusterTopologyExample() resolved.ClusterTopology {
 				"app": "productcatalogservice",
 			},
 		},
-		DeploymentSpec: dummySpec,
-		IsExternal:     false,
-		IsStateful:     false,
+		WorkloadSpec: dummySpec,
+		IsExternal:   false,
+		IsStateful:   false,
 	}
 
 	postgresService := resolved.Service{
@@ -467,15 +480,15 @@ func getNewOBDClusterTopologyExample() resolved.ClusterTopology {
 				"app": "postgres",
 			},
 		},
-		DeploymentSpec: dummySpec,
-		IsExternal:     false,
-		IsStateful:     true,
+		WorkloadSpec: dummySpec,
+		IsExternal:   false,
+		IsStateful:   true,
 	}
 
 	jsdeliverAPIPluginService := resolved.Service{
 		ServiceID:       "jsdelivr-api",
 		ServiceSpec:     nil,
-		DeploymentSpec:  nil,
+		WorkloadSpec:    nil,
 		IsExternal:      true,
 		IsStateful:      false,
 		StatefulPlugins: nil,
@@ -710,8 +723,8 @@ func TestDevFlowImmutability(t *testing.T) {
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{
 			{
-				Service:        "checkoutservice",
-				DeploymentSpec: checkoutservice.DeploymentSpec,
+				Service:      "checkoutservice",
+				WorkloadSpec: checkoutservice.WorkloadSpec,
 			},
 		},
 	}
@@ -761,8 +774,8 @@ func TestFlowMerging(t *testing.T) {
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{
 			{
-				Service:        "checkoutservice",
-				DeploymentSpec: checkoutservice.DeploymentSpec,
+				Service:      "checkoutservice",
+				WorkloadSpec: checkoutservice.WorkloadSpec,
 			},
 		},
 	}
@@ -800,8 +813,8 @@ func TestExternalServicesFlowOnDependentService(t *testing.T) {
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{
 			{
-				Service:        "cartservice",
-				DeploymentSpec: cartservice.DeploymentSpec,
+				Service:      "cartservice",
+				WorkloadSpec: cartservice.WorkloadSpec,
 			},
 		},
 	}
@@ -833,8 +846,8 @@ func TestExternalServicesCreateDevFlowOnNotDependentService(t *testing.T) {
 		FlowId: "dev-flow-1",
 		ServicePatches: []flow_spec.ServicePatch{
 			{
-				Service:        "frontend",
-				DeploymentSpec: frontend.DeploymentSpec,
+				Service:      "frontend",
+				WorkloadSpec: frontend.WorkloadSpec,
 			},
 		},
 	}

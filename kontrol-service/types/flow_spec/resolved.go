@@ -1,6 +1,6 @@
 package flow_spec
 
-import v1 "k8s.io/api/apps/v1"
+import kardinal "kardinal.kontrol-service/types/kardinal"
 
 type FlowPatch struct {
 	FlowId         string
@@ -8,6 +8,6 @@ type FlowPatch struct {
 }
 
 type ServicePatch struct {
-	Service        string
-	DeploymentSpec *v1.DeploymentSpec
+	Service      string
+	WorkloadSpec *kardinal.WorkloadSpec
 }

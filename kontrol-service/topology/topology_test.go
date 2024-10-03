@@ -19,6 +19,7 @@ import (
 
 func TestServiceConfigsToTopology(t *testing.T) {
 	testServiceConfigs := []apitypes.ServiceConfig{}
+	testDeploymentConfigs := []apitypes.DeploymentConfig{}
 
 	// Redis prod service
 	allowEmpty := "yes"
@@ -56,6 +57,9 @@ func TestServiceConfigsToTopology(t *testing.T) {
 				},
 			},
 		},
+	})
+
+	testDeploymentConfigs = append(testDeploymentConfigs, apitypes.DeploymentConfig{
 		Deployment: apps.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "v1",
@@ -151,6 +155,9 @@ func TestServiceConfigsToTopology(t *testing.T) {
 				},
 			},
 		},
+	})
+
+	testDeploymentConfigs = append(testDeploymentConfigs, apitypes.DeploymentConfig{
 		Deployment: apps.Deployment{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "v1",
@@ -240,7 +247,8 @@ func TestServiceConfigsToTopology(t *testing.T) {
 
 	testGatewayConfigs := []apitypes.GatewayConfig{}
 	testRouteConfigs := []apitypes.RouteConfig{}
-	clusterTopology, err := engine.GenerateProdOnlyCluster("prod", testServiceConfigs, testIngressConfigs, testGatewayConfigs, testRouteConfigs, "prod")
+	testStatefulSetConfigs := []apitypes.StatefulSetConfig{}
+	clusterTopology, err := engine.GenerateProdOnlyCluster("prod", testServiceConfigs, testDeploymentConfigs, testStatefulSetConfigs, testIngressConfigs, testGatewayConfigs, testRouteConfigs, "prod")
 	if err != nil {
 		t.Errorf("Error generating cluster: %s", err)
 		return
@@ -253,14 +261,11 @@ func TestServiceConfigsToTopology(t *testing.T) {
 		if service == nil {
 			panic("Service is nil")
 		}
-		if service.DeploymentSpec == nil {
-			panic("DeploymentSpec is nil: " + service.ServiceID)
-		}
-		if len(service.DeploymentSpec.Template.Spec.Containers) == 0 {
+		if len(service.WorkloadSpec.GetTemplateSpec().Containers) == 0 {
 			panic("DeploymentSpec is empty: " + service.ServiceID)
 		}
-		image := service.DeploymentSpec.Template.Spec.Containers[0].Image
-		service.DeploymentSpec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s.a", image)
+		image := service.WorkloadSpec.GetTemplateSpec().Containers[0].Image
+		service.WorkloadSpec.GetTemplateSpec().Containers[0].Image = fmt.Sprintf("%s.a", image)
 	}
 
 	clusterTopologyFlowB := deepcopy.Copy(*clusterTopology).(resolved.ClusterTopology)
@@ -268,8 +273,8 @@ func TestServiceConfigsToTopology(t *testing.T) {
 	clusterTopologyFlowB.FlowID = flowID
 	for _, service := range clusterTopologyFlowB.Services {
 		service.Version = flowID
-		image := service.DeploymentSpec.Template.Spec.Containers[0].Image
-		service.DeploymentSpec.Template.Spec.Containers[0].Image = fmt.Sprintf("%s.b", image)
+		image := service.WorkloadSpec.GetTemplateSpec().Containers[0].Image
+		service.WorkloadSpec.GetTemplateSpec().Containers[0].Image = fmt.Sprintf("%s.b", image)
 	}
 	allFlows := []resolved.ClusterTopology{}
 	allFlows = append(allFlows, clusterTopologyFlowA, clusterTopologyFlowB)

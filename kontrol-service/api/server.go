@@ -67,7 +67,7 @@ func (sv *Server) GetHealth(_ context.Context, _ api.GetHealthRequestObject) (ap
 }
 
 func (sv *Server) GetTenantUuidFlows(_ context.Context, request api.GetTenantUuidFlowsRequestObject) (api.GetTenantUuidFlowsResponseObject, error) {
-	clusterTopology, allFlows, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	clusterTopology, allFlows, _, _, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
 		resourceType := "tenant"
 		missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
@@ -87,6 +87,16 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 	logrus.Infof("deploying baseline cluster for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_DEPLOY, request.Uuid)
 	serviceConfigs := *request.Body.ServiceConfigs
+
+	deploymentConfigs := []apitypes.DeploymentConfig{}
+	if request.Body.DeploymentConfigs != nil {
+		deploymentConfigs = *request.Body.DeploymentConfigs
+	}
+
+	statefulSetConfigs := []apitypes.StatefulSetConfig{}
+	if request.Body.StatefulSetConfigs != nil {
+		statefulSetConfigs = *request.Body.StatefulSetConfigs
+	}
 
 	ingressConfigs := []apitypes.IngressConfig{}
 	if request.Body.IngressConfigs != nil {
@@ -110,7 +120,7 @@ func (sv *Server) PostTenantUuidDeploy(_ context.Context, request api.PostTenant
 	}
 
 	flowId := namespace
-	entries, err := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, ingressConfigs, gatewayConfigs, routesConfigs, namespace, flowId)
+	entries, err := applyProdOnlyFlow(sv, request.Uuid, serviceConfigs, deploymentConfigs, statefulSetConfigs, ingressConfigs, gatewayConfigs, routesConfigs, namespace, flowId)
 	if err != nil {
 		errMsg := fmt.Sprintf("An error occurred deploying flow '%v'", flowId)
 		errResp := api.ErrorJSONResponse{
@@ -128,7 +138,7 @@ func (sv *Server) DeleteTenantUuidFlowFlowId(_ context.Context, request api.Dele
 	logrus.Infof("deleting dev flow for tenant '%s'", request.Uuid)
 	sv.analyticsWrapper.TrackEvent(EVENT_FLOW_DELETE, request.Uuid)
 
-	baseClusterTopology, allFlows, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	baseClusterTopology, allFlows, _, _, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
 		resourceType := "tenant"
 		missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
@@ -235,10 +245,9 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 }
 
 func (sv *Server) checkOrCreateFlowID(tenantUuid apitypes.Uuid, requestFlowId *string) (string, bool, error) {
-
 	var flowIdAlreadyExist bool
 
-	clusterTopology, allFlows, _, _, _, _, _, err := getTenantTopologies(sv, tenantUuid)
+	clusterTopology, allFlows, _, _, _, _, _, _, _, err := getTenantTopologies(sv, tenantUuid)
 	if err != nil {
 		return "", flowIdAlreadyExist, err
 	}
@@ -270,7 +279,7 @@ func (sv *Server) checkOrCreateFlowID(tenantUuid apitypes.Uuid, requestFlowId *s
 func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenantUuidTopologyRequestObject) (api.GetTenantUuidTopologyResponseObject, error) {
 	logrus.Infof("getting topology for tenant '%s'", request.Uuid)
 
-	clusterTopology, allFlows, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	clusterTopology, allFlows, _, _, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
 		resourceType := "tenant"
 		missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
@@ -283,7 +292,7 @@ func (sv *Server) GetTenantUuidTopology(_ context.Context, request api.GetTenant
 }
 
 func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request managerapi.GetTenantUuidClusterResourcesRequestObject) (managerapi.GetTenantUuidClusterResourcesResponseObject, error) {
-	clusterTopology, allFlows, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	clusterTopology, allFlows, _, _, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
 		return nil, nil
 	}
@@ -297,7 +306,7 @@ func (sv *Server) GetTenantUuidClusterResources(_ context.Context, request manag
 
 func (sv *Server) GetTenantUuidManifest(_ context.Context, request api.GetTenantUuidManifestRequestObject) (api.GetTenantUuidManifestResponseObject, error) {
 	logrus.Infof("generating manifest for tenant '%s'", request.Uuid)
-	clusterTopology, allFlows, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	clusterTopology, allFlows, _, _, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
 		logrus.WithError(err).Errorf("An error occurred while getting topologys for tenant '%s'", request.Uuid)
 		return nil, err
@@ -395,7 +404,7 @@ func (sv *Server) GetTenantUuidManifest(_ context.Context, request api.GetTenant
 }
 
 func (sv *Server) GetTenantUuidTemplates(ctx context.Context, request api.GetTenantUuidTemplatesRequestObject) (api.GetTenantUuidTemplatesResponseObject, error) {
-	_, _, tenantTemplates, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
+	_, _, tenantTemplates, _, _, _, _, _, _, err := getTenantTopologies(sv, request.Uuid)
 	if err != nil {
 		resourceType := "tenant"
 		missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
@@ -415,7 +424,7 @@ func (sv *Server) DeleteTenantUuidTemplatesTemplateName(_ context.Context, reque
 	tenantUuid := request.Uuid
 	templateName := request.TemplateName
 
-	_, _, tenantTemplates, _, _, _, _, err := getTenantTopologies(sv, tenantUuid)
+	_, _, tenantTemplates, _, _, _, _, _, _, err := getTenantTopologies(sv, tenantUuid)
 	if err != nil {
 		resourceType := "tenant"
 		missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
@@ -448,7 +457,7 @@ func (sv *Server) PostTenantUuidTemplatesCreate(_ context.Context, request api.P
 	templateOverrides := request.Body.Service
 	templateId := getRandTemplateID()
 
-	_, _, tenantTemplates, _, _, _, _, err := getTenantTopologies(sv, tenantUuid)
+	_, _, tenantTemplates, _, _, _, _, _, _, err := getTenantTopologies(sv, tenantUuid)
 	if err != nil {
 		resourceType := "tenant"
 		missing := api.NotFoundJSONResponse{ResourceType: resourceType, Id: request.Uuid}
@@ -507,13 +516,15 @@ func applyProdOnlyFlow(
 	sv *Server,
 	tenantUuidStr string,
 	serviceConfigs []apitypes.ServiceConfig,
+	deploymentConfigs []apitypes.DeploymentConfig,
+	statefulSetConfigs []apitypes.StatefulSetConfig,
 	ingressConfigs []apitypes.IngressConfig,
 	gatewayConfigs []apitypes.GatewayConfig,
 	routeConfigs []apitypes.RouteConfig,
 	namespace string,
 	flowID string,
 ) ([]resolved.IngressAccessEntry, error) {
-	clusterTopology, err := engine.GenerateProdOnlyCluster(flowID, serviceConfigs, ingressConfigs, gatewayConfigs, routeConfigs, namespace)
+	clusterTopology, err := engine.GenerateProdOnlyCluster(flowID, serviceConfigs, deploymentConfigs, statefulSetConfigs, ingressConfigs, gatewayConfigs, routeConfigs, namespace)
 	if err != nil {
 		return nil, err
 	}
@@ -538,6 +549,20 @@ func applyProdOnlyFlow(
 	}
 	tenant.ServiceConfigs = serviceConfigsJson
 
+	deploymentConfigsJson, err := json.Marshal(deploymentConfigs)
+	if err != nil {
+		logrus.Errorf("an error occured while encoding the deployment configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
+		return nil, err
+	}
+	tenant.DeploymentConfigs = deploymentConfigsJson
+
+	statefulSetConfigsJson, err := json.Marshal(statefulSetConfigs)
+	if err != nil {
+		logrus.Errorf("an error occured while encoding the stateful set configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
+		return nil, err
+	}
+	tenant.StatefulSetConfigs = statefulSetConfigsJson
+
 	ingressConfigsJson, err := json.Marshal(ingressConfigs)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the ingress configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
@@ -550,14 +575,14 @@ func applyProdOnlyFlow(
 		logrus.Errorf("an error occured while encoding the gateway configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
 		return nil, err
 	}
-	tenant.IngressConfigs = gatewayConfigsJson
+	tenant.GatewayConfigs = gatewayConfigsJson
 
 	routeConfigsJson, err := json.Marshal(routeConfigs)
 	if err != nil {
 		logrus.Errorf("an error occured while encoding the ingress configs for tenant %s, error was \n: '%v'", tenantUuidStr, err.Error())
 		return nil, err
 	}
-	tenant.IngressConfigs = routeConfigsJson
+	tenant.RouteConfigs = routeConfigsJson
 
 	err = sv.db.SaveTenant(tenant)
 	if err != nil {
@@ -578,10 +603,9 @@ func applyProdDevFlow(
 	patches []flow_spec.ServicePatchSpec,
 	templateSpec *apitypes.TemplateSpec,
 ) ([]resolved.IngressAccessEntry, error) {
-
 	logrus.Debugf("generating base cluster topology for tenant %s on flowID %s", tenantUuidStr, flowID)
 
-	baseTopology, _, tenantTemplates, serviceConfigs, ingressConfigs, gatewayConfigs, routeConfigs, err := getTenantTopologies(sv, tenantUuidStr)
+	baseTopology, _, tenantTemplates, serviceConfigs, deploymentConfigs, statefulSetConfigs, ingressConfigs, gatewayConfigs, routeConfigs, err := getTenantTopologies(sv, tenantUuidStr)
 	if err != nil {
 		return nil, fmt.Errorf("no base cluster topology found for tenant %s, did you deploy the cluster?", tenantUuidStr)
 	}
@@ -599,7 +623,7 @@ func applyProdDevFlow(
 		// the baseline flow ID uses the base cluster topology namespace name
 		baselineFlowID := baseClusterTopologyMaybeWithTemplateOverrides.Namespace
 
-		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(baselineFlowID, serviceConfigs, ingressConfigs, gatewayConfigs, routeConfigs, baseTopology.Namespace)
+		baseClusterTopologyWithTemplateOverridesPtr, err := engine.GenerateProdOnlyCluster(baselineFlowID, serviceConfigs, deploymentConfigs, statefulSetConfigs, ingressConfigs, gatewayConfigs, routeConfigs, baseTopology.Namespace)
 		if err != nil {
 			return nil, fmt.Errorf("an error occurred while creating base cluster topology from templates:\n %s", err)
 		}
@@ -643,15 +667,25 @@ func applyProdDevFlow(
 // - Base service configs
 // - Base ingress configs
 // TOOD: Could return a struct if it becomes too heavy to manipulate the return values.
-func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTopology, map[string]resolved.ClusterTopology, map[string]templates.Template, []apitypes.ServiceConfig, []apitypes.IngressConfig, []apitypes.GatewayConfig, []apitypes.RouteConfig, error) {
+func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTopology,
+	map[string]resolved.ClusterTopology,
+	map[string]templates.Template,
+	[]apitypes.ServiceConfig,
+	[]apitypes.DeploymentConfig,
+	[]apitypes.StatefulSetConfig,
+	[]apitypes.IngressConfig,
+	[]apitypes.GatewayConfig,
+	[]apitypes.RouteConfig,
+	error,
+) {
 	tenant, err := sv.db.GetTenant(tenantUuidStr)
 	if err != nil {
 		logrus.Errorf("an error occured while getting the tenant %s\n: '%v'", tenantUuidStr, err.Error())
-		return nil, nil, nil, nil, nil, nil, nil, err
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 	}
 
 	if tenant == nil {
-		return nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("Cannot find tenant %s", tenantUuidStr)
+		return nil, nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("Cannot find tenant %s", tenantUuidStr)
 	}
 
 	flows := map[string]resolved.ClusterTopology{}
@@ -660,7 +694,7 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 		err := json.Unmarshal(flow.ClusterTopology, &clusterTopology)
 		if err != nil {
 			logrus.Errorf("An error occurred decoding the cluster topology for flow '%v'", flow.FlowId)
-			return nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 		flows[flow.FlowId] = clusterTopology
 	}
@@ -671,7 +705,7 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 		err := json.Unmarshal(tenantTemplate.Body, &template)
 		if err != nil {
 			logrus.Errorf("An error occurred decoding the template body for template '%v'", tenantTemplate.Name)
-			return nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 		tenantTemplates[tenantTemplate.Name] = template
 	}
@@ -681,7 +715,7 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 		err = json.Unmarshal(tenant.BaseClusterTopology, &baseClusterTopology)
 		if err != nil {
 			logrus.Errorf("An error occurred decoding the cluster topology for tenant '%v'", tenantUuidStr)
-			return nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	} else {
 		baseClusterTopology.FlowID = defaultBaselineFlowId
@@ -693,7 +727,25 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 		err = json.Unmarshal(tenant.ServiceConfigs, &serviceConfigs)
 		if err != nil {
 			logrus.Errorf("An error occurred decoding the service configs for tenant '%v'", tenantUuidStr)
-			return nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		}
+	}
+
+	var deploymentConfigs []apitypes.DeploymentConfig
+	if tenant.DeploymentConfigs != nil {
+		err = json.Unmarshal(tenant.DeploymentConfigs, &deploymentConfigs)
+		if err != nil {
+			logrus.Errorf("An error occurred decoding the deployment configs for tenant '%v'", tenantUuidStr)
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
+		}
+	}
+
+	var statefulSetConfigs []apitypes.StatefulSetConfig
+	if tenant.StatefulSetConfigs != nil {
+		err = json.Unmarshal(tenant.StatefulSetConfigs, &statefulSetConfigs)
+		if err != nil {
+			logrus.Errorf("An error occurred decoding the stateful set configs for tenant '%v'", tenantUuidStr)
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
 
@@ -702,7 +754,7 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 		err = json.Unmarshal(tenant.IngressConfigs, &ingressConfigs)
 		if err != nil {
 			logrus.Errorf("An error occurred decoding the ingress configs for tenant '%v'", tenantUuidStr)
-			return nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
 
@@ -711,7 +763,7 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 		err = json.Unmarshal(tenant.GatewayConfigs, &gatewayConfigs)
 		if err != nil {
 			logrus.Errorf("An error occurred decoding the gateway configs for tenant '%v'", tenantUuidStr)
-			return nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
 
@@ -720,11 +772,11 @@ func getTenantTopologies(sv *Server, tenantUuidStr string) (*resolved.ClusterTop
 		err = json.Unmarshal(tenant.RouteConfigs, &routeConfigs)
 		if err != nil {
 			logrus.Errorf("An error occurred decoding the route configs for tenant '%v'", tenantUuidStr)
-			return nil, nil, nil, nil, nil, nil, nil, err
+			return nil, nil, nil, nil, nil, nil, nil, nil, nil, err
 		}
 	}
 
-	return &baseClusterTopology, flows, tenantTemplates, serviceConfigs, ingressConfigs, gatewayConfigs, routeConfigs, nil
+	return &baseClusterTopology, flows, tenantTemplates, serviceConfigs, deploymentConfigs, statefulSetConfigs, ingressConfigs, gatewayConfigs, routeConfigs, nil
 }
 
 func deleteTenantTopologies(sv *Server, tenantUuidStr string) error {
@@ -736,6 +788,8 @@ func deleteTenantTopologies(sv *Server, tenantUuidStr string) error {
 
 	tenant.BaseClusterTopology = nil
 	tenant.ServiceConfigs = nil
+	tenant.DeploymentConfigs = nil
+	tenant.StatefulSetConfigs = nil
 	tenant.IngressConfigs = nil
 
 	err = sv.db.SaveTenant(tenant)
@@ -774,8 +828,9 @@ func newClIAPITemplates(templates []templates.Template) []apitypes.Template {
 
 func newManagerAPIClusterResources(clusterResources types.ClusterResources) managerapitypes.ClusterResources {
 	return managerapitypes.ClusterResources{
-		Deployments:           &clusterResources.Deployments,
 		Services:              &clusterResources.Services,
+		Deployments:           &clusterResources.Deployments,
+		StatefulSets:          &clusterResources.StatefulSets,
 		VirtualServices:       &clusterResources.VirtualServices,
 		DestinationRules:      &clusterResources.DestinationRules,
 		Gateways:              &clusterResources.Gateways,

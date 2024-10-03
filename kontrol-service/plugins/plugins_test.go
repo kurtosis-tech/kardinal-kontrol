@@ -9,6 +9,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"kardinal.kontrol-service/database"
+	kardinal "kardinal.kontrol-service/types/kardinal"
 )
 
 const (
@@ -18,6 +19,8 @@ const (
 	redisPlugin    = "https://github.com/fake-org/kardinal-redis-sidecar-plugin-example.git"
 	flowUuid       = "test-flow-uuid"
 )
+
+
 
 // TODO Add a test for checking that different env vars values between deployment specs remains the same after the plugin execution
 // TODO this is for testing determinism
@@ -61,6 +64,12 @@ var deploymentSpecs = []appv1.DeploymentSpec{
 	},
 }
 
+var workloadSpec = kardinal.NewDeploymentWorkloadSpec(deploymentSpecs[0])
+
+var workloadSpecs = []*kardinal.WorkloadSpec{
+	&workloadSpec,
+}
+
 func getPluginRunner(t *testing.T) (*PluginRunner, func() error) {
 	db, cleanUpDbFunc, err := database.NewSQLiteDB()
 	require.NoError(t, err)
@@ -86,14 +95,12 @@ func TestSimplePlugin(t *testing.T) {
 		"text_to_replace": "helloworld",
 	}
 
-	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(simplePlugin, serviceSpecs, deploymentSpecs, flowUuid, arguments)
+	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(simplePlugin, serviceSpecs, workloadSpecs, flowUuid, arguments)
 	require.NoError(t, err)
 
 	for _, updatedDeploymentSpec := range updatedDeploymentSpecs {
 		// Check if the deployment spec was updated correctly
-		require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Template.Labels["app"])
-		require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Selector.MatchLabels["app"])
-		require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.Template.Spec.Containers[0].Name)
+		require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.GetTemplateSpec().Containers[0].Name)
 	}
 
 	// Verify the config map
@@ -115,7 +122,7 @@ func TestIdentityPlugin(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpecs, deploymentSpecs, flowUuid, map[string]string{})
+	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpecs, workloadSpecs, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
@@ -140,13 +147,13 @@ func TestComplexPlugin(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(complexPlugin, serviceSpecs, deploymentSpecs, flowUuid, map[string]string{})
+	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(complexPlugin, serviceSpecs, workloadSpecs, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	for _, updatedDeploymentSpec := range updatedDeploymentSpecs {
 		// Check if the deployment spec was updated correctly
-		require.NotEqual(t, "ip_addr", updatedDeploymentSpec.Template.Spec.Containers[0].Env[0].Value)
-		require.Regexp(t, `\b(?:\d{1,3}\.){3}\d{1,3}\b`, updatedDeploymentSpec.Template.Spec.Containers[0].Env[0].Value)
+		require.NotEqual(t, "ip_addr", updatedDeploymentSpec.GetTemplateSpec().Containers[0].Env[0].Value)
+		require.Regexp(t, `\b(?:\d{1,3}\.){3}\d{1,3}\b`, updatedDeploymentSpec.GetTemplateSpec().Containers[0].Env[0].Value)
 	}
 
 	// Verify the config map
@@ -168,12 +175,12 @@ func TestRedisPluginTest(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(redisPlugin, serviceSpecs, deploymentSpecs, flowUuid, map[string]string{})
+	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(redisPlugin, serviceSpecs, workloadSpecs, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	for _, updatedDeploymentSpec := range updatedDeploymentSpecs {
 		// Check if the deployment spec was updated correctly
-		require.Equal(t, "kurtosistech/redis-proxy-overlay:latest", updatedDeploymentSpec.Template.Spec.Containers[0].Image)
+		require.Equal(t, "kurtosistech/redis-proxy-overlay:latest", updatedDeploymentSpec.GetTemplateSpec().Containers[0].Image)
 	}
 
 	// Verify the config map

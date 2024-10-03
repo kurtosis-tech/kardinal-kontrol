@@ -11,9 +11,9 @@ import (
 
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"kardinal.kontrol-service/database"
-
-	appv1 "k8s.io/api/apps/v1"
+	kardinal "kardinal.kontrol-service/types/kardinal"
 )
 
 const (
@@ -43,7 +43,15 @@ func NewPluginRunner(gitPluginProvider GitPluginProvider, tenantId string, db *d
 	}
 }
 
-func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpecs []corev1.ServiceSpec, deploymentSpecs []appv1.DeploymentSpec, flowUuid string, arguments map[string]string) ([]appv1.DeploymentSpec, string, error) {
+func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpecs []corev1.ServiceSpec, originalWorkloadSpecs []*kardinal.WorkloadSpec, flowUuid string, arguments map[string]string) ([]*kardinal.WorkloadSpec, string, error) {
+	var workloadSpecs []*kardinal.WorkloadSpec
+	var podSpecs []*v1.PodSpec
+	for _, originalWorkloadSpec := range originalWorkloadSpecs {
+		workloadSpec := originalWorkloadSpec.DeepCopy()
+		workloadSpecs = append(workloadSpecs, workloadSpec)
+		podSpecs = append(podSpecs, workloadSpec.GetTemplateSpec())
+	}
+
 	repoPath, err := pr.getOrCloneRepo(pluginUrl)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get or clone repository: %v", err)
@@ -55,13 +63,14 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpecs []corev1.Servi
 	}
 	serviceSpecsJSONStr := base64.StdEncoding.EncodeToString(serviceSpecsJSON)
 
-	deploymentSpecsJSON, err := json.Marshal(deploymentSpecs)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to marshal deployment specs: %v", err)
-	}
-	deploymentSpecsJSONStr := base64.StdEncoding.EncodeToString(deploymentSpecsJSON)
 
-	result, err := runPythonCreateFlow(repoPath, serviceSpecsJSONStr, deploymentSpecsJSONStr, flowUuid, arguments)
+	podSpecsJSON, err := json.Marshal(podSpecs)
+	if err != nil {
+		return nil, "", fmt.Errorf("failed to marshal pod specs: %v", err)
+	}
+	podSpecsJSONStr := base64.StdEncoding.EncodeToString(podSpecsJSON)
+
+	result, err := runPythonCreateFlow(repoPath, serviceSpecsJSONStr, podSpecsJSONStr, flowUuid, arguments)
 	if err != nil {
 		return nil, "", err
 	}
@@ -72,10 +81,23 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpecs []corev1.Servi
 		return nil, "", fmt.Errorf("failed to parse result: %v", err)
 	}
 
-	var newDeploymentSpecs []appv1.DeploymentSpec
-	err = json.Unmarshal(resultMap["deployment_specs"], &newDeploymentSpecs)
-	if err != nil {
-		return nil, "", fmt.Errorf("failed to unmarshal deployment spec: %v", err)
+	if resultMap["pod_specs"] == nil {
+		return nil, "", fmt.Errorf("no pod_specs found in plugin result")
+	} else {
+		var newPodSpecs []v1.PodSpec
+		err = json.Unmarshal(resultMap["pod_specs"], &newPodSpecs)
+		if err != nil {
+			logrus.Errorf("Failed to unmarshal pod specs: %v", string(resultMap["pod_specs"]))
+			return nil, "", fmt.Errorf("failed to unmarshal pod specs: %v", err)
+		}
+		numWorkloadSpecs := len(workloadSpecs)
+		numNewPodSpecs := len(newPodSpecs)
+		if numWorkloadSpecs != numNewPodSpecs {
+			return nil, "", fmt.Errorf("expected to receive '%d' modified pod specs from plugin '%s' execution result but '%d' were received instead, this is a bug in Kardinal", numWorkloadSpecs, flowUuid, numNewPodSpecs)
+		}
+		for newPodSpecIdx, newPodSpec := range newPodSpecs{
+			workloadSpecs[newPodSpecIdx].UpdateTemplateSpec(newPodSpec)
+		}
 	}
 
 	configMapJSON := resultMap["config_map"]
@@ -96,7 +118,7 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpecs []corev1.Servi
 		return nil, "", fmt.Errorf("failed to store the config map: %v", err)
 	}
 
-	return newDeploymentSpecs, string(configMapBytes), nil
+	return workloadSpecs, string(configMapBytes), nil
 }
 
 func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string) error {
@@ -150,7 +172,7 @@ func (pr *PluginRunner) getConfigForFlow(flowUuid string) (string, error) {
 	return pluginConfig.Config, nil
 }
 
-func runPythonCreateFlow(repoPath, serviceSpecsJSONStr, deploymentSpecsJSONStr, flowUuid string, arguments map[string]string) (string, error) {
+func runPythonCreateFlow(repoPath, serviceSpecsJSONStr, podSpecsJSONStr, flowUuid string, arguments map[string]string) (string, error) {
 	scriptPath := filepath.Join(repoPath, "main.py")
 
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
@@ -192,8 +214,8 @@ import main
 
 service_specs_json = base64.b64decode('%s').decode('utf-8')
 service_specs = json.loads(service_specs_json)
-deployment_specs_json = base64.b64decode('%s').decode('utf-8')
-deployment_specs = json.loads(deployment_specs_json)
+pod_specs_json = base64.b64decode('%s').decode('utf-8')
+pod_specs = json.loads(pod_specs_json)
 flow_uuid = %q
 args_json = base64.b64decode('%s').decode('utf-8')
 args = json.loads(args_json)
@@ -206,8 +228,8 @@ kwargs = {}
 for param in sig.parameters.values():
     if param.name == 'service_specs':
         kwargs['service_specs'] = service_specs
-    elif param.name == 'deployment_specs':
-        kwargs['deployment_specs'] = deployment_specs
+    elif param.name == 'pod_specs':
+        kwargs['pod_specs'] = pod_specs
     elif param.name == 'flow_uuid':
         kwargs['flow_uuid'] = flow_uuid
     elif param.name in args:
@@ -223,7 +245,7 @@ result = main.create_flow(**kwargs)
 # Write the result to a temporary file
 with open('%s', 'w') as f:
     json.dump(result, f)
-`, repoPath, serviceSpecsJSONStr, deploymentSpecsJSONStr, flowUuid, argJsonStr, tempResultFile.Name())
+`, repoPath, serviceSpecsJSONStr, podSpecsJSONStr, flowUuid, argJsonStr, tempResultFile.Name())
 
 	if err := executePythonScript(venvPath, repoPath, tempScript); err != nil {
 		return "", err
@@ -239,7 +261,6 @@ with open('%s', 'w') as f:
 }
 
 func runPythonDeleteFlow(repoPath, configMap, flowUuid string) (string, error) {
-
 	scriptPath := filepath.Join(repoPath, "main.py")
 
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
