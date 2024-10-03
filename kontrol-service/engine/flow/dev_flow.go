@@ -48,8 +48,7 @@ func CreateDevFlow(
 
 	topologyRef := &topology
 
-	clusterGraph := topologyToGraph(topologyRef)
-	if err := applyPatch(pluginRunner, topologyRef, clusterGraph, flowID, flowPatch.ServicePatches); err != nil {
+	if err := applyPatch(pluginRunner, topologyRef, flowID, flowPatch.ServicePatches); err != nil {
 		return nil, err
 	}
 
@@ -135,7 +134,6 @@ func markParentsAsShared(topology *resolved.ClusterTopology, service *resolved.S
 func applyPatch(
 	pluginRunner *plugins.PluginRunner,
 	topologyRef *resolved.ClusterTopology,
-	clusterGraph graph.Graph[resolved.ServiceHash, *resolved.Service],
 	flowID string,
 	servicePatches []flow_spec.ServicePatch,
 ) error {
@@ -143,6 +141,8 @@ func applyPatch(
 	// TODO could create a custom type for it with a Add method and a Get Method, in order to centralize the addition if someone else want o use it later in another part in the code
 	pluginServices := map[string][]*resolved.Service{}
 	pluginServicesMap := map[string]*resolved.StatefulPlugin{}
+
+	clusterGraph := topologyToGraph(topologyRef)
 
 	for _, servicePatch := range servicePatches {
 		serviceID := servicePatch.Service
@@ -223,8 +223,7 @@ func applyPatch(
 		// TODO SECTION 2 - Target service updates with new modifications
 		modifiedTargetService := DeepCopyService(targetService)
 		modifiedTargetService.DeploymentSpec = servicePatch.DeploymentSpec
-		modifiedTargetService.Version = flowID
-		err = topologyRef.UpdateWithService(modifiedTargetService)
+		err = topologyRef.MoveServiceToVersion(modifiedTargetService, flowID)
 		if err != nil {
 			return err
 		}
@@ -379,7 +378,7 @@ func applyPatch(
 		for serviceIndex, serviceToUpdate := range services {
 			modifiedDeploymentSpec := servicesModifiedDeploymentSpecs[serviceIndex]
 			serviceToUpdate.DeploymentSpec = &modifiedDeploymentSpec
-			if err := topologyRef.UpdateWithService(serviceToUpdate); err != nil {
+			if err := topologyRef.MoveServiceToVersion(serviceToUpdate, flowID); err != nil {
 				return fmt.Errorf("an error occurred updating service '%s'", serviceToUpdate.ServiceID)
 			}
 		}
