@@ -20,11 +20,6 @@ const (
 	flowUuid       = "test-flow-uuid"
 )
 
-
-
-// TODO Add a test for checking that different env vars values between deployment specs remains the same after the plugin execution
-// TODO this is for testing determinism
-
 var serviceSpecs = []corev1.ServiceSpec{}
 
 var deploymentSpecs = []appv1.DeploymentSpec{
@@ -62,12 +57,52 @@ var deploymentSpecs = []appv1.DeploymentSpec{
 			},
 		},
 	},
+	{
+		Selector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"app": "helloworld-version2",
+			},
+		},
+		Replicas: int32Ptr(4),
+		Template: corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"app": "helloworld-version2",
+				},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:  "helloworld",
+						Image: "karthequian/helloworld:latest",
+						Ports: []corev1.ContainerPort{
+							{
+								ContainerPort: 80,
+							},
+						},
+						Env: []corev1.EnvVar{
+							{
+								Name:  "REDIS",
+								Value: "ip_addr",
+							},
+							{
+								Name:  "FOO", // adding extra env var to compare differences
+								Value: "bar",
+							},
+						},
+					},
+				},
+			},
+		},
+	},
 }
 
-var workloadSpec = kardinal.NewDeploymentWorkloadSpec(deploymentSpecs[0])
+var workloadSpec1 = kardinal.NewDeploymentWorkloadSpec(deploymentSpecs[0])
+var workloadSpec2 = kardinal.NewDeploymentWorkloadSpec(deploymentSpecs[1])
 
 var workloadSpecs = []*kardinal.WorkloadSpec{
-	&workloadSpec,
+	&workloadSpec1,
+	&workloadSpec2,
 }
 
 func getPluginRunner(t *testing.T) (*PluginRunner, func() error) {
@@ -98,9 +133,10 @@ func TestSimplePlugin(t *testing.T) {
 	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(simplePlugin, serviceSpecs, workloadSpecs, flowUuid, arguments)
 	require.NoError(t, err)
 
-	for _, updatedDeploymentSpec := range updatedDeploymentSpecs {
+	for idx, updatedDeploymentSpec := range updatedDeploymentSpecs {
 		// Check if the deployment spec was updated correctly
 		require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.GetTemplateSpec().Containers[0].Name)
+		require.Equal(t, workloadSpecs[idx].GetTemplateSpec().Containers[0].Env, updatedDeploymentSpec.GetTemplateSpec().Containers[0].Env)
 	}
 
 	// Verify the config map
@@ -126,7 +162,7 @@ func TestIdentityPlugin(t *testing.T) {
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
-	require.Equal(t, deploymentSpecs, updatedServiceSpec)
+	require.Equal(t, workloadSpecs, updatedServiceSpec)
 
 	// Verify the config map
 	var configMapData map[string]interface{}
