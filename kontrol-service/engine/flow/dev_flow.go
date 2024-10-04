@@ -190,12 +190,11 @@ func applyPatch(
 		}
 		externalServices = lo.Uniq(externalServices)
 
-		// TODO SECTION 1 - Create external plugins and move the external K8s Service to a new version with the FlowID
+		// SECTION 1 - Create external plugins and move the external K8s Service to a new version with the FlowID
 		// handle external service plugins on this service
 		logrus.Infof("Checking if this service has any external services...")
 		for _, plugin := range targetService.StatefulPlugins {
 
-			// TODO this is adding both kind of plugins stateful and external
 			alreadyServicesWithPlugin, ok := pluginServices[plugin.ServiceName]
 			if ok {
 				pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, targetService.ServiceID)
@@ -214,11 +213,6 @@ func applyPatch(
 					return fmt.Errorf("external service specified by plugin '%v' was not found in base topology", plugin.ServiceName)
 				}
 
-				//err = applyExternalServicePlugin(pluginRunner, targetService, externalService, plugin, pluginIdx, flowID)
-				//if err != nil {
-				//	return stacktrace.Propagate(err, "An error occurred creating external servie plugin for external service '%v' depended on by '%v'", externalService.ServiceID, targetService.ServiceID)
-				//}
-
 				err = topologyRef.MoveServiceToVersion(externalService, flowID)
 				if err != nil {
 					return err
@@ -234,7 +228,7 @@ func applyPatch(
 			return err
 		}
 
-		// TODO SECTION 3 - handle stateful services
+		// SECTION 3 - handle stateful services
 		for serviceIdx, service := range topologyRef.Services {
 			if lo.Contains(statefulServices, service) {
 				logrus.Debugf("applying stateful plugins on service: %s", service.ServiceID)
@@ -256,7 +250,6 @@ func applyPatch(
 						continue
 					}
 
-					// TODO this is adding both kind of plugins stateful and external
 					alreadyServicesWithPlugin, ok := pluginServices[plugin.ServiceName]
 					if ok {
 						pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, modifiedService.ServiceID)
@@ -264,14 +257,6 @@ func applyPatch(
 						pluginServices[plugin.ServiceName] = []string{modifiedService.ServiceID}
 					}
 					pluginServicesMap[plugin.ServiceName] = plugin
-
-					//logrus.Infof("Applying plugin %s for service %s with flow id %s", plugin.Name, modifiedService.ServiceID, flowID)
-					//pluginId := plugins.GetPluginId(flowID, modifiedService.ServiceID, pluginIdx)
-					//spec, _, err := pluginRunner.CreateFlow(plugin.Name, *modifiedService.ServiceSpec, *resultSpec, pluginId, plugin.Args)
-					//if err != nil {
-					//	return fmt.Errorf("error creating flow for service %s: %v", modifiedService.ServiceID, err)
-					//}
-					//resultSpec = &spec
 				}
 
 				// Update service with final deployment spec
@@ -298,7 +283,7 @@ func applyPatch(
 				}
 			}
 
-			// TODO SECTION 3 - handle external services that are not target service dependencies
+			// SECTION 4 - handle external services that are not target service dependencies
 			// if the service is an external service of the target service, it was already handled above
 			if lo.Contains(externalServices, service) && !lo.Contains(alreadyHandledExternalServices, service.ServiceID) {
 				// 	assume there's only one parent service for now but eventually we'll likely need to account for multiple parents to external service
@@ -326,7 +311,6 @@ func applyPatch(
 						return stacktrace.NewError("parent service '%v' does not have a workload spec", targetService.ServiceID)
 					}
 
-					// TODO this is adding both kind of plugins stateful and external
 					alreadyServicesWithPlugin, ok := pluginServices[plugin.ServiceName]
 					if ok {
 						pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, parentService.ServiceID)
@@ -334,13 +318,6 @@ func applyPatch(
 						pluginServices[plugin.ServiceName] = []string{parentService.ServiceID}
 					}
 					pluginServicesMap[plugin.ServiceName] = plugin
-
-					//if plugin.ServiceName == service.ServiceID {
-					//err := applyExternalServicePlugin(pluginRunner, parentService, service, plugin, pluginIdx, flowID)
-					//if err != nil {
-					//return stacktrace.Propagate(err, "error creating flow for external service '%s'", service.ServiceID)
-					//}
-					//}
 				}
 
 				// add a flow version of the external service to the plugin
@@ -358,7 +335,7 @@ func applyPatch(
 		}
 	}
 
-	// Execute plugins and update the services deployment specs with the plugin's modifications
+	// SECTION 5 - Execute plugins and update the services deployment specs with the plugin's modifications
 	for pluginServiceName, serviceIds := range pluginServices {
 		var servicesServiceSpecs []corev1.ServiceSpec
 		var servicesWorkloadSpecs []*kardinal.WorkloadSpec
@@ -383,7 +360,7 @@ func applyPatch(
 			servicesToUpdate = append(servicesToUpdate, service)
 		}
 
-		pluginId := plugins.GetPluginId3(plugin.ServiceName, flowID)
+		pluginId := plugins.GetPluginId(plugin.ServiceName, flowID)
 		logrus.Infof("Calling plugin '%v'...", pluginId)
 
 		servicesModifiedWorkloadSpecs, _, err := pluginRunner.CreateFlow(plugin.Name, servicesServiceSpecs, servicesWorkloadSpecs, pluginId, plugin.Args)
@@ -409,30 +386,6 @@ func applyPatch(
 	return nil
 }
 
-// TODO: have this handle stateful service plugins
-//func applyExternalServicePlugin(
-//pluginRunner *plugins.PluginRunner,
-//dependentService *resolved.Service,
-//externalService *resolved.Service,
-//externalServicePlugin *resolved.StatefulPlugin,
-//pluginIdx int,
-//flowId string,
-//) error {
-//if externalServicePlugin.Type != "external" {
-//return nil
-//}
-
-//logrus.Infof("Calling external service '%v' plugin with parent service '%v'...", externalService.ServiceID, dependentService.ServiceID)
-//pluginId := plugins.GetPluginId(flowId, dependentService.ServiceID, pluginIdx)
-//spec, _, err := pluginRunner.CreateFlow(externalServicePlugin.Name, *dependentService.ServiceSpec, *dependentService.DeploymentSpec, pluginId, externalServicePlugin.Args)
-//if err != nil {
-//return stacktrace.Propagate(err, "error creating flow for external service '%s'", externalService.ServiceID)
-//}
-
-//dependentService.DeploymentSpec = &spec
-//return nil
-//}
-
 func DeleteFlow(pluginRunner *plugins.PluginRunner, topology resolved.ClusterTopology, flowId string) error {
 	pluginsToDeleteFromThisFlow := map[string]string{}
 
@@ -442,7 +395,7 @@ func DeleteFlow(pluginRunner *plugins.PluginRunner, topology resolved.ClusterTop
 			continue
 		}
 		for _, plugin := range service.StatefulPlugins {
-			pluginId := plugins.GetPluginId3(plugin.ServiceName, flowId)
+			pluginId := plugins.GetPluginId(plugin.ServiceName, flowId)
 			pluginsToDeleteFromThisFlow[pluginId] = plugin.Name
 		}
 	}

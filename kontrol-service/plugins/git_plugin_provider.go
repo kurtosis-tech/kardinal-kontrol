@@ -28,7 +28,6 @@ func (gpp *GitPluginProviderImpl) PullGitHubPlugin(repoPath, repoUrl string) err
 			return fmt.Errorf("git clone failed: %v\nOutput: %s", err, output)
 		}
 	} else {
-		return nil // TODO remove this line, it's only for testing purpose
 		// If the repository already exists, pull the latest changes
 		cmd := exec.Command("git", "-C", repoPath, "pull")
 		if output, err := cmd.CombinedOutput(); err != nil {

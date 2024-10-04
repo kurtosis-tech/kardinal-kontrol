@@ -17,14 +17,8 @@ import (
 )
 
 const (
-	// <flow id>-<service id>-<plugin idx>
-	pluginIdFmtStr = "%s-%s-%d"
-	// TODO use this last one and remove the previous one
-	// <plugin.service_name>-<flow id>-<service1 id>,<service2 id>,<service3 id>
-	pluginIdFmtStr2 = "%s-%s-%s"
-	// TODO use this last one and remove the previous one
 	// <plugin.service_name>-<flow id>
-	pluginIdFmtStr3 = "%s-%s"
+	pluginIdFmtStr = "%s-%s"
 )
 
 type PluginRunner struct {
@@ -63,7 +57,6 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpecs []corev1.Servi
 	}
 	serviceSpecsJSONStr := base64.StdEncoding.EncodeToString(serviceSpecsJSON)
 
-
 	podSpecsJSON, err := json.Marshal(podSpecs)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to marshal pod specs: %v", err)
@@ -95,7 +88,7 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpecs []corev1.Servi
 		if numWorkloadSpecs != numNewPodSpecs {
 			return nil, "", fmt.Errorf("expected to receive '%d' modified pod specs from plugin '%s' execution result but '%d' were received instead, this is a bug in Kardinal", numWorkloadSpecs, flowUuid, numNewPodSpecs)
 		}
-		for newPodSpecIdx, newPodSpec := range newPodSpecs{
+		for newPodSpecIdx, newPodSpec := range newPodSpecs {
 			workloadSpecs[newPodSpecIdx].UpdateTemplateSpec(newPodSpec)
 		}
 	}
@@ -145,20 +138,8 @@ func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string) error {
 	return nil
 }
 
-// TODO remove this after the DeleteDevFlow refactor
-func GetPluginId(flowId, serviceId string, pluginIdx int) string {
-	return fmt.Sprintf(pluginIdFmtStr, flowId, serviceId, pluginIdx)
-}
-
-// TODO rename it to the original name
-func GetPluginId2(pluginServiceName string, flowId string, serviceIds []string) string {
-	serviceIdsStr := strings.Join(serviceIds, ",")
-	return fmt.Sprintf(pluginIdFmtStr2, pluginServiceName, flowId, serviceIdsStr)
-}
-
-// TODO rename it to the original name
-func GetPluginId3(pluginServiceName string, flowId string) string {
-	return fmt.Sprintf(pluginIdFmtStr3, pluginServiceName, flowId)
+func GetPluginId(pluginServiceName string, flowId string) string {
+	return fmt.Sprintf(pluginIdFmtStr, pluginServiceName, flowId)
 }
 
 func (pr *PluginRunner) getConfigForFlow(flowUuid string) (string, error) {
