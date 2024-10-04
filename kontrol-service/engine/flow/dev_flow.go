@@ -138,7 +138,7 @@ func applyPatch(
 ) error {
 
 	// TODO could create a custom type for it with a Add method and a Get Method, in order to centralize the addition if someone else want o use it later in another part in the code
-	pluginServices := map[string][]*resolved.Service{}
+	pluginServices := map[string][]string{}
 	pluginServicesMap := map[string]*resolved.StatefulPlugin{}
 
 	clusterGraph := topologyToGraph(topologyRef)
@@ -198,9 +198,9 @@ func applyPatch(
 			// TODO this is adding both kind of plugins stateful and external
 			alreadyServicesWithPlugin, ok := pluginServices[plugin.ServiceName]
 			if ok {
-				pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, targetService)
+				pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, targetService.ServiceID)
 			} else {
-				pluginServices[plugin.ServiceName] = []*resolved.Service{targetService}
+				pluginServices[plugin.ServiceName] = []string{targetService.ServiceID}
 			}
 			pluginServicesMap[plugin.ServiceName] = plugin
 
@@ -259,9 +259,9 @@ func applyPatch(
 					// TODO this is adding both kind of plugins stateful and external
 					alreadyServicesWithPlugin, ok := pluginServices[plugin.ServiceName]
 					if ok {
-						pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, targetService)
+						pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, modifiedService.ServiceID)
 					} else {
-						pluginServices[plugin.ServiceName] = []*resolved.Service{targetService}
+						pluginServices[plugin.ServiceName] = []string{modifiedService.ServiceID}
 					}
 					pluginServicesMap[plugin.ServiceName] = plugin
 
@@ -329,9 +329,9 @@ func applyPatch(
 					// TODO this is adding both kind of plugins stateful and external
 					alreadyServicesWithPlugin, ok := pluginServices[plugin.ServiceName]
 					if ok {
-						pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, targetService)
+						pluginServices[plugin.ServiceName] = append(alreadyServicesWithPlugin, parentService.ServiceID)
 					} else {
-						pluginServices[plugin.ServiceName] = []*resolved.Service{targetService}
+						pluginServices[plugin.ServiceName] = []string{parentService.ServiceID}
 					}
 					pluginServicesMap[plugin.ServiceName] = plugin
 
@@ -359,18 +359,28 @@ func applyPatch(
 	}
 
 	// Execute plugins and update the services deployment specs with the plugin's modifications
-	for pluginServiceName, services := range pluginServices {
+	for pluginServiceName, serviceIds := range pluginServices {
 		var servicesServiceSpecs []corev1.ServiceSpec
 		var servicesWorkloadSpecs []*kardinal.WorkloadSpec
+		var servicesToUpdate []*resolved.Service
 
 		plugin, ok := pluginServicesMap[pluginServiceName]
 		if !ok {
 			return stacktrace.NewError("expected to find plugin with service name '%s' in the plugins service map, this is a bug in Kardinal", pluginServiceName)
 		}
 
-		for _, service := range services {
+		if len(serviceIds) == 0 {
+			return stacktrace.NewError("expected to find at least one service depending on plugin '%s' but none was found, please review your manifest file", plugin.ServiceName)
+		}
+
+		for _, serviceId := range serviceIds {
+			service, err := topologyRef.GetService(serviceId)
+			if err != nil {
+				return stacktrace.Propagate(err, "an error occurred getting service '%s' from topology", serviceId)
+			}
 			servicesServiceSpecs = append(servicesServiceSpecs, *service.ServiceSpec)
 			servicesWorkloadSpecs = append(servicesWorkloadSpecs, service.WorkloadSpec)
+			servicesToUpdate = append(servicesToUpdate, service)
 		}
 
 		pluginId := plugins.GetPluginId3(plugin.ServiceName, flowID)
@@ -381,19 +391,19 @@ func applyPatch(
 			return stacktrace.Propagate(err, "error when creating plugin flow for plugin '%s'", pluginId)
 		}
 
-		if len(services) != len(servicesModifiedWorkloadSpecs) {
+		if len(servicesToUpdate) != len(servicesModifiedWorkloadSpecs) {
 			return fmt.Errorf("an error occurred executing plugin '%s', the number of workload specs returned by the plugin.CreateFlow function are not equal to the number of service depending on it, please check the plugin code or report a bug in the Kardinal repository", plugin.ServiceName)
 		}
 
 		// updating the service.workload_spec after the plugin execution
-		for serviceIndex, serviceToUpdate := range services {
+		for serviceIndex := range serviceIds {
+			service := servicesToUpdate[serviceIndex]
 			modifiedWorkloadSpec := servicesModifiedWorkloadSpecs[serviceIndex]
-			serviceToUpdate.WorkloadSpec = modifiedWorkloadSpec
-			if err := topologyRef.MoveServiceToVersion(serviceToUpdate, flowID); err != nil {
-				return fmt.Errorf("an error occurred updating service '%s'", serviceToUpdate.ServiceID)
+			service.WorkloadSpec = modifiedWorkloadSpec
+			if err = topologyRef.MoveServiceToVersion(service, flowID); err != nil {
+				return fmt.Errorf("an error occurred updating service '%s'", service.ServiceID)
 			}
 		}
-
 	}
 
 	return nil
@@ -424,29 +434,27 @@ func applyPatch(
 //}
 
 func DeleteFlow(pluginRunner *plugins.PluginRunner, topology resolved.ClusterTopology, flowId string) error {
+	pluginsToDeleteFromThisFlow := map[string]string{}
+
 	for _, service := range topology.Services {
 		// don't need to delete flow for services in the topology that aren't a part of this flow
 		if service.Version != flowId {
 			continue
 		}
-		err := DeleteDevFlow(pluginRunner, flowId, service)
-		if err != nil {
-			return stacktrace.Propagate(err, "An error occurred deleting flow '%v' for service '%v'", flowId, service.ServiceID)
+		for _, plugin := range service.StatefulPlugins {
+			pluginId := plugins.GetPluginId3(plugin.ServiceName, flowId)
+			pluginsToDeleteFromThisFlow[pluginId] = plugin.Name
 		}
 	}
-	return nil
-}
 
-func DeleteDevFlow(pluginRunner *plugins.PluginRunner, flowId string, service *resolved.Service) error {
-	for _, plugin := range service.StatefulPlugins {
-		logrus.Infof("Attempting to delete flow for plugin '%v' on flow '%v'", plugin.Name, flowId)
-		pluginId := plugins.GetPluginId3(plugin.ServiceName, flowId)
-		err := pluginRunner.DeleteFlow(plugin.Name, pluginId)
+	for pluginId, pluginName := range pluginsToDeleteFromThisFlow {
+		err := pluginRunner.DeleteFlow(pluginName, pluginId)
 		if err != nil {
 			logrus.Errorf("Error deleting flow: %v.", err)
-			return stacktrace.Propagate(err, "An error occurred while trying to call delete flow of plugin '%v' on service '%v' for flow '%v'", plugin.Name, service.ServiceID, flowId)
+			return stacktrace.Propagate(err, "An error occurred while trying to call delete flow of plugin '%v' for flow '%v'", pluginName, flowId)
 		}
 	}
+
 	return nil
 }
 
