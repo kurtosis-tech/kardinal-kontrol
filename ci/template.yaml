@@ -5,7 +5,7 @@ metadata:
   annotations:
     kardinal.dev.service/shared: "true"
     kardinal.dev.service/plugins: |
-      - name: github.com/kurtosis-tech/postgres-seed-plugin
+      - name: github.com/leoporoli/postgres-seed-plugin
         args:
           seed_script: |
             --  create the table
