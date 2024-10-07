@@ -4,6 +4,8 @@ go 1.22.0
 
 toolchain go1.22.3
 
+replace github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api => ../../kardinal/libs/cli-kontrol-api
+
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/dominikbraun/graph v0.23.0

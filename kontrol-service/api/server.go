@@ -189,9 +189,19 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 
 	patches := []flow_spec.ServicePatchSpec{}
 	for _, serviceUpdate := range serviceUpdates {
+		envVarOverrides := map[string]string{}
+		if serviceUpdate.EnvVarOverrides != nil {
+			envVarOverrides = *serviceUpdate.EnvVarOverrides
+		}
+		secretEnvVarOverrides := map[string]string{}
+		if serviceUpdate.SecretEnvVarOverrides != nil {
+			secretEnvVarOverrides = *serviceUpdate.SecretEnvVarOverrides
+		}
 		patch := flow_spec.ServicePatchSpec{
-			Service: serviceUpdate.ServiceName,
-			Image:   serviceUpdate.ImageLocator,
+			Service:               serviceUpdate.ServiceName,
+			Image:                 serviceUpdate.ImageLocator,
+			SecretEnvVarOverrides: envVarOverrides,
+			EnvVarOverrides:       secretEnvVarOverrides,
 		}
 		logrus.Infof("starting new dev flow for service %v on image %v", patch.Service, patch.Image)
 		patches = append(patches, patch)

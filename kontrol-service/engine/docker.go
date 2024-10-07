@@ -6,7 +6,6 @@ import (
 	"github.com/kurtosis-tech/stacktrace"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
-
 	corev1 "k8s.io/api/core/v1"
 	net "k8s.io/api/networking/v1"
 	gateway "sigs.k8s.io/gateway-api/apis/v1"
@@ -50,6 +49,36 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 
 		// TODO: find a better way to update deploymentSpec, this assumes there is only container in the pod
 		deploymentSpec.Template.Spec.Containers[0].Image = item.Image
+
+		// merge environment variables and env var overrides
+		envVarOverrides := map[string]corev1.EnvVar{}
+		for k, v := range item.EnvVarOverrides {
+			envVarOverrides[k] = corev1.EnvVar{
+				Name:      k,
+				Value:     v,
+				ValueFrom: nil,
+			}
+		}
+		for k, v := range item.SecretEnvVarOverrides {
+			envVarOverrides[k] = corev1.EnvVar{
+				Name: k,
+				ValueFrom: &corev1.EnvVarSource{
+					SecretKeyRef: &corev1.SecretKeySelector{
+						LocalObjectReference: corev1.LocalObjectReference{Name: v}, // assume v is the secret name
+						Key:                  k,
+						Optional:             nil,
+					},
+				},
+			}
+		}
+		envVars := []corev1.EnvVar{}
+		for _, envVar := range deploymentSpec.Template.Spec.Containers[0].Env {
+			if override, ok := envVarOverrides[envVar.Name]; ok {
+				envVars = append(envVars, override)
+			} else {
+				envVars = append(envVars, envVar)
+			}
+		}
 
 		patches = append(patches, flow_spec.ServicePatch{
 			Service:        devServiceName,
