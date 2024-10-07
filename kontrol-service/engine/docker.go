@@ -248,7 +248,7 @@ func processServiceConfigs(
 		// the servicePlugins list contains both stateful and external plugins and, externalServices is a list of Kardinal services that are also linked with a plugin inside the availablePlugins list
 		servicePlugins, externalServices, newExternalServicesDependencies, err := newServicePluginsAndExternalServicesFromServiceConfig(serviceConfig, version, &clusterTopologyService, availablePlugins)
 		if err != nil {
-			return nil, nil, stacktrace.Propagate(err, "An error occurred creating new stateful availablePlugins and external services from service config '%s'", service.Name)
+			return nil, nil, stacktrace.Propagate(err, "An error occurred creating new stateful plugins and external services from service config '%s'", service.Name)
 		}
 		clusterTopologyService.StatefulPlugins = servicePlugins
 		clusterTopologyServices = append(clusterTopologyServices, externalServices...)
