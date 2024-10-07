@@ -2,17 +2,15 @@ package main
 
 import (
 	"flag"
-	"net/http"
-	"os"
-	"runtime/debug"
-	"strconv"
-
 	cli_api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
 	"kardinal.kontrol-service/api"
 	"kardinal.kontrol-service/database"
+	"net/http"
+	"os"
+	"runtime/debug"
 )
 
 func main() {
@@ -36,23 +34,27 @@ func main() {
 }
 
 func startServer(isDevMode bool) {
-	dbHostname := os.Getenv("DB_HOSTNAME")
-	dbUsername := os.Getenv("DB_USERNAME")
-	dbPassword := os.Getenv("DB_PASSWORD")
-	dbName := os.Getenv("DB_NAME")
-	if dbHostname == "" || dbUsername == "" || dbPassword == "" || dbName == "" {
-		logrus.Fatal("One of the following environment variables is not set: DB_HOSTNAME, DB_USERNAME, DB_PASSWORD, DB_NAME")
-	}
-	dbPort, err := strconv.Atoi(os.Getenv("DB_PORT"))
-	if err != nil {
-		logrus.Fatal("An error occurred parsing the DB port number", err)
-	}
+	//dbHostname := os.Getenv("DB_HOSTNAME")
+	dbHostname := "localhost"
+	//dbUsername := os.Getenv("DB_USERNAME")
+	dbUsername := "postgres"
+	//dbPassword := os.Getenv("DB_PASSWORD")
+	dbPassword := "MyPassword1!"
+	//dbName := os.Getenv("DB_NAME")
+	//if dbHostname == "" || dbUsername == "" || dbPassword == "" || dbName == "" {
+	//	logrus.Fatal("One of the following environment variables is not set: DB_HOSTNAME, DB_USERNAME, DB_PASSWORD, DB_NAME")
+	//}
+	dbName := "postgres"
+	//dbPort, err := strconv.Atoi(os.Getenv("DB_PORT"))
+	//if err != nil {
+	//	logrus.Fatal("An error occurred parsing the DB port number", err)
+	//}
 
 	dbConnectionInfo, err := database.NewDatabaseConnectionInfo(
 		dbUsername,
 		dbPassword,
 		dbHostname,
-		uint16(dbPort),
+		uint16(51940),
 		dbName,
 	)
 	if err != nil {

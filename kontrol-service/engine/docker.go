@@ -36,6 +36,7 @@ func GenerateProdOnlyCluster(
 func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resolved.ClusterTopology, baseTopology *resolved.ClusterTopology, pluginRunner *plugins.PluginRunner, flowSpec flow_spec.FlowPatchSpec) (*resolved.ClusterTopology, error) {
 	patches := []flow_spec.ServicePatch{}
 	for _, item := range flowSpec.ServicePatches {
+		logrus.Infof("ITEM: %v", item)
 		devServiceName := item.Service
 		devService, err := baseClusterTopologyMaybeWithTemplateOverrides.GetService(devServiceName)
 		if err != nil {
@@ -49,36 +50,7 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 
 		// TODO: find a better way to update deploymentSpec, this assumes there is only container in the pod
 		deploymentSpec.Template.Spec.Containers[0].Image = item.Image
-
-		// merge environment variables and env var overrides
-		envVarOverrides := map[string]corev1.EnvVar{}
-		for k, v := range item.EnvVarOverrides {
-			envVarOverrides[k] = corev1.EnvVar{
-				Name:      k,
-				Value:     v,
-				ValueFrom: nil,
-			}
-		}
-		for k, v := range item.SecretEnvVarOverrides {
-			envVarOverrides[k] = corev1.EnvVar{
-				Name: k,
-				ValueFrom: &corev1.EnvVarSource{
-					SecretKeyRef: &corev1.SecretKeySelector{
-						LocalObjectReference: corev1.LocalObjectReference{Name: v}, // assume v is the secret name
-						Key:                  k,
-						Optional:             nil,
-					},
-				},
-			}
-		}
-		envVars := []corev1.EnvVar{}
-		for _, envVar := range deploymentSpec.Template.Spec.Containers[0].Env {
-			if override, ok := envVarOverrides[envVar.Name]; ok {
-				envVars = append(envVars, override)
-			} else {
-				envVars = append(envVars, envVar)
-			}
-		}
+		deploymentSpec.Template.Spec.Containers[0].Env = applyEnvVarOverrides(item.EnvVarOverrides, item.SecretEnvVarOverrides, deploymentSpec.Template.Spec.Containers[0].Env)
 
 		patches = append(patches, flow_spec.ServicePatch{
 			Service:        devServiceName,
@@ -97,6 +69,50 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 	}
 
 	return clusterTopology, nil
+}
+
+func applyEnvVarOverrides(
+	envVarOverrides map[string]string,
+	secretEnvVarOverrides map[string]string,
+	envVars []corev1.EnvVar) []corev1.EnvVar {
+	// merge environment variables and env var overrides
+	translatedOverrides := map[string]corev1.EnvVar{}
+	for k, v := range envVarOverrides {
+		translatedOverrides[k] = corev1.EnvVar{
+			Name:      k,
+			Value:     v,
+			ValueFrom: nil,
+		}
+	}
+
+	for k, v := range secretEnvVarOverrides {
+		translatedOverrides[k] = corev1.EnvVar{
+			Name: k,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: v}, // assume v is the secret name
+					Key:                  k,
+					Optional:             nil,
+				},
+			},
+		}
+	}
+
+	newEnvVars := []corev1.EnvVar{}
+	for _, envVar := range envVars {
+		if override, ok := translatedOverrides[envVar.Name]; ok {
+			newEnvVars = append(newEnvVars, override)
+			delete(translatedOverrides, envVar.Name)
+		} else {
+			newEnvVars = append(newEnvVars, envVar)
+		}
+	}
+
+	for _, envVar := range translatedOverrides {
+		newEnvVars = append(newEnvVars, envVar)
+	}
+
+	return newEnvVars
 }
 
 func generateClusterTopology(
