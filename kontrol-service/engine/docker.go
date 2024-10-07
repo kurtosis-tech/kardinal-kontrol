@@ -36,7 +36,6 @@ func GenerateProdOnlyCluster(
 func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resolved.ClusterTopology, baseTopology *resolved.ClusterTopology, pluginRunner *plugins.PluginRunner, flowSpec flow_spec.FlowPatchSpec) (*resolved.ClusterTopology, error) {
 	patches := []flow_spec.ServicePatch{}
 	for _, item := range flowSpec.ServicePatches {
-		logrus.Infof("ITEM: %v", item)
 		devServiceName := item.Service
 		devService, err := baseClusterTopologyMaybeWithTemplateOverrides.GetService(devServiceName)
 		if err != nil {
