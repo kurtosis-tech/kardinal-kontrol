@@ -280,44 +280,6 @@ spec:
       appProtocol: HTTP
 
 ---
-apiVersion: gateway.networking.k8s.io/v1
-kind: Gateway
-metadata:
-  name: gateway
-  annotations:
-    kardinal.dev.service/gateway: "true"
-spec:
-  gatewayClassName: istio
-  listeners:
-    - name: default
-      hostname: "*.app.localhost"
-      port: 8888
-      protocol: HTTP
-      allowedRoutes:
-        namespaces:
-          from: All
-
----
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
-metadata:
-  name: http
-  annotations:
-    kardinal.dev.service/route: "true"
-spec:
-  parentRefs:
-    - name: gateway
-  hostnames: ["prod.app.localhost"]
-  rules:
-    - matches:
-        - path:
-            type: PathPrefix
-            value: /
-      backendRefs:
-        - name: frontend
-          port: 80
-
----
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -327,7 +289,7 @@ metadata:
   name: ingress
 spec:
   rules:
-    - host: web.other.localhost
+    - host: baseline.app.localhost
       http:
         paths:
           - path: /
@@ -337,68 +299,6 @@ spec:
                 name: frontend
                 port:
                   number: 80
-
----
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: metrics-v1
-  labels:
-    app: metrics
-    version: v1
-spec:
-  selector:
-    matchLabels:
-      app: metrics
-      version: v1
-  template:
-    metadata:
-      labels:
-        app: metrics
-        version: v1
-      annotations:
-        sidecar.istio.io/rewriteAppHTTPProbers: "true"
-    spec:
-      containers:
-        - name: server
-          image: kurtosistech/metrics:main
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 8091
-          readinessProbe:
-            initialDelaySeconds: 10
-            httpGet:
-              path: "/_healthz"
-              port: 8091
-              httpHeaders:
-                - name: "Cookie"
-                  value: "shop_session-id=x-readiness-probe"
-          livenessProbe:
-            initialDelaySeconds: 10
-            httpGet:
-              path: "/_healthz"
-              port: 8091
-              httpHeaders:
-                - name: "Cookie"
-                  value: "shop_session-id=x-liveness-probe"
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: metrics
-  labels:
-    app: metrics
-    version: v1
-spec:
-  type: ClusterIP
-  selector:
-    app: metrics
-  ports:
-    - name: http
-      port: 8091
-      protocol: TCP
-      appProtocol: HTTP
-      targetPort: 8091
 
 ---
 apiVersion: v1
