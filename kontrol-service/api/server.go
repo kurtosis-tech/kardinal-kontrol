@@ -192,12 +192,10 @@ func (sv *Server) PostTenantUuidFlowCreate(_ context.Context, request api.PostTe
 		envVarOverrides := map[string]string{}
 		if serviceUpdate.EnvVarOverrides != nil {
 			envVarOverrides = *serviceUpdate.EnvVarOverrides
-			logrus.Infof("ENV VAR OVERRIDES: %v", envVarOverrides)
 		}
 		secretEnvVarOverrides := map[string]string{}
 		if serviceUpdate.SecretEnvVarOverrides != nil {
 			secretEnvVarOverrides = *serviceUpdate.SecretEnvVarOverrides
-			logrus.Infof("SECRET ENV VAR OVERRIDES: %v", secretEnvVarOverrides)
 		}
 		patch := flow_spec.ServicePatchSpec{
 			Service:               serviceUpdate.ServiceName,
