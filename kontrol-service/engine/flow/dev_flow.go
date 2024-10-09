@@ -14,8 +14,7 @@ import (
 	"kardinal.kontrol-service/plugins"
 	"kardinal.kontrol-service/types/cluster_topology/resolved"
 	"kardinal.kontrol-service/types/flow_spec"
-
-	v1 "k8s.io/api/apps/v1"
+	kardinal "kardinal.kontrol-service/types/kardinal"
 )
 
 // CreateDevFlow creates a dev flow from the given topologies
@@ -56,7 +55,7 @@ func CreateDevFlow(
 		if err != nil {
 			return nil, err
 		}
-		_, err = applyPatch(pluginRunner, topologyRef, clusterGraph, flowID, targetService, servicePatch.DeploymentSpec)
+		_, err = applyPatch(pluginRunner, topologyRef, clusterGraph, flowID, targetService, servicePatch.WorkloadSpec)
 		if err != nil {
 			return nil, err
 		}
@@ -66,7 +65,6 @@ func CreateDevFlow(
 	baselineFlowVersion := baseTopology.Namespace
 	// Replace "baseline" version services with baseTopology versions
 	for i, service := range topologyRef.Services {
-
 		if service.Version == baselineFlowVersion {
 			prodService, err := baseTopology.GetService(service.ServiceID)
 			if err != nil {
@@ -147,7 +145,7 @@ func applyPatch(
 	clusterGraph graph.Graph[resolved.ServiceHash, *resolved.Service],
 	flowID string,
 	targetService *resolved.Service,
-	deploymentSpec *v1.DeploymentSpec,
+	workloadSpec *kardinal.WorkloadSpec,
 ) (*resolved.ClusterTopology, error) {
 	// Find downstream stateful services
 	statefulPaths := findAllDownstreamStatefulPaths(targetService, clusterGraph, topology)
@@ -206,7 +204,7 @@ func applyPatch(
 	}
 
 	modifiedTargetService := DeepCopyService(targetService)
-	modifiedTargetService.DeploymentSpec = deploymentSpec
+	modifiedTargetService.WorkloadSpec = workloadSpec
 	modifiedTargetService.Version = flowID
 	err := topology.UpdateWithService(modifiedTargetService)
 	if err != nil {
@@ -225,7 +223,7 @@ func applyPatch(
 			}
 
 			// Apply a chain of stateful plugins to the stateful service
-			resultSpec := DeepCopyDeploymentSpec(modifiedService.DeploymentSpec)
+			resultSpec := modifiedService.WorkloadSpec.DeepCopy()
 			for pluginIdx, plugin := range modifiedService.StatefulPlugins {
 				if plugin.Type == "external" {
 					// we handle external plugins above
@@ -234,15 +232,15 @@ func applyPatch(
 				}
 				logrus.Infof("Applying plugin %s for service %s with flow id %s", plugin.Name, modifiedService.ServiceID, flowID)
 				pluginId := plugins.GetPluginId(flowID, modifiedService.ServiceID, pluginIdx)
-				spec, _, err := pluginRunner.CreateFlow(plugin.Name, *modifiedService.ServiceSpec, *resultSpec, pluginId, plugin.Args)
+				spec, _, err := pluginRunner.CreateFlow(plugin.Name, *modifiedService.ServiceSpec, resultSpec, pluginId, plugin.Args)
 				if err != nil {
 					return nil, fmt.Errorf("error creating flow for service %s: %v", modifiedService.ServiceID, err)
 				}
-				resultSpec = &spec
+				resultSpec = spec
 			}
 
 			// Update service with final deployment spec
-			modifiedService.DeploymentSpec = resultSpec
+			modifiedService.WorkloadSpec = resultSpec
 
 			topology.Services[serviceIdx] = modifiedService
 			topology.UpdateDependencies(service, modifiedService)
@@ -322,14 +320,22 @@ func applyExternalServicePlugin(
 		return nil
 	}
 
+	if dependentService.ServiceSpec == nil {
+		return stacktrace.NewError("Dependent service '%v' does not have a service spec", dependentService.ServiceID)
+	}
+
+	if dependentService.WorkloadSpec == nil {
+		return stacktrace.NewError("Dependent service '%v' does not have a workload spec", dependentService.ServiceID)
+	}
+
 	logrus.Infof("Calling external service '%v' plugin with parent service '%v'...", externalService.ServiceID, dependentService.ServiceID)
 	pluginId := plugins.GetPluginId(flowId, dependentService.ServiceID, pluginIdx)
-	spec, _, err := pluginRunner.CreateFlow(externalServicePlugin.Name, *dependentService.ServiceSpec, *dependentService.DeploymentSpec, pluginId, externalServicePlugin.Args)
+	spec, _, err := pluginRunner.CreateFlow(externalServicePlugin.Name, *dependentService.ServiceSpec, dependentService.WorkloadSpec, pluginId, externalServicePlugin.Args)
 	if err != nil {
 		return stacktrace.Propagate(err, "error creating flow for external service '%s'", externalService.ServiceID)
 	}
 
-	dependentService.DeploymentSpec = &spec
+	dependentService.WorkloadSpec = spec
 	return nil
 }
 

@@ -10,14 +10,15 @@ import (
 )
 
 func TestServiceConfigsToClusterTopology(t *testing.T) {
-	testServiceConfigs := test.GetServiceConfigs()
+	testServiceConfigs, testDeploymentConfigs := test.GetServiceConfigs()
 	testVersion := "prod"
 	testNamespace := "prod"
 
 	testIngressConfigs := test.GetIngressConfigs()
 	testGatewayConfigs := []apitypes.GatewayConfig{}
 	testRouteConfigs := []apitypes.RouteConfig{}
-	cluster, err := generateClusterTopology(testServiceConfigs, testIngressConfigs, testGatewayConfigs, testRouteConfigs, testVersion, testNamespace)
+	testStatefulSetConfigs := []apitypes.StatefulSetConfig{}
+	cluster, err := generateClusterTopology(testServiceConfigs, testDeploymentConfigs, testStatefulSetConfigs, testIngressConfigs, testGatewayConfigs, testRouteConfigs, testVersion, testNamespace)
 	if err != nil {
 		t.Errorf("Error generating cluster: %s", err)
 	}
@@ -29,14 +30,14 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 	statefulPlugin := redisProdService.StatefulPlugins[0]
 	require.Equal(t, statefulPlugin.Name, "github.com/kardinaldev/redis-db-sidecar-plugin:36ed9a4")
 	require.Equal(t, *redisProdService.ServiceSpec, testServiceConfigs[0].Service.Spec)
-	require.Equal(t, *redisProdService.DeploymentSpec, testServiceConfigs[0].Deployment.Spec)
+	require.Equal(t, *redisProdService.WorkloadSpec.GetTemplateSpec(), testDeploymentConfigs[0].Deployment.Spec.Template.Spec)
 
 	votingAppUIService := cluster.Services[1]
 	require.Equal(t, votingAppUIService.ServiceID, "voting-app-ui")
 	require.Equal(t, votingAppUIService.IsExternal, false)
 	require.Equal(t, votingAppUIService.IsStateful, false)
 	require.Equal(t, *votingAppUIService.ServiceSpec, testServiceConfigs[1].Service.Spec)
-	require.Equal(t, *votingAppUIService.DeploymentSpec, testServiceConfigs[1].Deployment.Spec)
+	require.Equal(t, *votingAppUIService.WorkloadSpec.GetTemplateSpec(), testDeploymentConfigs[1].Deployment.Spec.Template.Spec)
 
 	dependency := cluster.ServiceDependencies[0]
 	require.Equal(t, dependency.Service, votingAppUIService)
@@ -48,17 +49,18 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 }
 
 func TestIngressConfigsTakePrecedenceOverK8sServicesActingAsIngresses(t *testing.T) {
-	testServiceConfigs := test.GetServiceConfigs()
+	testServiceConfigs, testDeploymentConfigs := test.GetServiceConfigs()
 
 	// use an Ingress Config
 	// this should take precedence over any Ingress defined elsewhere in the k8s manifest
 	testIngressConfigs := test.GetIngressConfigs()
 	testGatewayConfigs := []apitypes.GatewayConfig{}
 	testRouteConfigs := []apitypes.RouteConfig{}
+	testStatefulSetConfigs := []apitypes.StatefulSetConfig{}
 	testVersion := "prod"
 	testNamespace := "prod"
 
-	cluster, err := generateClusterTopology(testServiceConfigs, testIngressConfigs, testGatewayConfigs, testRouteConfigs, testVersion, testNamespace)
+	cluster, err := generateClusterTopology(testServiceConfigs, testDeploymentConfigs, testStatefulSetConfigs, testIngressConfigs, testGatewayConfigs, testRouteConfigs, testVersion, testNamespace)
 	if err != nil {
 		t.Errorf("Error generating cluster: %s", err)
 	}
