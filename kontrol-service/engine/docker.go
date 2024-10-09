@@ -407,7 +407,7 @@ func newClusterTopologyServiceFromConfigs(
 			deploymentConfig.Deployment.GetObjectMeta().GetName(),
 			statefulSetConfig.StatefulSet.GetObjectMeta().GetName(),
 		}
-		logrus.Error("Service %s is associated with more than one workload: %v", serviceName, workloads)
+		logrus.Errorf("Service %s is associated with more than one workload: %v", serviceName, workloads)
 	}
 	if deploymentConfig != nil {
 		workload := kardinal.NewDeploymentWorkloadSpec(deploymentConfig.Deployment.Spec)
