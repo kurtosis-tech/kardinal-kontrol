@@ -220,7 +220,7 @@ func applyPatch(
 			}
 		}
 
-		// TODO SECTION 2 - Target service updates with new modifications
+		// SECTION 2 - Target service updates with new modifications
 		modifiedTargetService := DeepCopyService(targetService)
 		modifiedTargetService.WorkloadSpec = servicePatch.WorkloadSpec
 		err = topologyRef.MoveServiceToVersion(modifiedTargetService, flowID)
