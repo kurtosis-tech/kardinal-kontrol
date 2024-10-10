@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { Grid } from "@chakra-ui/react";
 import CytoscapeGraph, { utils } from "@/components/CytoscapeGraph";
 import { ElementDefinition } from "cytoscape";
@@ -14,7 +14,7 @@ const Page = () => {
   const { refetchFlows, flowVisibility } = useFlowsContext();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const fetchElems = async () => {
+  const fetchElems = useCallback(async () => {
     const response = await getTopology();
     const filtered = {
       ...response,
@@ -22,7 +22,9 @@ const Page = () => {
         return {
           ...node,
           versions: node.versions?.filter((version) => {
-            return flowVisibility[version.flowId] === true;
+            const currentVisibility = flowVisibility[version.flowId];
+            // un-set visibility is considered visible, only false is hidden
+            return currentVisibility == null || currentVisibility === true;
           }),
         };
       }),
@@ -38,22 +40,23 @@ const Page = () => {
     setElems(newElems);
     // re-fetch flows if topology changes
     refetchFlows();
-  };
+  }, [getTopology, flowVisibility, refetchFlows]);
 
-  const startPolling = () => {
+  const startPolling = useCallback(() => {
     timerRef.current = setInterval(fetchElems, pollingIntervalSeconds * 1000);
-  };
+  }, [fetchElems]);
 
-  const stopPolling = () => {
+  const stopPolling = useCallback(() => {
     clearInterval(timerRef.current!);
     timerRef.current = null;
-  };
+  }, []);
 
   useEffect(() => {
+    fetchElems();
     startPolling();
     return stopPolling;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [startPolling, stopPolling, fetchElems]);
 
   return (
     <Grid
