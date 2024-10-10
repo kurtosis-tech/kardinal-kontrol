@@ -23,6 +23,8 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 		t.Errorf("Error generating cluster: %s", err)
 	}
 
+	require.NoError(t, err)
+	require.NotEmpty(t, cluster)
 	redisProdService := cluster.Services[0]
 	require.Equal(t, redisProdService.ServiceID, "redis-prod")
 	require.Equal(t, redisProdService.IsExternal, false)
@@ -36,7 +38,7 @@ func TestServiceConfigsToClusterTopology(t *testing.T) {
 	require.Equal(t, votingAppUIService.ServiceID, "voting-app-ui")
 	require.Equal(t, votingAppUIService.IsExternal, false)
 	require.Equal(t, votingAppUIService.IsStateful, false)
-	require.Equal(t, *votingAppUIService.ServiceSpec, testServiceConfigs[1].Service.Spec)
+	require.Equal(t, *votingAppUIService.ServiceSpec, testServiceConfigs[2].Service.Spec)
 	require.Equal(t, *votingAppUIService.WorkloadSpec.GetTemplateSpec(), testDeploymentConfigs[1].Deployment.Spec.Template.Spec)
 
 	dependency := cluster.ServiceDependencies[0]

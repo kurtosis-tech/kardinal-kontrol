@@ -9,7 +9,7 @@ import (
 	kardinal "kardinal.kontrol-service/types/kardinal"
 )
 
-const dummyPluginName = "https://github.com/h4ck3rk3y/identity-plugin.git"
+const dummyPluginName = "https://github.com/fake-org/kardinal-identity-plugin-example.git"
 
 var (
 	httpProtocol = "HTTP"

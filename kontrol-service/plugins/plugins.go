@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	// <flow id>-<service id>-<plugin idx>
-	pluginIdFmtStr = "%s-%s-%d"
+	// <plugin.service_name>-<flow id>
+	pluginIdFmtStr = "%s-%s"
 )
 
 type PluginRunner struct {
@@ -37,25 +37,33 @@ func NewPluginRunner(gitPluginProvider GitPluginProvider, tenantId string, db *d
 	}
 }
 
-func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceSpec, originalWorkloadSpec *kardinal.WorkloadSpec, flowUuid string, arguments map[string]string) (*kardinal.WorkloadSpec, string, error) {
-	workloadSpec := originalWorkloadSpec.DeepCopy()
+func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpecs []corev1.ServiceSpec, originalWorkloadSpecs []*kardinal.WorkloadSpec, flowUuid string, arguments map[string]string) ([]*kardinal.WorkloadSpec, string, error) {
+	var workloadSpecs []*kardinal.WorkloadSpec
+	var podSpecs []*v1.PodSpec
+	for _, originalWorkloadSpec := range originalWorkloadSpecs {
+		workloadSpec := originalWorkloadSpec.DeepCopy()
+		workloadSpecs = append(workloadSpecs, workloadSpec)
+		podSpecs = append(podSpecs, workloadSpec.GetTemplateSpec())
+	}
 
 	repoPath, err := pr.getOrCloneRepo(pluginUrl)
 	if err != nil {
 		return nil, "", fmt.Errorf("failed to get or clone repository: %v", err)
 	}
 
-	serviceSpecJSON, err := json.Marshal(serviceSpec)
+	serviceSpecsJSON, err := json.Marshal(serviceSpecs)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to marshal service spec: %v", err)
+		return nil, "", fmt.Errorf("failed to marshal service specs: %v", err)
 	}
+	serviceSpecsJSONStr := base64.StdEncoding.EncodeToString(serviceSpecsJSON)
 
-	deploymentSpecJSON, err := json.Marshal(workloadSpec.GetTemplateSpec())
+	podSpecsJSON, err := json.Marshal(podSpecs)
 	if err != nil {
-		return nil, "", fmt.Errorf("failed to marshal deployment spec: %v", err)
+		return nil, "", fmt.Errorf("failed to marshal pod specs: %v", err)
 	}
+	podSpecsJSONStr := base64.StdEncoding.EncodeToString(podSpecsJSON)
 
-	result, err := runPythonCreateFlow(repoPath, string(serviceSpecJSON), string(deploymentSpecJSON), flowUuid, arguments)
+	result, err := runPythonCreateFlow(repoPath, serviceSpecsJSONStr, podSpecsJSONStr, flowUuid, arguments)
 	if err != nil {
 		return nil, "", err
 	}
@@ -66,16 +74,23 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceS
 		return nil, "", fmt.Errorf("failed to parse result: %v", err)
 	}
 
-	if resultMap["pod_spec"] == nil {
-		return nil, "", fmt.Errorf("no pod_spec found in plugin result")
+	if resultMap["pod_specs"] == nil {
+		return nil, "", fmt.Errorf("no pod_specs found in plugin result")
 	} else {
-		var newDeploymentSpec v1.PodSpec
-		err = json.Unmarshal(resultMap["pod_spec"], &newDeploymentSpec)
+		var newPodSpecs []v1.PodSpec
+		err = json.Unmarshal(resultMap["pod_specs"], &newPodSpecs)
 		if err != nil {
-			logrus.Errorf("Failed to unmarshal pod spec: %v", string(resultMap["pod_spec"]))
-			return nil, "", fmt.Errorf("failed to unmarshal deployment spec: %v", err)
+			logrus.Errorf("Failed to unmarshal pod specs: %v", string(resultMap["pod_specs"]))
+			return nil, "", fmt.Errorf("failed to unmarshal pod specs: %v", err)
 		}
-		workloadSpec.UpdateTemplateSpec(newDeploymentSpec)
+		numWorkloadSpecs := len(workloadSpecs)
+		numNewPodSpecs := len(newPodSpecs)
+		if numWorkloadSpecs != numNewPodSpecs {
+			return nil, "", fmt.Errorf("expected to receive '%d' modified pod specs from plugin '%s' execution result but '%d' were received instead, this is a bug in Kardinal", numWorkloadSpecs, flowUuid, numNewPodSpecs)
+		}
+		for newPodSpecIdx, newPodSpec := range newPodSpecs {
+			workloadSpecs[newPodSpecIdx].UpdateTemplateSpec(newPodSpec)
+		}
 	}
 
 	configMapJSON := resultMap["config_map"]
@@ -96,7 +111,7 @@ func (pr *PluginRunner) CreateFlow(pluginUrl string, serviceSpec corev1.ServiceS
 		return nil, "", fmt.Errorf("failed to store the config map: %v", err)
 	}
 
-	return workloadSpec, string(configMapBytes), nil
+	return workloadSpecs, string(configMapBytes), nil
 }
 
 func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string) error {
@@ -123,8 +138,8 @@ func (pr *PluginRunner) DeleteFlow(pluginUrl, flowUuid string) error {
 	return nil
 }
 
-func GetPluginId(flowId, serviceId string, pluginIdx int) string {
-	return fmt.Sprintf(pluginIdFmtStr, flowId, serviceId, pluginIdx)
+func GetPluginId(pluginServiceName string, flowId string) string {
+	return fmt.Sprintf(pluginIdFmtStr, pluginServiceName, flowId)
 }
 
 func (pr *PluginRunner) getConfigForFlow(flowUuid string) (string, error) {
@@ -138,7 +153,7 @@ func (pr *PluginRunner) getConfigForFlow(flowUuid string) (string, error) {
 	return pluginConfig.Config, nil
 }
 
-func runPythonCreateFlow(repoPath, serviceSpecJSON, deploymentSpecJSON, flowUuid string, arguments map[string]string) (string, error) {
+func runPythonCreateFlow(repoPath, serviceSpecsJSONStr, podSpecsJSONStr, flowUuid string, arguments map[string]string) (string, error) {
 	scriptPath := filepath.Join(repoPath, "main.py")
 
 	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
@@ -178,8 +193,10 @@ import base64
 sys.path.append("%s")
 import main
 
-service_spec = json.loads('''%s''')
-pod_spec = json.loads('''%s''')
+service_specs_json = base64.b64decode('%s').decode('utf-8')
+service_specs = json.loads(service_specs_json)
+pod_specs_json = base64.b64decode('%s').decode('utf-8')
+pod_specs = json.loads(pod_specs_json)
 flow_uuid = %q
 args_json = base64.b64decode('%s').decode('utf-8')
 args = json.loads(args_json)
@@ -190,10 +207,10 @@ sig = inspect.signature(main.create_flow)
 # Prepare kwargs based on the function signature
 kwargs = {}
 for param in sig.parameters.values():
-    if param.name == 'service_spec':
-        kwargs['service_spec'] = service_spec
-    elif param.name == 'pod_spec':
-        kwargs['pod_spec'] = pod_spec
+    if param.name == 'service_specs':
+        kwargs['service_specs'] = service_specs
+    elif param.name == 'pod_specs':
+        kwargs['pod_specs'] = pod_specs
     elif param.name == 'flow_uuid':
         kwargs['flow_uuid'] = flow_uuid
     elif param.name in args:
@@ -209,7 +226,7 @@ result = main.create_flow(**kwargs)
 # Write the result to a temporary file
 with open('%s', 'w') as f:
     json.dump(result, f)
-`, repoPath, serviceSpecJSON, deploymentSpecJSON, flowUuid, argJsonStr, tempResultFile.Name())
+`, repoPath, serviceSpecsJSONStr, podSpecsJSONStr, flowUuid, argJsonStr, tempResultFile.Name())
 
 	if err := executePythonScript(venvPath, repoPath, tempScript); err != nil {
 		return "", err
