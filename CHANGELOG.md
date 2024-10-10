@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.1](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.4.0...0.4.1) (2024-10-10)
+
+
+### Bug Fixes
+
+* fix flow visibility logic ([#64](https://github.com/kurtosis-tech/kardinal-kontrol/issues/64)) ([ce84820](https://github.com/kurtosis-tech/kardinal-kontrol/commit/ce848200e88b2f3ba208456eb1632b7c07f4c0a7))
+
 ## [0.4.0](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.3.0...0.4.0) (2024-10-10)
 
 
