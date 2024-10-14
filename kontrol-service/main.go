@@ -2,17 +2,16 @@ package main
 
 import (
 	"flag"
-	"net/http"
-	"os"
-	"runtime/debug"
-	"strconv"
-
 	cli_api "github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api/api/golang/server"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/sirupsen/logrus"
 	"kardinal.kontrol-service/api"
 	"kardinal.kontrol-service/database"
+	"net/http"
+	"os"
+	"runtime/debug"
+	"strconv"
 )
 
 func main() {
