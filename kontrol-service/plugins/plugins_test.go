@@ -13,42 +13,82 @@ import (
 )
 
 const (
-	simplePlugin   = "https://github.com/h4ck3rk3y/a-test-plugin.git"
-	complexPlugin  = "https://github.com/h4ck3rk3y/slightly-more-complex-plugin.git"
-	identityPlugin = "https://github.com/h4ck3rk3y/identity-plugin.git"
-	redisPlugin    = "https://github.com/h4ck3rk3y/redis-sidecar-plugin.git"
+	simplePlugin   = "https://github.com/fake-org/kardinal-simple-plugin-example.git"
+	complexPlugin  = "https://github.com/fake-org/kardinal-slightly-more-complex-plugin-example.git"
+	identityPlugin = "https://github.com/fake-org/kardinal-identity-plugin-example.git"
+	redisPlugin    = "https://github.com/fake-org/kardinal-redis-sidecar-plugin-example.git"
 	flowUuid       = "test-flow-uuid"
 )
 
-var serviceSpec = corev1.ServiceSpec{}
+var serviceSpecs = []corev1.ServiceSpec{}
 
-var deploymentSpec = appv1.DeploymentSpec{
-	Selector: &metav1.LabelSelector{
-		MatchLabels: map[string]string{
-			"app": "helloworld",
-		},
-	},
-	Replicas: int32Ptr(1),
-	Template: corev1.PodTemplateSpec{
-		ObjectMeta: metav1.ObjectMeta{
-			Labels: map[string]string{
+var deploymentSpecs = []appv1.DeploymentSpec{
+	{
+		Selector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{
 				"app": "helloworld",
 			},
 		},
-		Spec: corev1.PodSpec{
-			Containers: []corev1.Container{
-				{
-					Name:  "helloworld",
-					Image: "karthequian/helloworld:latest",
-					Ports: []corev1.ContainerPort{
-						{
-							ContainerPort: 80,
+		Replicas: int32Ptr(1),
+		Template: corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"app": "helloworld",
+				},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:  "helloworld",
+						Image: "karthequian/helloworld:latest",
+						Ports: []corev1.ContainerPort{
+							{
+								ContainerPort: 80,
+							},
+						},
+						Env: []corev1.EnvVar{
+							{
+								Name:  "REDIS",
+								Value: "ip_addr",
+							},
 						},
 					},
-					Env: []corev1.EnvVar{
-						{
-							Name:  "REDIS",
-							Value: "ip_addr",
+				},
+			},
+		},
+	},
+	{
+		Selector: &metav1.LabelSelector{
+			MatchLabels: map[string]string{
+				"app": "helloworld-version2",
+			},
+		},
+		Replicas: int32Ptr(4),
+		Template: corev1.PodTemplateSpec{
+			ObjectMeta: metav1.ObjectMeta{
+				Labels: map[string]string{
+					"app": "helloworld-version2",
+				},
+			},
+			Spec: corev1.PodSpec{
+				Containers: []corev1.Container{
+					{
+						Name:  "helloworld",
+						Image: "karthequian/helloworld:latest",
+						Ports: []corev1.ContainerPort{
+							{
+								ContainerPort: 80,
+							},
+						},
+						Env: []corev1.EnvVar{
+							{
+								Name:  "REDIS",
+								Value: "ip_addr",
+							},
+							{
+								Name:  "FOO", // adding extra env var to compare differences
+								Value: "bar",
+							},
 						},
 					},
 				},
@@ -57,7 +97,13 @@ var deploymentSpec = appv1.DeploymentSpec{
 	},
 }
 
-var workloadSpec = kardinal.NewDeploymentWorkloadSpec(deploymentSpec)
+var workloadSpec1 = kardinal.NewDeploymentWorkloadSpec(deploymentSpecs[0])
+var workloadSpec2 = kardinal.NewDeploymentWorkloadSpec(deploymentSpecs[1])
+
+var workloadSpecs = []*kardinal.WorkloadSpec{
+	&workloadSpec1,
+	&workloadSpec2,
+}
 
 func getPluginRunner(t *testing.T) (*PluginRunner, func() error) {
 	db, cleanUpDbFunc, err := database.NewSQLiteDB()
@@ -84,11 +130,14 @@ func TestSimplePlugin(t *testing.T) {
 		"text_to_replace": "helloworld",
 	}
 
-	updatedDeploymentSpec, configMap, err := runner.CreateFlow(simplePlugin, serviceSpec, &workloadSpec, flowUuid, arguments)
+	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(simplePlugin, serviceSpecs, workloadSpecs, flowUuid, arguments)
 	require.NoError(t, err)
 
-	// Check if the deployment spec was updated correctly
-	require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.GetTemplateSpec().Containers[0].Name)
+	for idx, updatedDeploymentSpec := range updatedDeploymentSpecs {
+		// Check if the deployment spec was updated correctly
+		require.Equal(t, "the-text-has-been-replaced", updatedDeploymentSpec.GetTemplateSpec().Containers[0].Name)
+		require.Equal(t, workloadSpecs[idx].GetTemplateSpec().Containers[0].Env, updatedDeploymentSpec.GetTemplateSpec().Containers[0].Env)
+	}
 
 	// Verify the config map
 	var configMapData map[string]interface{}
@@ -109,11 +158,11 @@ func TestIdentityPlugin(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpec, &workloadSpec, flowUuid, map[string]string{})
+	updatedServiceSpec, configMap, err := runner.CreateFlow(identityPlugin, serviceSpecs, workloadSpecs, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
 	// Check if the deployment spec was updated correctly
-	require.Equal(t, workloadSpec, *updatedServiceSpec)
+	require.Equal(t, workloadSpecs, updatedServiceSpec)
 
 	// Verify the config map
 	var configMapData map[string]interface{}
@@ -134,12 +183,14 @@ func TestComplexPlugin(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(complexPlugin, serviceSpec, &workloadSpec, flowUuid, map[string]string{})
+	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(complexPlugin, serviceSpecs, workloadSpecs, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
-	// Check if the deployment spec was updated correctly
-	require.NotEqual(t, "ip_addr", updatedServiceSpec.GetTemplateSpec().Containers[0].Env[0].Value)
-	require.Regexp(t, `\b(?:\d{1,3}\.){3}\d{1,3}\b`, updatedServiceSpec.GetTemplateSpec().Containers[0].Env[0].Value)
+	for _, updatedDeploymentSpec := range updatedDeploymentSpecs {
+		// Check if the deployment spec was updated correctly
+		require.NotEqual(t, "ip_addr", updatedDeploymentSpec.GetTemplateSpec().Containers[0].Env[0].Value)
+		require.Regexp(t, `\b(?:\d{1,3}\.){3}\d{1,3}\b`, updatedDeploymentSpec.GetTemplateSpec().Containers[0].Env[0].Value)
+	}
 
 	// Verify the config map
 	var configMapData map[string]interface{}
@@ -160,11 +211,13 @@ func TestRedisPluginTest(t *testing.T) {
 	runner, cleanUpDbFunc := getPluginRunner(t)
 	defer cleanUpDbFunc()
 
-	updatedServiceSpec, configMap, err := runner.CreateFlow(redisPlugin, serviceSpec, &workloadSpec, flowUuid, map[string]string{})
+	updatedDeploymentSpecs, configMap, err := runner.CreateFlow(redisPlugin, serviceSpecs, workloadSpecs, flowUuid, map[string]string{})
 	require.NoError(t, err)
 
-	// Check if the deployment spec was updated correctly
-	require.Equal(t, "kurtosistech/redis-proxy-overlay:latest", updatedServiceSpec.GetTemplateSpec().Containers[0].Image)
+	for _, updatedDeploymentSpec := range updatedDeploymentSpecs {
+		// Check if the deployment spec was updated correctly
+		require.Equal(t, "kurtosistech/redis-proxy-overlay:latest", updatedDeploymentSpec.GetTemplateSpec().Containers[0].Image)
+	}
 
 	// Verify the config map
 	var configMapData map[string]interface{}

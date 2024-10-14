@@ -40,7 +40,6 @@ func GetIngressConfigs() []apitypes.IngressConfig {
 }
 
 func GetServiceConfigs() ([]apitypes.ServiceConfig, []apitypes.DeploymentConfig) {
-	serviceConfigs := []apitypes.ServiceConfig{}
 	deploymentConfigs := []apitypes.DeploymentConfig{}
 
 	// Redis prod service
@@ -50,9 +49,11 @@ func GetServiceConfigs() ([]apitypes.ServiceConfig, []apitypes.DeploymentConfig)
 	containerImage := "bitnami/redis:6.0.8"
 	containerName := "redis-prod"
 	version := "prod"
+	pluginServiceName := "redis-prod-plugin"
 	port := int32(6379)
 	portStr := fmt.Sprintf("%d", port)
-	serviceConfigs = append(serviceConfigs, apitypes.ServiceConfig{
+
+	redisProdServiceConfig := apitypes.ServiceConfig{
 		Service: v1.Service{
 			TypeMeta: metav1.TypeMeta{
 				APIVersion: "v1",
@@ -66,12 +67,7 @@ func GetServiceConfigs() ([]apitypes.ServiceConfig, []apitypes.DeploymentConfig)
 				},
 				Annotations: map[string]string{
 					"kardinal.dev.service/stateful": "true",
-					"kardinal.dev.service/plugins": `
-- name: github.com/kardinaldev/redis-db-sidecar-plugin:36ed9a4
-  type: stateful
-  args:
-    mode: "pass-through"
-`,
+					"kardinal.dev.service/plugins":  pluginServiceName,
 				},
 			},
 			Spec: v1.ServiceSpec{
@@ -88,7 +84,31 @@ func GetServiceConfigs() ([]apitypes.ServiceConfig, []apitypes.DeploymentConfig)
 				},
 			},
 		},
-	})
+	}
+
+	pluginServiceConfig := apitypes.ServiceConfig{
+		Service: v1.Service{
+			TypeMeta: metav1.TypeMeta{
+				APIVersion: "v1",
+				Kind:       "Service",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				Name: pluginServiceName,
+				Annotations: map[string]string{
+					"kardinal.dev.service/stateful": "true",
+					"kardinal.dev.service/plugin-definition": `
+- name: github.com/kardinaldev/redis-db-sidecar-plugin:36ed9a4
+  type: stateful
+  servicename: redis-prod-plugin
+  args:
+    mode: "pass-through"
+`,
+				},
+			},
+		},
+	}
+
+	serviceConfigs := []apitypes.ServiceConfig{redisProdServiceConfig, pluginServiceConfig}
 
 	deploymentConfigs = append(deploymentConfigs, apitypes.DeploymentConfig{
 		Deployment: apps.Deployment{

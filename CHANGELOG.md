@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.4.1](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.4.0...0.4.1) (2024-10-10)
+
+
+### Bug Fixes
+
+* fix flow visibility logic ([#64](https://github.com/kurtosis-tech/kardinal-kontrol/issues/64)) ([ce84820](https://github.com/kurtosis-tech/kardinal-kontrol/commit/ce848200e88b2f3ba208456eb1632b7c07f4c0a7))
+
+## [0.4.0](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.3.0...0.4.0) (2024-10-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* multiple services depending on same plugin implementation ([#61](https://github.com/kurtosis-tech/kardinal-kontrol/issues/61))
+
+### Features
+
+* multiple services depending on same plugin implementation ([#61](https://github.com/kurtosis-tech/kardinal-kontrol/issues/61)) ([3fce223](https://github.com/kurtosis-tech/kardinal-kontrol/commit/3fce2233898dcc576136f79374be0b5c829483a7))
+
 ## [0.3.0](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.2.3...0.3.0) (2024-10-03)
 
 

@@ -247,18 +247,37 @@ func processServiceConfigs(
 	statefulSetConfigs []apitypes.StatefulSetConfig,
 	version string,
 ) ([]*resolved.Service, []resolved.ServiceDependency, error) {
+	var err error
 	clusterTopologyServices := []*resolved.Service{}
 	clusterTopologyServiceDependencies := []resolved.ServiceDependency{}
 	externalServicesDependencies := []resolved.ServiceDependency{}
+	availablePlugins := map[string]*resolved.StatefulPlugin{}
 
 	type serviceWithDependenciesAnnotation struct {
 		service                *resolved.Service
 		dependenciesAnnotation string
 	}
-	serviceWithDependencies := []*serviceWithDependenciesAnnotation{}
+	servicesWithDependencies := []*serviceWithDependenciesAnnotation{}
 
+	// First, iterate the services to get all the available plugins
+	for _, serviceConfig := range serviceConfigs {
+		// availablePlugins list contains both stateful and external plugins and, externalServices is a list of Kardinal services that are also linked with a plugin inside the availablePlugins list
+		availablePlugins, err = addAvailablePluginsFromServiceConfig(serviceConfig, availablePlugins)
+		if err != nil {
+			return nil, nil, stacktrace.Propagate(err, "An error occurred while parsing plugin '%s'", serviceConfig.Service.GetName())
+		}
+	}
+
+	// Second, iterate the services to create the clusterTopology service with partial data (no dependencies set here)
 	for _, serviceConfig := range serviceConfigs {
 		service := serviceConfig.Service
+
+		// A plugin services (k8s services with the kardinal.dev.service/plugin-definition) are used to define a plugin Type and not a k8s service
+		isPlugin, _ := isPluginService(service)
+		if isPlugin {
+			continue
+		}
+
 		serviceAnnotations := service.GetObjectMeta().GetAnnotations()
 
 		// 1- Service
@@ -271,12 +290,13 @@ func processServiceConfigs(
 			return nil, nil, stacktrace.Propagate(error, "An error occurred creating new cluster topology service from service config '%s'", service.Name)
 		}
 
-		// 2- Service plugins
-		serviceStatefulPlugins, externalServices, newExternalServicesDependencies, err := newStatefulPluginsAndExternalServicesFromServiceConfig(serviceConfig, version, &clusterTopologyService)
+		// 2- Plugins
+		// the servicePlugins list contains both stateful and external plugins and, externalServices is a list of Kardinal services that are also linked with a plugin inside the availablePlugins list
+		servicePlugins, externalServices, newExternalServicesDependencies, err := newServicePluginsAndExternalServicesFromServiceConfig(serviceConfig, version, &clusterTopologyService, availablePlugins)
 		if err != nil {
 			return nil, nil, stacktrace.Propagate(err, "An error occurred creating new stateful plugins and external services from service config '%s'", service.Name)
 		}
-		clusterTopologyService.StatefulPlugins = serviceStatefulPlugins
+		clusterTopologyService.StatefulPlugins = servicePlugins
 		clusterTopologyServices = append(clusterTopologyServices, externalServices...)
 		externalServicesDependencies = append(externalServicesDependencies, newExternalServicesDependencies...)
 
@@ -284,16 +304,16 @@ func processServiceConfigs(
 		dependencies, ok := serviceAnnotations["kardinal.dev.service/dependencies"]
 		if ok {
 			newServiceWithDependenciesAnnotation := &serviceWithDependenciesAnnotation{&clusterTopologyService, dependencies}
-			serviceWithDependencies = append(serviceWithDependencies, newServiceWithDependenciesAnnotation)
+			servicesWithDependencies = append(servicesWithDependencies, newServiceWithDependenciesAnnotation)
 		}
 		clusterTopologyServices = append(clusterTopologyServices, &clusterTopologyService)
 	}
 
-	// Set the service dependencies in the clusterTopologyService
-	// first iterate on the service with dependencies list
-	for _, svcWithDependenciesAnnotation := range serviceWithDependencies {
+	// Third, set the service dependencies in the clusterTopologyService
+	// a) iterate on the service with dependencies list
+	for _, serviceWithDependencies := range servicesWithDependencies {
 
-		serviceAndPorts := strings.Split(svcWithDependenciesAnnotation.dependenciesAnnotation, ",")
+		serviceAndPorts := strings.Split(serviceWithDependencies.dependenciesAnnotation, ",")
 		for _, serviceAndPort := range serviceAndPorts {
 			serviceAndPortParts := strings.Split(serviceAndPort, ":")
 			depService, depServicePort, err := getServiceAndPortFromClusterTopologyServices(serviceAndPortParts[0], serviceAndPortParts[1], clusterTopologyServices)
@@ -302,7 +322,7 @@ func processServiceConfigs(
 			}
 
 			serviceDependency := resolved.ServiceDependency{
-				Service:          svcWithDependenciesAnnotation.service,
+				Service:          serviceWithDependencies.service,
 				DependsOnService: depService,
 				DependencyPort:   depServicePort,
 			}
@@ -310,33 +330,72 @@ func processServiceConfigs(
 			clusterTopologyServiceDependencies = append(clusterTopologyServiceDependencies, serviceDependency)
 		}
 	}
-	// then add the external services dependencies
+	// b) add the external services dependencies
 	clusterTopologyServiceDependencies = append(clusterTopologyServiceDependencies, externalServicesDependencies...)
 
 	return clusterTopologyServices, clusterTopologyServiceDependencies, nil
 }
 
-func newStatefulPluginsAndExternalServicesFromServiceConfig(serviceConfig apitypes.ServiceConfig, version string, clusterTopologyService *resolved.Service) ([]*resolved.StatefulPlugin, []*resolved.Service, []resolved.ServiceDependency, error) {
-	var serviceStatefulPlugins []*resolved.StatefulPlugin
+func addAvailablePluginsFromServiceConfig(serviceConfig apitypes.ServiceConfig, availablePlugins map[string]*resolved.StatefulPlugin) (map[string]*resolved.StatefulPlugin, error) {
+	service := serviceConfig.Service
+	isPlugin, pluginAnnotation := isPluginService(service)
+	if isPlugin {
+		var statefulPlugins []resolved.StatefulPlugin
+		err := yaml.Unmarshal([]byte(pluginAnnotation), &statefulPlugins)
+		if err != nil {
+			return nil, stacktrace.Propagate(err, "an error occurred parsing the plugins for service %s", service.GetObjectMeta().GetName())
+		}
+
+		for index := range statefulPlugins {
+			plugin := statefulPlugins[index]
+			_, found := availablePlugins[plugin.ServiceName]
+			if found {
+				return nil, stacktrace.NewError("a plugin with service name '%s' already exists, the `plugin.servicename` value has to be unique", plugin.ServiceName)
+			}
+			availablePlugins[plugin.ServiceName] = &plugin
+		}
+	}
+
+	return availablePlugins, nil
+}
+
+func isPluginService(service corev1.Service) (bool, string) {
+	serviceAnnotations := service.GetObjectMeta().GetAnnotations()
+
+	pluginAnnotation, ok := serviceAnnotations["kardinal.dev.service/plugin-definition"]
+
+	return ok, pluginAnnotation
+}
+
+func newServicePluginsAndExternalServicesFromServiceConfig(
+	serviceConfig apitypes.ServiceConfig,
+	version string,
+	clusterTopologyService *resolved.Service,
+	availablePlugins map[string]*resolved.StatefulPlugin,
+) (
+	[]*resolved.StatefulPlugin,
+	[]*resolved.Service,
+	[]resolved.ServiceDependency,
+	error,
+) {
+	servicePlugins := []*resolved.StatefulPlugin{}
 	externalServices := []*resolved.Service{}
 	externalServiceDependencies := []resolved.ServiceDependency{}
 
 	service := serviceConfig.Service
 	serviceAnnotations := service.GetObjectMeta().GetAnnotations()
 
-	sPluginsAnnotation, ok := serviceAnnotations["kardinal.dev.service/plugins"]
+	pluginsAnnotation, ok := serviceAnnotations["kardinal.dev.service/plugins"]
 	if ok {
-		var statefulPlugins []resolved.StatefulPlugin
-		err := yaml.Unmarshal([]byte(sPluginsAnnotation), &statefulPlugins)
-		if err != nil {
-			return nil, nil, nil, stacktrace.Propagate(err, "An error occurred parsing the plugins for service %s", service.GetObjectMeta().GetName())
-		}
-		serviceStatefulPlugins = make([]*resolved.StatefulPlugin, len(statefulPlugins))
-
-		for index := range statefulPlugins {
+		pluginsServiceName := strings.Split(pluginsAnnotation, ",")
+		for _, pluginSvcName := range pluginsServiceName {
+			plugin, ok := availablePlugins[pluginSvcName]
+			if !ok {
+				return nil, nil, nil, stacktrace.NewError("expected to find plugin with service name %s but it is not available, make sure to add the resource for it in the manifest file", pluginSvcName)
+			}
+			servicePlugins = append(servicePlugins, plugin)
 			// TODO: consider giving external service plugins their own type, instead of using StatefulPlugins
 			// if this is an external service plugin, represent that service as a service in the cluster topology
-			plugin := statefulPlugins[index]
 			if plugin.Type == "external" {
 				logrus.Infof("Adding external service to topology..")
 				serviceName := plugin.ServiceName
@@ -364,11 +423,10 @@ func newStatefulPluginsAndExternalServicesFromServiceConfig(serviceConfig apityp
 				}
 				externalServiceDependencies = append(externalServiceDependencies, externalServiceDependency)
 			}
-			serviceStatefulPlugins[index] = &plugin
 		}
 	}
 
-	return serviceStatefulPlugins, externalServices, externalServiceDependencies, nil
+	return servicePlugins, externalServices, externalServiceDependencies, nil
 }
 
 func newClusterTopologyServiceFromConfigs(
@@ -395,7 +453,7 @@ func newClusterTopologyServiceFromConfigs(
 			deploymentConfig.Deployment.GetObjectMeta().GetName(),
 			statefulSetConfig.StatefulSet.GetObjectMeta().GetName(),
 		}
-		logrus.Error("Service %s is associated with more than one workload: %v", serviceName, workloads)
+		logrus.Errorf("Service %s is associated with more than one workload: %v", serviceName, workloads)
 	}
 	if deploymentConfig != nil {
 		workload := kardinal.NewDeploymentWorkloadSpec(deploymentConfig.Deployment.Spec)
