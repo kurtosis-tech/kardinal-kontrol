@@ -81,21 +81,21 @@ func applyEnvVarOverrides(
 	envVars []corev1.EnvVar) []corev1.EnvVar {
 	// merge environment variables and env var overrides
 	translatedOverrides := map[string]corev1.EnvVar{}
-	for k, v := range envVarOverrides {
-		translatedOverrides[k] = corev1.EnvVar{
-			Name:      k,
-			Value:     v,
+	for envVarName, envVarVal := range envVarOverrides {
+		translatedOverrides[envVarName] = corev1.EnvVar{
+			Name:      envVarName,
+			Value:     envVarVal,
 			ValueFrom: nil,
 		}
 	}
 
-	for k, v := range secretEnvVarOverrides {
-		translatedOverrides[k] = corev1.EnvVar{
-			Name: k,
+	for envVarName, envVarValue := range secretEnvVarOverrides {
+		translatedOverrides[envVarName] = corev1.EnvVar{
+			Name: envVarName,
 			ValueFrom: &corev1.EnvVarSource{
 				SecretKeyRef: &corev1.SecretKeySelector{
-					LocalObjectReference: corev1.LocalObjectReference{Name: v}, // assume v is the secret name
-					Key:                  k,
+					LocalObjectReference: corev1.LocalObjectReference{Name: envVarValue}, // assume v is the secret name
+					Key:                  envVarName,
 					Optional:             nil,
 				},
 			},
