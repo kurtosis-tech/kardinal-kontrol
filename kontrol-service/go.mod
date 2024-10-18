@@ -1,10 +1,6 @@
 module kardinal.kontrol-service
 
-go 1.22.0
-
-toolchain go1.22.3
-
-replace github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api => ../../kardinal/libs/cli-kontrol-api
+go 1.22.3
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2

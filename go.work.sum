@@ -152,6 +152,8 @@ github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814135254-a07
 github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814135254-a0724da5a551/go.mod h1:Zlbpg7q5pTUaddoMN9zaraCNvvuD4KJNPPC8WyUF8DI=
 github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814140453-975ebac24b93 h1:hijv6grblylZS82qnFei4L3t/60MD0cPVV0XDrHUL9I=
 github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20240814140453-975ebac24b93/go.mod h1:Zlbpg7q5pTUaddoMN9zaraCNvvuD4KJNPPC8WyUF8DI=
+github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20241003172041-a1632d5aecd8 h1:I/XvDVzAUvSAo586Qy/ioFfnyk8lXIsYGwmyeoE08W0=
+github.com/kurtosis-tech/kardinal/libs/cli-kontrol-api v0.0.0-20241003172041-a1632d5aecd8/go.mod h1:dQ+ZYcpSrex3FlfyYAvGuhIFHim+oJuJvslNp8rwuFo=
 github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240814135254-a0724da5a551 h1:D+ct39Xc/rE4nvgyueIZyc44dFm+Gyp3C9daAjlxjIw=
 github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240814135254-a0724da5a551/go.mod h1:lj6oLhpXgnc9ZaulV7jysgRaeZUDPK6XiM2TxpcGRqM=
 github.com/kurtosis-tech/kardinal/libs/manager-kontrol-api v0.0.0-20240814140453-975ebac24b93 h1:s5cXvxg52er5nMCy+9v9wR+4nv+CxHOzXwIf2q2vRA0=
