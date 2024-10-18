@@ -9,7 +9,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
-
 	corev1 "k8s.io/api/core/v1"
 	net "k8s.io/api/networking/v1"
 	gateway "sigs.k8s.io/gateway-api/apis/v1"
@@ -52,6 +51,9 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 		clonedWorkloadSpec := workloadSpec.DeepCopy()
 
 		// TODO: find a better way to update deploymentSpec, this assumes there is only container in the pod
+		clonedWorkloadSpec.DeploymentSpec.Template.Spec.Containers[0].Image = item.Image
+		clonedWorkloadSpec.DeploymentSpec.Template.Spec.Containers[0].Env = applyEnvVarOverrides(item.EnvVarOverrides, item.SecretEnvVarOverrides, clonedWorkloadSpec.DeploymentSpec.Template.Spec.Containers[0].Env)
+
 		clonedWorkloadSpec.GetTemplateSpec().Containers[0].Image = item.Image
 
 		patches = append(patches, flow_spec.ServicePatch{
@@ -71,6 +73,50 @@ func GenerateProdDevCluster(baseClusterTopologyMaybeWithTemplateOverrides *resol
 	}
 
 	return clusterTopology, nil
+}
+
+func applyEnvVarOverrides(
+	envVarOverrides map[string]string,
+	secretEnvVarOverrides map[string]string,
+	envVars []corev1.EnvVar) []corev1.EnvVar {
+	// merge environment variables and env var overrides
+	translatedOverrides := map[string]corev1.EnvVar{}
+	for envVarName, envVarVal := range envVarOverrides {
+		translatedOverrides[envVarName] = corev1.EnvVar{
+			Name:      envVarName,
+			Value:     envVarVal,
+			ValueFrom: nil,
+		}
+	}
+
+	for envVarName, envVarValue := range secretEnvVarOverrides {
+		translatedOverrides[envVarName] = corev1.EnvVar{
+			Name: envVarName,
+			ValueFrom: &corev1.EnvVarSource{
+				SecretKeyRef: &corev1.SecretKeySelector{
+					LocalObjectReference: corev1.LocalObjectReference{Name: envVarValue}, // assume v is the secret name
+					Key:                  envVarName,
+					Optional:             nil,
+				},
+			},
+		}
+	}
+
+	newEnvVars := []corev1.EnvVar{}
+	for _, envVar := range envVars {
+		if override, ok := translatedOverrides[envVar.Name]; ok {
+			newEnvVars = append(newEnvVars, override)
+			delete(translatedOverrides, envVar.Name)
+		} else {
+			newEnvVars = append(newEnvVars, envVar)
+		}
+	}
+
+	for _, envVar := range translatedOverrides {
+		newEnvVars = append(newEnvVars, envVar)
+	}
+
+	return newEnvVars
 }
 
 func generateClusterTopology(
