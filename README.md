@@ -3,6 +3,8 @@
 
 # Kardinal Kontrol
 
+## Disclaimer: This project is no longer maintained.
+
 ## Developing instructions
 
 1. Enter the dev shell and start the local cluster:
