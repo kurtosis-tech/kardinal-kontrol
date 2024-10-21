@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.2](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.4.1...0.4.2) (2024-10-21)
+
+
+### Features
+
+* allow overriding env vars in flows ([#62](https://github.com/kurtosis-tech/kardinal-kontrol/issues/62)) ([d63c2ba](https://github.com/kurtosis-tech/kardinal-kontrol/commit/d63c2ba312fbbbb066fcd1250c75e45e95dcf1b3))
+
 ## [0.4.1](https://github.com/kurtosis-tech/kardinal-kontrol/compare/0.4.0...0.4.1) (2024-10-10)
 
 
